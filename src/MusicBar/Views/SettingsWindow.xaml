@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="clr-namespace:MusicBar.Views"
-        Title="Cài đặt MusicBar"
+        xmlns:l="clr-namespace:MusicBar.Infrastructure"
+        Title="{l:Tr Set_Title}"
         Width="980" Height="720" MinWidth="800" MinHeight="540"
         WindowStartupLocation="CenterScreen"
         ThemeMode="Dark"
@@ -54,7 +55,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
                         <StackPanel Orientation="Horizontal" Background="Transparent">
-                            <TextBlock x:Name="Label" Text="Tắt" Width="30" Margin="0,0,10,0" TextAlignment="Right"
+                            <TextBlock x:Name="Label" Text="{l:Tr Set_Off}" Width="30" Margin="0,0,10,0" TextAlignment="Right"
                                        VerticalAlignment="Center" Opacity="0.8" />
                             <Grid Width="40" Height="20">
                                 <Border x:Name="Track" CornerRadius="10" BorderThickness="1" BorderBrush="#A0FFFFFF"
@@ -72,7 +73,7 @@
                                 <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}" />
                                 <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Accent}" />
                                 <Setter TargetName="Thumb" Property="Fill" Value="#FF111111" />
-                                <Setter TargetName="Label" Property="Text" Value="Bật" />
+                                <Setter TargetName="Label" Property="Text" Value="{l:Tr Set_On}" />
                                 <Trigger.EnterActions>
                                     <BeginStoryboard>
                                         <Storyboard>
@@ -205,13 +206,26 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal" Margin="8,4,0,22">
-                <Image Source="pack://application:,,,/Assets/MusicBar.ico" Width="30" Height="30"
-                       RenderOptions.BitmapScalingMode="HighQuality" />
-                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="MusicBar" FontSize="15" FontWeight="SemiBold" />
-                    <TextBlock x:Name="VersionText" FontSize="11.5" Opacity="0.55" />
+            <StackPanel Margin="8,4,0,22">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="pack://application:,,,/Assets/MusicBar.ico" Width="30" Height="30"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="MusicBar" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock x:Name="VersionText" FontSize="11.5" Opacity="0.55" />
+                    </StackPanel>
                 </StackPanel>
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="30" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE774;" FontFamily="{StaticResource Icons}" FontSize="16"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" Margin="12,0,0,0" DisplayMemberPath="Label" SelectedValuePath="Value"
+                              ItemsSource="{x:Static v:SettingsOptions.Languages}" SelectedValue="{Binding Language}"
+                              ToolTip="{l:Tr Set_Language}" />
+                </Grid>
             </StackPanel>
 
             <ListBox x:Name="Nav" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0"
@@ -220,25 +234,25 @@
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Taskbar" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Bar}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE790;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Giao diện" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Look}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Lời bài hát" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Lyrics}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE946;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Giới thiệu" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_About}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
             </ListBox>
@@ -262,7 +276,7 @@
                         </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="ĐANG PHÁT" FontSize="10" FontWeight="SemiBold" Opacity="0.5" />
+                        <TextBlock Text="{l:Tr Set_NowPlaying}" FontSize="10" FontWeight="SemiBold" Opacity="0.5" />
                         <TextBlock x:Name="NowTitle" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                         <TextBlock x:Name="NowArtist" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
@@ -276,26 +290,25 @@
 
                 <!-- Taskbar -->
                 <StackPanel x:Name="PageBar">
-                    <TextBlock Text="Taskbar" Style="{StaticResource PageTitle}" />
-                    <TextBlock Text="MusicBar chạy ngay trên taskbar của Windows: một lớp thanh tiến trình trải hết chiều ngang taskbar, cùng một widget lời bài hát và nút điều khiển ở vùng trống."
-                               Style="{StaticResource PageSubtitle}" />
+                    <TextBlock Text="{l:Tr Set_Page_Bar}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Bar_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
-                    <TextBlock Text="Taskbar của Windows" Style="{StaticResource Group}" />
-                    <v:SettingCard x:Name="TaskbarSizeCard" Glyph="&#xE740;" Header="Kích thước taskbar"
-                                   Description="Taskbar nhỏ: icon nhỏ và thanh mỏng hơn.">
+                    <TextBlock Text="{l:Tr Set_Bar_GroupWindows}" Style="{StaticResource Group}" />
+                    <v:SettingCard x:Name="TaskbarSizeCard" Glyph="&#xE740;" Header="{l:Tr Set_TaskbarSize}"
+                                   Description="{l:Tr Set_TaskbarSize_Desc}">
                         <ComboBox x:Name="TaskbarSizeCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   ItemsSource="{x:Static v:SettingsOptions.TaskbarSizes}" SelectionChanged="TaskbarSize_Changed" />
                     </v:SettingCard>
-                    <v:SettingCard x:Name="TransparentCard" Glyph="&#xE81E;" Header="Làm taskbar trong suốt"
-                                   Description="Có sẵn trong MusicBar, không cần cài TranslucentTB.">
+                    <v:SettingCard x:Name="TransparentCard" Glyph="&#xE81E;" Header="{l:Tr Set_Transparent}"
+                                   Description="{l:Tr Set_Transparent_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding TransparentTaskbar}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE91C;" Header="Trung tâm điều khiển MusicBar">
-                        <v:SettingCard.Description>Nút mạng / âm lượng (Windows 11) hoặc nút Control Center (ExplorerPatcher) mở bảng của MusicBar: thông báo, cài đặt nhanh, âm lượng và chọn loa. Trên taskbar kiểu Windows 10, icon âm lượng và chuông thông báo được gộp vào đó. Thoát MusicBar là mọi thứ trở lại như cũ.</v:SettingCard.Description>
+                    <v:SettingCard Glyph="&#xE91C;" Header="{l:Tr Set_ControlCenter}"
+                                   Description="{l:Tr Set_ControlCenter_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ControlCenter}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8E3;" Header="Đặt nút Start và icon ở giữa"
-                                   Description="Start menu cũng mở ở giữa màn hình.">
+                    <v:SettingCard Glyph="&#xE8E3;" Header="{l:Tr Set_Center}"
+                                   Description="{l:Tr Set_Center_Desc}">
                         <CheckBox x:Name="TaskbarCenterSwitch" Style="{StaticResource Switch}"
                                   Checked="TaskbarCenter_Changed" Unchecked="TaskbarCenter_Changed" />
                     </v:SettingCard>
@@ -308,95 +321,94 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="TaskbarStatusText" FontSize="12" Opacity="0.7" TextWrapping="Wrap" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                                <Button x:Name="SwitchTaskbarButton" Content="Dùng taskbar ExplorerPatcher" Padding="14,5"
+                                <Button x:Name="SwitchTaskbarButton" Content="{l:Tr Set_UseExplorerPatcher}" Padding="14,5"
                                         Margin="0,0,0,6" Click="SwitchTaskbar_Click" HorizontalAlignment="Stretch" />
-                                <Button x:Name="RestartExplorerButton" Content="Khởi động lại Explorer" Padding="14,5"
+                                <Button x:Name="RestartExplorerButton" Content="{l:Tr Set_RestartExplorer}" Padding="14,5"
                                         Click="RestartExplorer_Click" HorizontalAlignment="Stretch" />
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <TextBlock Text="Lớp tiến trình" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE81E;" Header="Vị trí lớp so với taskbar">
-                        <v:SettingCard.Description>Nằm dưới: icon taskbar ở trên lớp, cần taskbar trong suốt (vd. TranslucentTB). Phủ mờ: dùng khi taskbar không trong suốt, độ đậm tự giới hạn để icon vẫn rõ.</v:SettingCard.Description>
+                    <TextBlock Text="{l:Tr Set_Bar_GroupLayer}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE81E;" Header="{l:Tr Set_LayerMode}"
+                                   Description="{l:Tr Set_LayerMode_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   ItemsSource="{x:Static v:SettingsOptions.LayerModes}" SelectedValue="{Binding LayerMode}" />
                     </v:SettingCard>
                     <TextBlock x:Name="LayerStatusText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" />
 
-                    <TextBlock Text="Widget điều khiển" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE737;" Header="Vị trí widget" Description="Widget tự tìm khoảng trống giữa các icon và khay hệ thống.">
+                    <TextBlock Text="{l:Tr Set_Bar_GroupWidget}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE737;" Header="{l:Tr Set_WidgetPlacement}" Description="{l:Tr Set_WidgetPlacement_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   ItemsSource="{x:Static v:SettingsOptions.Placements}" SelectedValue="{Binding WidgetPlacement}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8FD;" Header="Hiện lời bài hát trên taskbar"
-                                   Description="Bấm vào ảnh bìa trên taskbar để bật hoặc tắt nhanh.">
+                    <v:SettingCard Glyph="&#xE8FD;" Header="{l:Tr Set_LyricsExpanded}"
+                                   Description="{l:Tr Set_LyricsExpanded_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsExpanded}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8A1;" Header="Lời bài hát nằm ở"
-                                   Description="Khoảng trống lớn nhất: lời tự dời theo icon, nằm giữa vùng trống dù icon căn giữa hay căn trái.">
+                    <v:SettingCard Glyph="&#xE8A1;" Header="{l:Tr Set_LyricsPlacement}"
+                                   Description="{l:Tr Set_LyricsPlacement_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   ItemsSource="{x:Static v:SettingsOptions.LyricsPlacements}" SelectedValue="{Binding LyricsPlacement}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE946;" Header="Thẻ thông tin bài hát"
-                                   Description="Giữ chuột trên ảnh bìa một lúc để xem ảnh bìa lớn, ca sĩ, album, thể loại.">
+                    <v:SettingCard Glyph="&#xE946;" Header="{l:Tr Set_InfoPopup}"
+                                   Description="{l:Tr Set_InfoPopup_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowInfoPopup}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE774;" Header="Tra thể loại và năm phát hành"
-                                   Description="Hỏi danh mục iTunes theo tên bài và ca sĩ, vì đa số trình phát không gửi thể loại.">
+                    <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_OnlineInfo}"
+                                   Description="{l:Tr Set_OnlineInfo_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineTrackInfo}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE740;" Header="Độ rộng khi mở lời bài hát">
+                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_WidgetMaxWidth}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="240" Maximum="1200" TickFrequency="20" IsSnapToTickEnabled="True"
                                     Value="{Binding WidgetMaxWidth}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding WidgetMaxWidth, StringFormat={}{0:0} px}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE767;" Header="Ứng dụng được theo dõi"
-                                   Description="Tự động sẽ chọn ứng dụng đang phát; ghim một ứng dụng để luôn hiện nó.">
+                    <v:SettingCard Glyph="&#xE767;" Header="{l:Tr Set_Source}"
+                                   Description="{l:Tr Set_Source_Desc}">
                         <ComboBox x:Name="SourceCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   SelectedValue="{Binding PinnedAppId}" DropDownOpened="SourceCombo_DropDownOpened" />
                     </v:SettingCard>
 
-                    <TextBlock Text="Hành vi" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE7ED;" Header="Ẩn khi không có nhạc"
-                                   Description="Taskbar trở về như cũ; MusicBar tự hiện lại khi một ứng dụng bắt đầu phát.">
+                    <TextBlock Text="{l:Tr Set_Bar_GroupBehavior}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7ED;" Header="{l:Tr Set_HideIdle}"
+                                   Description="{l:Tr Set_HideIdle_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideWhenIdle}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE740;" Header="Ẩn khi có ứng dụng toàn màn hình"
-                                   Description="Game, video toàn màn hình, trình chiếu...">
+                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_HideFullscreen}"
+                                   Description="{l:Tr Set_HideFullscreen_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideInFullscreen}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE7E8;" Header="Khởi động cùng Windows">
+                    <v:SettingCard Glyph="&#xE7E8;" Header="{l:Tr Set_StartWithWindows}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding StartWithWindows}" />
                     </v:SettingCard>
                 </StackPanel>
 
                 <!-- Look -->
                 <StackPanel x:Name="PageLook" Visibility="Collapsed">
-                    <TextBlock Text="Giao diện" Style="{StaticResource PageTitle}" />
-                    <TextBlock Text="Màu sắc, nền taskbar và những thứ hiển thị trong widget. Mọi thay đổi áp dụng ngay."
-                               Style="{StaticResource PageSubtitle}" />
+                    <TextBlock Text="{l:Tr Set_Page_Look}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Look_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
-                    <TextBlock Text="Nền và màu" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE771;" Header="Nền taskbar">
+                    <TextBlock Text="{l:Tr Set_Look_GroupColors}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE771;" Header="{l:Tr Set_Background}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Backgrounds}"
                                   SelectedValue="{Binding Background}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE706;" Header="Độ đậm nền" Description="Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%.">
+                    <v:SettingCard Glyph="&#xE706;" Header="{l:Tr Set_BgOpacity}" Description="{l:Tr Set_BgOpacity_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
                                     Value="{Binding BackgroundOpacity}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding BackgroundOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE790;" Header="Màu nhấn của thanh tiến trình"
-                                   Description="Ảnh bìa không có màu nổi bật thì dùng màu ứng dụng, rồi tới màu Windows.">
+                    <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_Accent}"
+                                   Description="{l:Tr Set_Accent_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.AccentSources}"
                                   SelectedValue="{Binding AccentSource}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE2B1;" Header="Màu tự chọn" Description="Chọn một mẫu hoặc nhập mã hex.">
+                    <v:SettingCard Glyph="&#xE2B1;" Header="{l:Tr Set_CustomColor}" Description="{l:Tr Set_CustomColor_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <ItemsControl ItemsSource="{x:Static v:SettingsOptions.Swatches}" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
@@ -416,34 +428,38 @@
                         </StackPanel>
                     </v:SettingCard>
 
-                    <TextBlock Text="Phong cách thanh tiến trình" Style="{StaticResource Group}" />
-                    <TextBlock Text="Bản xem trước chạy thật với màu của bài đang phát. Bấm để chọn."
+                    <TextBlock Text="{l:Tr Set_Look_GroupStyle}" Style="{StaticResource Group}" />
+                    <TextBlock Text="{l:Tr Set_Look_StyleHint}"
                                FontSize="12" Opacity="0.6" Margin="2,-4,0,10" />
                     <WrapPanel x:Name="SeekGallery" Margin="0,0,-10,6" />
-                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm">
+                    <v:SettingCard Glyph="&#xE793;" Header="{l:Tr Set_FillOpacity}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0.08" Maximum="0.9" SmallChange="0.02" LargeChange="0.1"
                                     Value="{Binding FillOpacity}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding FillOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE995;" Header="Nhảy theo nhạc"
-                                   Description="Đọc âm thanh đang phát ra loa để các kiểu như Phổ âm, Dạng sóng, Cực quang chuyển động theo nhạc. Chỉ xử lý trong máy.">
+                    <v:SettingCard Glyph="&#xE995;" Header="{l:Tr Set_AudioReactive}"
+                                   Description="{l:Tr Set_AudioReactive_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AudioReactive}" />
                     </v:SettingCard>
 
-                    <TextBlock Text="Thành phần" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE91B;" Header="Ảnh bìa">
+                    <TextBlock Text="{l:Tr Set_Look_GroupParts}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE91B;" Header="{l:Tr Set_AlbumArt}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAlbumArt}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE71D;" Header="Biểu tượng ứng dụng đang phát" Description="Huy hiệu nhỏ ở góc ảnh bìa.">
+                    <v:SettingCard Glyph="&#xE71D;" Header="{l:Tr Set_AppIcon}" Description="{l:Tr Set_AppIcon_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAppIcon}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE768;" Header="Nút điều khiển (lùi / phát / tới)">
+                    <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_Controls}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowControls}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8D2;" Header="Phông chữ"
-                                   Description="10 phông đầu danh sách có sẵn trong MusicBar, miễn phí và hỗ trợ đủ tiếng Việt.">
+                    <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_ControlStyle}" Description="{l:Tr Set_ControlStyle_Desc}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.ControlStyles}" SelectedValue="{Binding ControlStyle}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8D2;" Header="{l:Tr Set_Font}"
+                                   Description="{l:Tr Set_Font_Desc}">
                         <ComboBox x:Name="FontCombo" MinWidth="260" SelectedItem="{Binding FontFamily}" MaxDropDownHeight="420"
                                   VirtualizingPanel.IsVirtualizing="True">
                             <ComboBox.Resources>
@@ -465,41 +481,40 @@
 
                 <!-- Lyrics -->
                 <StackPanel x:Name="PageLyrics" Visibility="Collapsed">
-                    <TextBlock Text="Lời bài hát" Style="{StaticResource PageTitle}" />
-                    <TextBlock Text="Lời đồng bộ theo từng dòng lấy từ LRCLIB (kho lời mở). Lời đã tải được lưu thành file .lrc để lần sau dùng ngay, không cần mạng."
-                               Style="{StaticResource PageSubtitle}" />
+                    <TextBlock Text="{l:Tr Set_Page_Lyrics}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Lyr_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
-                    <TextBlock Text="Hiển thị" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE8D6;" Header="Hiện lời bài hát">
+                    <TextBlock Text="{l:Tr Set_Lyr_GroupDisplay}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8D6;" Header="{l:Tr Set_LyricsEnabled}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsEnabled}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE945;" Header="Hiệu ứng chuyển dòng">
+                    <v:SettingCard Glyph="&#xE945;" Header="{l:Tr Set_LyricEffect}">
                         <StackPanel Orientation="Horizontal">
                             <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.LyricEffects}"
                                       SelectedValue="{Binding LyricEffect}" />
-                            <Button Content="Xem thử" Margin="8,0,0,0" Padding="14,5" Click="PreviewEffect_Click" />
+                            <Button Content="{l:Tr Set_Preview}" Margin="8,0,0,0" Padding="14,5" Click="PreviewEffect_Click" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xEC4A;" Header="Tốc độ hiệu ứng">
+                    <v:SettingCard Glyph="&#xEC4A;" Header="{l:Tr Set_AnimSpeed}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0.5" Maximum="2" SmallChange="0.1" LargeChange="0.25"
                                     Value="{Binding AnimationSpeed}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding AnimationSpeed, StringFormat={}{0:0.0}×}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE7E6;" Header="Tô màu karaoke theo thời gian"
-                                   Description="Dòng đang hát được tô dần từ trái sang phải.">
+                    <v:SettingCard Glyph="&#xE7E6;" Header="{l:Tr Set_Karaoke}"
+                                   Description="{l:Tr Set_Karaoke_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Karaoke}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8FD;" Header="Hiện dòng kế tiếp" Description="Cần taskbar cao từ 40 px (icon cỡ thường).">
+                    <v:SettingCard Glyph="&#xE8FD;" Header="{l:Tr Set_NextLine}" Description="{l:Tr Set_NextLine_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowNextLine}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8E3;" Header="Căn lề lời">
+                    <v:SettingCard Glyph="&#xE8E3;" Header="{l:Tr Set_LyricsAlign}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Alignments}"
                                   SelectedValue="{Binding LyricsAlign}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE916;" Header="Độ lệch thời gian chung"
-                                   Description="Số dương: lời hiện sớm hơn. Từng bài có thể chỉnh riêng bằng chuột phải lên thanh.">
+                    <v:SettingCard Glyph="&#xE916;" Header="{l:Tr Set_Offset}"
+                                   Description="{l:Tr Set_Offset_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="-3000" Maximum="3000" TickFrequency="100" IsSnapToTickEnabled="True"
                                     Value="{Binding LyricsOffsetMs}" VerticalAlignment="Center" />
@@ -507,16 +522,16 @@
                         </StackPanel>
                     </v:SettingCard>
 
-                    <TextBlock Text="Kiểu chữ" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE8E9;" Header="Cỡ chữ lời">
+                    <TextBlock Text="{l:Tr Set_Lyr_GroupText}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8E9;" Header="{l:Tr Set_LyricScale}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0.6" Maximum="2" SmallChange="0.05" LargeChange="0.1"
                                     Value="{Binding LyricScale}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding LyricScale, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE790;" Header="Màu chữ"
-                                   Description="Phần đã hát trong karaoke pha thêm màu của bài.">
+                    <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_LyricColor}"
+                                   Description="{l:Tr Set_LyricColor_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <ItemsControl ItemsSource="{x:Static v:SettingsOptions.LyricSwatches}" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
@@ -535,18 +550,18 @@
                                      Text="{Binding LyricColor, UpdateSourceTrigger=LostFocus}" KeyDown="ColorBox_KeyDown" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm chữ" Description="Dòng kế tiếp và phần chưa hát nhạt hơn theo.">
+                    <v:SettingCard Glyph="&#xE793;" Header="{l:Tr Set_LyricOpacity}" Description="{l:Tr Set_LyricOpacity_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0.2" Maximum="1" SmallChange="0.02" LargeChange="0.1"
                                     Value="{Binding LyricOpacity}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding LyricOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8E5;" Header="Viền chữ"
-                                   Description="Quầng màu quanh từng chữ để lời nổi trên thanh tiến trình.">
+                    <v:SettingCard Glyph="&#xE8E5;" Header="{l:Tr Set_Stroke}"
+                                   Description="{l:Tr Set_Stroke_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricStroke}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE790;" Header="Màu viền" IsEnabled="{Binding LyricStroke}">
+                    <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_StrokeColor}" IsEnabled="{Binding LyricStroke}">
                         <StackPanel Orientation="Horizontal">
                             <ItemsControl ItemsSource="{x:Static v:SettingsOptions.StrokeSwatches}" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
@@ -565,15 +580,15 @@
                                      Text="{Binding LyricStrokeColor, UpdateSourceTrigger=LostFocus}" KeyDown="ColorBox_KeyDown" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm viền" IsEnabled="{Binding LyricStroke}">
+                    <v:SettingCard Glyph="&#xE793;" Header="{l:Tr Set_StrokeOpacity}" IsEnabled="{Binding LyricStroke}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
                                     Value="{Binding LyricStrokeOpacity}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding LyricStrokeOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE740;" Header="Độ rộng viền" IsEnabled="{Binding LyricStroke}"
-                                   Description="Nhỏ là viền sắc quanh chữ, lớn là quầng sáng mềm.">
+                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_StrokeRadius}" IsEnabled="{Binding LyricStroke}"
+                                   Description="{l:Tr Set_StrokeRadius_Desc}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="1" Maximum="24" SmallChange="1" LargeChange="2"
                                     IsSnapToTickEnabled="True" TickFrequency="1"
@@ -582,35 +597,34 @@
                         </StackPanel>
                     </v:SettingCard>
 
-                    <TextBlock Text="Nguồn và bộ nhớ" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE774;" Header="Tải lời từ LRCLIB" Description="Tắt để chỉ dùng file .lrc có sẵn trong máy.">
+                    <TextBlock Text="{l:Tr Set_Lyr_GroupSource}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_FetchOnline}" Description="{l:Tr Set_FetchOnline_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FetchOnline}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE968;" Header="Proxy" Description="Để trống để dùng cài đặt mạng của Windows. Ví dụ: http://127.0.0.1:1080">
+                    <v:SettingCard Glyph="&#xE968;" Header="{l:Tr Set_Proxy}" Description="{l:Tr Set_Proxy_Desc}">
                         <TextBox Width="260" Text="{Binding ProxyUrl, UpdateSourceTrigger=LostFocus}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8B7;" Header="Thư mục lưu lời">
-                        <v:SettingCard.Description>Bỏ file "Ca sĩ - Tên bài.lrc" của bạn vào đây, MusicBar sẽ ưu tiên dùng.</v:SettingCard.Description>
+                    <v:SettingCard Glyph="&#xE8B7;" Header="{l:Tr Set_LyricsFolder}"
+                                   Description="{l:Tr Set_LyricsFolder_Desc}">
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Mở" Padding="14,5" Click="OpenLyricsFolder_Click" />
-                            <Button Content="Đổi…" Padding="14,5" Margin="6,0,0,0" Click="ChangeLyricsFolder_Click" />
-                            <Button Content="Mặc định" Padding="14,5" Margin="6,0,0,0" Click="ResetLyricsFolder_Click" />
+                            <Button Content="{l:Tr Set_Open}" Padding="14,5" Click="OpenLyricsFolder_Click" />
+                            <Button Content="{l:Tr Set_Change}" Padding="14,5" Margin="6,0,0,0" Click="ChangeLyricsFolder_Click" />
+                            <Button Content="{l:Tr Set_Default}" Padding="14,5" Margin="6,0,0,0" Click="ResetLyricsFolder_Click" />
                         </StackPanel>
                     </v:SettingCard>
                     <TextBlock x:Name="LyricsFolderText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" TextTrimming="CharacterEllipsis" />
-                    <v:SettingCard x:Name="CacheCard" Glyph="&#xE74D;" Header="Bộ nhớ đệm">
+                    <v:SettingCard x:Name="CacheCard" Glyph="&#xE74D;" Header="{l:Tr Set_Cache}">
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Thử tìm lại bài lỗi" Padding="14,5" Click="ClearMisses_Click" />
-                            <Button Content="Xóa lời đã tải" Padding="14,5" Margin="6,0,0,0" Click="ClearDownloaded_Click" />
+                            <Button Content="{l:Tr Set_RetryMisses}" Padding="14,5" Click="ClearMisses_Click" />
+                            <Button Content="{l:Tr Set_ClearDownloaded}" Padding="14,5" Margin="6,0,0,0" Click="ClearDownloaded_Click" />
                         </StackPanel>
                     </v:SettingCard>
                 </StackPanel>
 
                 <!-- About -->
                 <StackPanel x:Name="PageAbout" Visibility="Collapsed">
-                    <TextBlock Text="Giới thiệu" Style="{StaticResource PageTitle}" />
-                    <TextBlock Text="Biến taskbar Windows thành thanh nhạc: tiến trình bài hát chạy dưới các icon, lời bài hát đồng bộ và nút điều khiển ngay trên taskbar."
-                               Style="{StaticResource PageSubtitle}" />
+                    <TextBlock Text="{l:Tr Set_Page_About}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_About_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
                     <Border CornerRadius="10" Background="#0DFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1" Padding="22">
                         <StackPanel Orientation="Horizontal">
@@ -620,24 +634,24 @@
                                 <TextBlock Text="MusicBar" FontSize="22" FontWeight="SemiBold" />
                                 <TextBlock x:Name="AboutVersion" Opacity="0.6" Margin="0,2,0,0" />
                                 <TextBlock Opacity="0.6" Margin="0,6,0,0" TextWrapping="Wrap">
-                                    Lời bài hát: <Hyperlink NavigateUri="https://lrclib.net" RequestNavigate="Link_RequestNavigate">LRCLIB</Hyperlink> · Điều khiển nhạc: Windows Media Session
+                                    <Run Text="{l:Tr Set_About_Lyrics}" /> <Hyperlink NavigateUri="https://lrclib.net" RequestNavigate="Link_RequestNavigate">LRCLIB</Hyperlink> · <Run Text="{l:Tr Set_About_Media}" /> Windows Media Session
                                 </TextBlock>
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="Mẹo" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE7F4;" Header="Cả taskbar là thanh tiến trình"
-                                   Description="Phần đã phát phủ màu từ mép trái taskbar. Lớp này không nhận chuột, taskbar dùng như bình thường." />
-                    <v:SettingCard Glyph="&#xE712;" Header="Chuột phải lên widget"
-                                   Description="Đổi nguồn phát, tải lại lời, chỉnh lời sớm/trễ cho từng bài, đổi nhanh hiệu ứng." />
-                    <v:SettingCard Glyph="&#xE8A7;" Header="Nhấp vào ảnh bìa" Description="Mở cửa sổ ứng dụng đang phát nhạc." />
+                    <TextBlock Text="{l:Tr Set_About_GroupTips}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7F4;" Header="{l:Tr Set_Tip_Bar}"
+                                   Description="{l:Tr Set_Tip_Bar_Desc}" />
+                    <v:SettingCard Glyph="&#xE712;" Header="{l:Tr Set_Tip_RightClick}"
+                                   Description="{l:Tr Set_Tip_RightClick_Desc}" />
+                    <v:SettingCard Glyph="&#xE8A7;" Header="{l:Tr Set_Tip_ClickCover}" Description="{l:Tr Set_Tip_ClickCover_Desc}" />
 
-                    <TextBlock Text="Dữ liệu" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE8B7;" Header="Thư mục dữ liệu" Description="Cài đặt, nhật ký và lời bài hát mặc định.">
+                    <TextBlock Text="{l:Tr Set_About_GroupData}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8B7;" Header="{l:Tr Set_DataFolder}" Description="{l:Tr Set_DataFolder_Desc}">
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Mở thư mục" Padding="14,5" Click="OpenDataFolder_Click" />
-                            <Button Content="Xem log" Padding="14,5" Margin="6,0,0,0" Click="OpenLog_Click" />
+                            <Button Content="{l:Tr Set_OpenFolder}" Padding="14,5" Click="OpenDataFolder_Click" />
+                            <Button Content="{l:Tr Set_ViewLog}" Padding="14,5" Margin="6,0,0,0" Click="OpenLog_Click" />
                         </StackPanel>
                     </v:SettingCard>
                 </StackPanel>

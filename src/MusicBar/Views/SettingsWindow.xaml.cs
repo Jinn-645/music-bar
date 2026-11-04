@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -22,11 +22,14 @@ public partial class SettingsWindow : Window
     readonly AppSettings _s;
     readonly MediaService _media;
     readonly LyricsService _lyrics;
-    readonly ObservableCollection<Option> _sources = [];
+    readonly ObservableCollection<SourceOption> _sources = [];
     readonly StackPanel[] _pages;
     readonly System.Collections.Generic.List<(SeekStyle Value, Border Tile, SeekRenderer Preview)> _seekTiles = [];
     readonly Stopwatch _previewClock = Stopwatch.StartNew();
     bool _loadingTweaks;
+
+    /// <summary>A row in the tracked-app list; app names are shown as they are, not looked up like <see cref="Option"/> labels.</summary>
+    sealed record SourceOption(string Value, string Label);
 
     public SettingsWindow(AppSettings settings, MediaService media, LyricsService lyrics)
     {
@@ -37,9 +40,9 @@ public partial class SettingsWindow : Window
         DataContext = settings;
         _pages = [PageBar, PageLook, PageLyrics, PageAbout];
 
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = $"Phiên bản {version?.ToString(3)}";
-        AboutVersion.Text = $"Phiên bản {version?.ToString(3)} · .NET {Environment.Version.ToString(2)}";
+        var version = Loc.T("Set_Version", Assembly.GetExecutingAssembly().GetName().Version?.ToString(3));
+        VersionText.Text = version;
+        AboutVersion.Text = $"{version} · .NET {Environment.Version.ToString(2)}";
 
         FontCombo.ItemsSource = BuildFonts(settings.FontFamily);
         SourceCombo.ItemsSource = _sources;
@@ -64,6 +67,9 @@ public partial class SettingsWindow : Window
         };
     }
 
+    /// <summary>The page on screen, by its place in the navigation list.</summary>
+    public int Page { get => Nav.SelectedIndex; set => Nav.SelectedIndex = value; }
+
     /// <summary>MusicBar's own fonts first (they all handle Vietnamese), then the installed ones.</summary>
     static System.Collections.Generic.List<string> BuildFonts(string current)
     {
@@ -75,19 +81,19 @@ public partial class SettingsWindow : Window
 
     void RefreshSources()
     {
-        if (_sources.Count == 0) _sources.Add(new Option("", "Tự động (ưu tiên đang phát)"));
+        if (_sources.Count == 0) _sources.Add(new SourceOption("", Loc.T("Set_Source_Auto")));
         foreach (var s in _media.GetSessions())
-            if (_sources.All(o => (string)o.Value != s.AppId)) _sources.Add(new Option(s.AppId, s.AppName));
+            if (_sources.All(o => o.Value != s.AppId)) _sources.Add(new SourceOption(s.AppId, s.AppName));
         var pinned = _s.PinnedAppId;
-        if (pinned.Length > 0 && _sources.All(o => (string)o.Value != pinned))
-            _sources.Add(new Option(pinned, AppVisualResolver.Resolve(pinned).Name + " (chưa chạy)"));
+        if (pinned.Length > 0 && _sources.All(o => o.Value != pinned))
+            _sources.Add(new SourceOption(pinned, Loc.T("Set_Source_NotRunning", AppVisualResolver.Resolve(pinned).Name)));
     }
 
     void RefreshLyricsInfo()
     {
         LyricsFolderText.Text = _lyrics.Folder;
         var (saved, misses) = _lyrics.GetCacheStats();
-        CacheCard.Description = $"{saved} bài đã lưu · {misses} bài đánh dấu không tìm thấy (tự thử lại sau 3 ngày)";
+        CacheCard.Description = Loc.T("Set_Cache_Desc", saved, misses);
     }
 
     /// <summary>Shows the taskbar's current size/alignment without writing anything back.</summary>
@@ -105,24 +111,22 @@ public partial class SettingsWindow : Window
             _loadingTweaks = false;
         }
 
-        TransparentCard.Description = App.Instance.Overlay?.TranslucentTaskbarDetected == true
-            ? "TranslucentTB đang chạy nên MusicBar để nó lo phần này."
-            : "Có sẵn trong MusicBar, không cần cài TranslucentTB. Thoát MusicBar là taskbar có lại nền như cũ.";
-        TaskbarSizeCard.Description = TaskbarTweaks.Kind == TaskbarKind.Windows11 && TaskbarTweaks.HasTaskbarSizeSetting
-            ? "Dùng cài đặt Kích thước taskbar của Windows 11: nhỏ là icon nhỏ và thanh mỏng hơn, áp dụng ngay."
+        TransparentCard.Description = Loc.T(Overlay?.TranslucentTaskbarDetected == true
+            ? "Set_Transparent_DescTranslucentTB"
+            : "Set_Transparent_Desc");
+        TaskbarSizeCard.Description = Loc.T(TaskbarTweaks.Kind == TaskbarKind.Windows11 && TaskbarTweaks.HasTaskbarSizeSetting
+            ? "Set_TaskbarSize_DescWin11"
             : TaskbarTweaks.CanShrinkHeight
-                ? "Taskbar nhỏ: icon nhỏ và thanh mỏng hơn."
-                : "Bản Windows 11 này chỉ thu nhỏ được icon, chiều cao 48 px là cố định.";
+                ? "Set_TaskbarSize_Desc"
+                : "Set_TaskbarSize_DescIconsOnly");
         SwitchTaskbarButton.Visibility = TaskbarTweaks.CanSwitchToExplorerPatcherTaskbar ? Visibility.Visible : Visibility.Collapsed;
 
-        var status = $"Taskbar hiện tại: {TaskbarTweaks.KindLabel}.";
+        var status = Loc.T("Set_Tb_Current", TaskbarTweaks.KindLabel);
         if (!TaskbarTweaks.CanCenter)
-            status += " Windows 10 không tự căn giữa icon được; cần ExplorerPatcher hoặc Windows 11.";
+            status += " " + Loc.T("Set_Tb_NoCenter");
         if (TaskbarTweaks.CanSwitchToExplorerPatcherTaskbar)
-            status += " Muốn thanh mỏng thật sự, dùng taskbar của ExplorerPatcher (máy bạn đã cài).";
-        status += pendingRestart
-            ? " Đã lưu thay đổi; khởi động lại Explorer để taskbar áp dụng (các cửa sổ File Explorer đang mở sẽ đóng)."
-            : " Một số thay đổi chỉ áp dụng sau khi khởi động lại Explorer.";
+            status += " " + Loc.T("Set_Tb_TryExplorerPatcher");
+        status += " " + Loc.T(pendingRestart ? "Set_Tb_PendingRestart" : "Set_Tb_RestartNote");
         TaskbarStatusText.Text = status;
     }
 
@@ -141,23 +145,21 @@ public partial class SettingsWindow : Window
     }
 
     void RestartExplorer_Click(object sender, RoutedEventArgs e)
-        => ConfirmAndRestartExplorer("Khởi động lại Explorer để taskbar áp dụng thay đổi?");
+        => ConfirmAndRestartExplorer(Loc.T("Set_Restart_Ask"));
 
     void SwitchTaskbar_Click(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(this,
-            "Chuyển sang taskbar kiểu Windows 10 của ExplorerPatcher?\nTaskbar này mỏng được (icon nhỏ, cao khoảng 30 px) và vẫn căn giữa được.",
-            "Taskbar ExplorerPatcher", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        var answer = MessageBox.Show(this, Loc.T("Set_SwitchEp_Ask"), Loc.T("Set_SwitchEp_Caption"),
+            MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (answer != MessageBoxResult.OK) return;
         TaskbarTweaks.UseExplorerPatcherTaskbar();
-        ConfirmAndRestartExplorer("Cần khởi động lại Explorer để đổi taskbar. Khởi động lại ngay?");
+        ConfirmAndRestartExplorer(Loc.T("Set_SwitchEp_Restart"));
     }
 
     async void ConfirmAndRestartExplorer(string question)
     {
-        var answer = MessageBox.Show(this,
-            question + "\nTaskbar sẽ biến mất vài giây và các cửa sổ File Explorer đang mở sẽ đóng.",
-            "Khởi động lại Explorer", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        var answer = MessageBox.Show(this, question + "\n" + Loc.T("Set_Restart_Warning"), Loc.T("Set_RestartExplorer"),
+            MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (answer != MessageBoxResult.OK)
         {
             RefreshTaskbarTweaks(pendingRestart: true);
@@ -173,7 +175,7 @@ public partial class SettingsWindow : Window
 
     void BuildSeekGallery()
     {
-        var (primary, secondary, art) = App.Instance.Overlay?.PreviewPalette() ?? DemoPalette();
+        var (primary, secondary, art) = Overlay?.PreviewPalette() ?? DemoPalette();
         foreach (var option in SettingsOptions.SeekStyles)
         {
             var preview = new SeekRenderer { Look = option.Value, ClipToBounds = true, Intensity = _s.FillOpacity };
@@ -248,10 +250,10 @@ public partial class SettingsWindow : Window
 
     void RefreshLayerStatus()
     {
-        if (App.Instance.Overlay is not { } overlay) return;
-        var where = overlay.IsOverMode ? "phủ mờ lên taskbar" : "nằm dưới icon taskbar";
-        var tool = overlay.TranslucentTaskbarDetected ? "đã thấy TranslucentTB" : "không thấy công cụ làm trong suốt taskbar";
-        LayerStatusText.Text = $"Đang dùng: {where} ({tool}).";
+        if (Overlay is not { } overlay) return;
+        var where = Loc.T(overlay.IsOverMode ? "Set_Layer_Over" : "Set_Layer_Under");
+        var tool = Loc.T(overlay.TranslucentTaskbarDetected ? "Set_Layer_ToolFound" : "Set_Layer_ToolMissing");
+        LayerStatusText.Text = Loc.T("Set_Layer_Status", where, tool);
     }
 
     void OnSettingChanged(object? sender, PropertyChangedEventArgs e)
@@ -280,8 +282,8 @@ public partial class SettingsWindow : Window
         }
         else
         {
-            NowTitle.Text = "Chưa có gì";
-            NowArtist.Text = "Hãy mở một trình phát nhạc";
+            NowTitle.Text = Loc.T("Set_NowPlaying_None");
+            NowArtist.Text = Loc.T("Set_NowPlaying_Hint");
         }
         NowArt.ImageSource = _media.Thumbnail;
     }
@@ -327,7 +329,7 @@ public partial class SettingsWindow : Window
         if (e.Key == Key.Enter && sender is TextBox box) box.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
     }
 
-    void PreviewEffect_Click(object sender, RoutedEventArgs e) => App.Instance.Overlay?.PreviewLyrics();
+    void PreviewEffect_Click(object sender, RoutedEventArgs e) => Overlay?.PreviewLyrics();
 
     void SourceCombo_DropDownOpened(object? sender, EventArgs e) => RefreshSources();
 
@@ -341,7 +343,7 @@ public partial class SettingsWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "Chọn thư mục lưu lời bài hát",
+            Title = Loc.T("Set_PickLyricsFolder"),
             InitialDirectory = Directory.Exists(_lyrics.Folder) ? _lyrics.Folder : AppPaths.DataDir,
         };
         if (dialog.ShowDialog(this) == true) _s.LyricsFolder = dialog.FolderName;
@@ -357,9 +359,8 @@ public partial class SettingsWindow : Window
 
     void ClearDownloaded_Click(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(this,
-            "Xóa toàn bộ lời bài hát MusicBar đã tải về?\nFile .lrc bạn tự thêm vào thư mục sẽ được giữ nguyên.",
-            "Xóa lời đã tải", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        var answer = MessageBox.Show(this, Loc.T("Set_ClearDownloaded_Ask"), Loc.T("Set_ClearDownloaded"),
+            MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (answer != MessageBoxResult.OK) return;
         int removed = _lyrics.ClearDownloaded();
         RefreshLyricsInfo();
@@ -373,6 +374,9 @@ public partial class SettingsWindow : Window
         if (File.Exists(AppPaths.LogFile)) Open(AppPaths.LogFile);
         else Open(AppPaths.DataDir);
     }
+
+    /// <summary>The bar, when this window runs inside MusicBar (a preview tool may host it alone).</summary>
+    static TaskbarOverlay? Overlay => (Application.Current as App)?.Overlay;
 
     void Link_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {

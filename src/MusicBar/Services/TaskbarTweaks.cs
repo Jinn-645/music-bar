@@ -90,7 +90,7 @@ public static class TaskbarTweaks
     public static string KindLabel => Kind switch
     {
         TaskbarKind.Windows11 => "Windows 11",
-        TaskbarKind.ExplorerPatcher => "kiểu Windows 10 (ExplorerPatcher)",
+        TaskbarKind.ExplorerPatcher => Loc.T("Taskbar_ExplorerPatcher"),
         _ => "Windows 10",
     };
 

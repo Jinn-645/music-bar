@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\MusicBar\MusicBar.csproj" />
+    <!-- MusicBar's windows load these through pack://application, which resolves against this exe. -->
+    <Resource Include="..\..\..\src\MusicBar\Assets\MusicBar.ico" Link="Assets\MusicBar.ico" />
+    <Resource Include="..\..\..\src\MusicBar\Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

@@ -31,6 +31,16 @@ public partial class WidgetWindow : Window
     readonly DropShadowEffect _lyricStroke = new() { ShadowDepth = 0 };
     readonly DropShadowEffect _playGlow = new() { BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 };
     readonly DispatcherTimer _infoTimer = new() { Interval = InfoDelay };
+    readonly SolidColorBrush _accentBrush;
+    readonly SolidColorBrush _playGlyphBrush;
+    // The record's label (Vinyl style): the current cover.
+    readonly ImageBrush _labelBrush = new() { Stretch = Stretch.UniformToFill };
+    readonly RotateTransform _spin = new();
+    static readonly Brush CapsuleFill = Frozen(new SolidColorBrush(Color.FromArgb(0x8C, 0x16, 0x17, 0x1C)));
+    static readonly Brush CapsuleRim = Frozen(new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)));
+
+    ControlStyle _controlStyle = ControlStyle.Glow;
+    bool _spinning;
 
     bool _artFrontIsA;
     BitmapSource? _shownArt;
@@ -43,6 +53,9 @@ public partial class WidgetWindow : Window
     public WidgetWindow(MediaService media, SolidColorBrush accentBrush, SolidColorBrush playGlyphBrush)
     {
         _media = media;
+        _accentBrush = accentBrush;
+        _playGlyphBrush = playGlyphBrush;
+        RenderOptions.SetBitmapScalingMode(_labelBrush, BitmapScalingMode.HighQuality);
         InitializeComponent();
         PlayButton.Background = accentBrush;
         PlayButton.Effect = _playGlow;
@@ -85,7 +98,6 @@ public partial class WidgetWindow : Window
     {
         FontFamily = BundledFonts.Resolve(s.FontFamily);
         LyricsHost.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke);
-        PrevButton.Effect = NextButton.Effect = textShadow ? _textShadow : null;
 
         double pill = Math.Max(16, h - 4);
         Pill.CornerRadius = new CornerRadius(pill / 2);
@@ -97,14 +109,10 @@ public partial class WidgetWindow : Window
         AppBadge.Width = AppBadge.Height = Math.Round(art * 0.55);
         ArtOverlayGlyph.FontSize = Math.Round(art * 0.45);
 
-        double button = Math.Clamp(Math.Round(h * 0.8), 22, 34);
-        PrevButton.Width = PrevButton.Height = NextButton.Width = NextButton.Height = PlayButton.Width = PlayButton.Height = button;
-        PrevIcon.Width = PrevIcon.Height = NextIcon.Width = NextIcon.Height = Math.Round(button * 0.6);
-        PlayIconBox.Width = PlayIconBox.Height = Math.Round(button * 0.56);
-        _playGlow.BlurRadius = Math.Round(button * 0.45);
+        ApplyControlStyle(s.ControlStyle, Math.Clamp(Math.Round(h * 0.8), 22, 34), textShadow);
 
         CoverButton.Visibility = s.ShowAlbumArt ? Visibility.Visible : Visibility.Collapsed;
-        Controls.Visibility = s.ShowControls ? Visibility.Visible : Visibility.Collapsed;
+        ControlsShell.Visibility = s.ShowControls ? Visibility.Visible : Visibility.Collapsed;
 
         bool twoLine = s.ShowNextLine && h >= 40;
         double main = (twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.42, 12, 15)) * s.LyricScale;
@@ -116,6 +124,105 @@ public partial class WidgetWindow : Window
         UpdateOverlayGlyph();
     }
 
+    /// <summary>
+    /// Dresses the previous / play / next buttons in one of the control styles: picks their
+    /// templates (Themes/Bar.xaml), sizes them around the taskbar's button size, and colours the
+    /// glyphs for what sits behind them.
+    /// </summary>
+    void ApplyControlStyle(ControlStyle style, double button, bool textShadow)
+    {
+        _controlStyle = style;
+        var (side, play) = style switch
+        {
+            ControlStyle.Minimal => ("TransportMinimal", "TransportMinimal"),
+            ControlStyle.Capsule => ("TransportSegment", "PlayCapsule"),
+            ControlStyle.Ring => ("TransportButton", "PlayRing"),
+            ControlStyle.Vinyl => ("TransportButton", "PlayVinyl"),
+            ControlStyle.Keys => ("KeyButton", "KeyButton"),
+            ControlStyle.Bubbles => ("BubbleButton", "BubbleButton"),
+            _ => ("TransportButton", "PlayButton"),
+        };
+        PrevButton.Style = NextButton.Style = (Style)FindResource(side);
+        PlayButton.Style = (Style)FindResource(play);
+
+        // Sizes as multiples of the taskbar's button size: (side w, side h, play w, play h, side glyph, play glyph, gap).
+        var (sw, sh, pw, ph, sg, pg, gap) = style switch
+        {
+            ControlStyle.Minimal => (1.0, 1.0, 1.0, 1.0, 0.6, 0.72, 1.0),
+            ControlStyle.Capsule => (0.92, 0.8, 1.38, 0.8, 0.5, 0.46, 1.0),
+            ControlStyle.Ring => (1.0, 1.0, 1.0, 1.0, 0.6, 0.42, 3.0),
+            ControlStyle.Vinyl => (1.0, 1.0, 1.1, 1.1, 0.6, 0.36, 3.0),
+            ControlStyle.Keys => (1.0, 0.86, 1.06, 0.86, 0.46, 0.42, 2.0),
+            ControlStyle.Bubbles => (0.82, 0.82, 1.0, 1.0, 0.44, 0.48, 3.5),
+            _ => (1.0, 1.0, 1.0, 1.0, 0.6, 0.56, 3.0),
+        };
+        PrevButton.Width = NextButton.Width = Math.Round(button * sw);
+        PrevButton.Height = NextButton.Height = Math.Round(button * sh);
+        PlayButton.Width = Math.Round(button * pw);
+        PlayButton.Height = Math.Round(button * ph);
+        PrevIcon.Width = PrevIcon.Height = NextIcon.Width = NextIcon.Height = Math.Round(button * sg);
+        PlayIconBox.Width = PlayIconBox.Height = Math.Round(button * pg);
+        PlayButton.Margin = new Thickness(gap, 0, gap, 0);
+
+        // Background carries the accent everywhere (bubble tint, key lamp, ring arc), except on
+        // the record, whose label is the cover.
+        PrevButton.Background = NextButton.Background = _accentBrush;
+        PlayButton.Background = style == ControlStyle.Vinyl && _labelBrush.ImageSource != null ? _labelBrush : _accentBrush;
+        PlayGlyph.Fill = PauseGlyph.Fill = style switch
+        {
+            ControlStyle.Glow or ControlStyle.Capsule => _playGlyphBrush,
+            ControlStyle.Minimal => _accentBrush,
+            _ => Brushes.White,
+        };
+        Transport.SetLamp(PlayButton, style == ControlStyle.Keys);
+
+        // Bare glyphs need the shadow to read over a transparent taskbar; drawn buttons carry their own contrast.
+        bool bare = style is ControlStyle.Glow or ControlStyle.Minimal or ControlStyle.Ring or ControlStyle.Vinyl;
+        PrevButton.Effect = NextButton.Effect = bare && textShadow ? _textShadow : null;
+        PlayButton.Effect = style switch
+        {
+            ControlStyle.Glow => _playGlow,
+            ControlStyle.Minimal when textShadow => _textShadow,
+            _ => null,
+        };
+        _playGlow.BlurRadius = Math.Round(button * 0.45);
+
+        bool capsule = style == ControlStyle.Capsule;
+        ControlsShell.Background = capsule ? CapsuleFill : null;
+        ControlsShell.BorderBrush = capsule ? CapsuleRim : null;
+        ControlsShell.BorderThickness = new Thickness(capsule ? 0.8 : 0);
+        ControlsShell.Padding = new Thickness(capsule ? 2 : 0);
+        ControlsShell.CornerRadius = new CornerRadius(capsule ? (PlayButton.Height + 5.6) / 2 : 0);
+
+        PlayButton.ApplyTemplate();
+        if (PlayButton.Template.FindName("Disc", PlayButton) is FrameworkElement disc) disc.RenderTransform = _spin;
+        _spinning = false;
+        UpdateSpin();
+    }
+
+    /// <summary>The record turns at 33⅓ rpm while music plays and stops where it is when paused.</summary>
+    void UpdateSpin()
+    {
+        bool spin = _controlStyle == ControlStyle.Vinyl && _playing;
+        if (spin == _spinning) return;
+        _spinning = spin;
+        double angle = _spin.Angle % 360;
+        _spin.BeginAnimation(RotateTransform.AngleProperty, null);
+        _spin.Angle = angle;
+        if (!spin) return;
+        var turn = new DoubleAnimation(angle, angle + 360, TimeSpan.FromSeconds(1.8)) { RepeatBehavior = RepeatBehavior.Forever };
+        Timeline.SetDesiredFrameRate(turn, 30);
+        _spin.BeginAnimation(RotateTransform.AngleProperty, turn);
+    }
+
+    /// <summary>The song's progress, for the ring around play (0 when there is no timeline).</summary>
+    public void SetProgress(double progress)
+    {
+        if (_controlStyle != ControlStyle.Ring) return;
+        double shown = Transport.GetProgress(PlayButton);
+        if (Math.Abs(progress - shown) >= 0.0015 || (progress == 0) != (shown == 0)) Transport.SetProgress(PlayButton, progress);
+    }
+
     /// <summary>Right-anchored widgets open their lyrics to the left of the cover, left-anchored ones to the right.</summary>
     public void SetAnchor(bool right)
     {
@@ -123,7 +230,7 @@ public partial class WidgetWindow : Window
         _anchorRight = right;
         Pill.HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         Grid.SetColumn(LyricsHost, right ? 0 : 2);
-        Grid.SetColumn(Controls, right ? 2 : 0);
+        Grid.SetColumn(ControlsShell, right ? 2 : 0);
         UpdateOverlayGlyph();
     }
 
@@ -139,7 +246,7 @@ public partial class WidgetWindow : Window
         double target = 0;
         if (_expanded)
         {
-            double fixedPart = CoverButton.ActualWidth + Controls.ActualWidth + 8;
+            double fixedPart = CoverButton.ActualWidth + ControlsShell.ActualWidth + 8;
             target = Math.Max(0, ActualWidth - fixedPart);
         }
         if (!animate)
@@ -209,6 +316,8 @@ public partial class WidgetWindow : Window
     {
         if (ReferenceEquals(bmp, _shownArt)) return;
         _shownArt = bmp;
+        _labelBrush.ImageSource = bmp;
+        if (_controlStyle == ControlStyle.Vinyl) PlayButton.Background = bmp != null ? _labelBrush : _accentBrush;
         var d = TimeSpan.FromMilliseconds(450);
         var front = _artFrontIsA ? ArtA : ArtB;
         var back = _artFrontIsA ? ArtB : ArtA;
@@ -239,6 +348,8 @@ public partial class WidgetWindow : Window
     {
         if (playing == _playing && animate) return;
         _playing = playing;
+        Transport.SetIsPlaying(PlayButton, playing);
+        UpdateSpin();
         var show = playing ? PauseGlyph : PlayGlyph;
         var hide = playing ? PlayGlyph : PauseGlyph;
         if (!animate)

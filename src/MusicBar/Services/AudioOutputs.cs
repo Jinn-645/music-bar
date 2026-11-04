@@ -142,8 +142,8 @@ public sealed class AudioOutputs : IDisposable
     static AudioOutput? Describe(IMMDevice device)
     {
         if (device.GetId(out string id) != 0) return null;
-        if (device.OpenPropertyStore(0 /* STGM_READ */, out var store) != 0) return new AudioOutput(id, "Thiết bị âm thanh", "", AudioFormFactor.Unknown);
-        string name = ReadString(store, DeviceDescription) ?? ReadString(store, FriendlyName) ?? "Thiết bị âm thanh";
+        if (device.OpenPropertyStore(0 /* STGM_READ */, out var store) != 0) return new AudioOutput(id, Loc.T("Audio_Device"), "", AudioFormFactor.Unknown);
+        string name = ReadString(store, DeviceDescription) ?? ReadString(store, FriendlyName) ?? Loc.T("Audio_Device");
         string adapter = ReadString(store, InterfaceName) ?? "";
         var kind = ReadUInt(store, FormFactor) is uint f && f <= 10 ? (AudioFormFactor)f : AudioFormFactor.Unknown;
         return new AudioOutput(id, name, adapter, kind);

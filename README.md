@@ -2,13 +2,16 @@
 
 Thanh taskbar nằm im ba mươi năm rồi. Cho nó hát đi.
 
-**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.0.0-Setup.exe)
-hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.0.0-portable.zip)
+**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.0-Setup.exe)
+hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.0-portable.zip)
 (Windows 10 2004 trở lên hoặc Windows 11, 64-bit, không cần cài .NET).
 
 - [x] **04/11** Bản 1.0 lên GitHub: 14 bộ áo cho thanh tiến trình, karaoke đủ dấu, taskbar
   Windows 11 trong suốt, trung tâm điều khiển riêng, installer, bản portable và một video
   giới thiệu có taskbar biết ngáp.
+- [x] **04/11** Bản 1.1: bảy kiểu nút ⏮ ⏯ ⏭ (có cả đĩa than xoay và phím cassette), giao
+  diện tiếng Anh mặc định với tiếng Việt chỉ cách một cú bấm, bản cài nhẹ RAM hơn hẳn
+  (143 MB xuống còn khoảng 58 MB), và vài chỗ chỉnh cho Windows 10.
 
 ![Thanh taskbar ngủ gật, tiếng cào đĩa, icon MusicBar rơi xuống và đèn sân khấu bật sáng](docs/wake-up.gif)
 
@@ -43,6 +46,12 @@ Media Player, Apple Music… Không có nhạc thì nó lặn mất, taskbar v�
   Windows 11), Start và icon ở giữa. Chạy được cả với taskbar kiểu Windows 10 của
   [ExplorerPatcher](https://github.com/valinet/ExplorerPatcher).
 - **Thẻ thông tin bài hát:** giữ chuột trên ảnh bìa là ra ảnh lớn, ca sĩ, album, năm, thể loại.
+- **Tiếng Anh và tiếng Việt:** giao diện mặc định là tiếng Anh, đổi sang tiếng Việt ở ô ngôn
+  ngữ góc trên bên trái cửa sổ cài đặt. Đổi là đổi ngay, không cần mở lại app.
+- **Bảy kiểu nút ⏮ ⏯ ⏭** (Cài đặt → Giao diện → Kiểu nút điều khiển, hoặc chuột phải lên
+  widget): Đĩa sáng, Tối giản, Viên kẹo, Vòng tiến trình (vòng quanh nút phát chạy theo bài),
+  Đĩa than (đĩa xoay khi phát, nhãn đĩa là ảnh bìa), Phím cassette (phím bấm lún, có đèn báo)
+  và Bong bóng (bấm là nảy như thạch).
 
 ## 14 bộ áo
 
@@ -72,14 +81,15 @@ Kiểu động vẽ 30 khung / giây khi đang phát (các kiểu trôi chậm 2
 
 ## Cài
 
-- **Bản cài đặt** (`MusicBar-1.0.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
+- **Bản cài đặt** (`MusicBar-1.1.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
   `%LOCALAPPDATA%\Programs\MusicBar`, không hỏi quyền admin, có mục trong Start và gỡ được
   trong Cài đặt → Ứng dụng. Cài đè hay gỡ đi thì MusicBar được báo thoát trước, để trả taskbar
   và khay về đúng như Windows sắp xếp.
-- **Bản portable** (`MusicBar-1.0.0-portable.zip`): giải nén ra đâu cũng được, chạy
+- **Bản portable** (`MusicBar-1.1.0-portable.zip`): giải nén ra đâu cũng được, chạy
   `MusicBar.exe`.
 
-Hai bản là cùng một app, đã gói sẵn .NET 10 nên không cần cài gì thêm. Lần đầu chạy, cửa sổ
+Hai bản là cùng một app, đã gói sẵn .NET 10 nên không cần cài gì thêm, và chạy tốn khoảng
+55–60 MB RAM (cột Memory của Task Manager, đo trên máy thử). Lần đầu chạy, cửa sổ
 cài đặt tự mở; sau đó nhấp biểu tượng ở khay để mở lại. Muốn nó chạy cùng Windows thì bật
 **Khởi động cùng Windows** trong cài đặt. Cài đặt, lời bài hát và nhật ký nằm ở `%LOCALAPPDATA%\MusicBar`
 cho cả hai bản.
@@ -148,7 +158,7 @@ C++") cho module taskbar Windows 11.
 ```powershell
 dotnet build src/MusicBar/MusicBar.csproj
 dotnet run --project src/MusicBar -- --demo
-.\installer\build.ps1 -Version 1.0.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
+.\installer\build.ps1 -Version 1.1.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
 ```
 
 ## Bên trong
@@ -184,7 +194,10 @@ từ ElevenLabs. Muốn dựng lại: vào `promo/`, `npx hyperframes preview`.
 ## Nói thật
 
 - Mới chạy kỹ trên Windows 11 (bản 26300), cả taskbar gốc lẫn taskbar ExplorerPatcher.
-  Windows 10 có code cho nó nhưng chưa thử trên máy Windows 10 thật.
+  Windows 10 có code cho nó, icon và phông đều có bản dự phòng sẵn trên Windows 10, nhưng
+  chưa thử trên máy Windows 10 thật. Dùng Windows 10 mà gặp lỗi thì gửi giúp file
+  `%LOCALAPPDATA%\MusicBar\musicbar.log`.
+- Ô Phụ đề trực tiếp chỉ có từ Windows 11 22H2, máy cũ hơn sẽ không thấy ô này.
 - Module taskbar Windows 11 nằm trong Explorer tới khi Explorer khởi động lại, kể cả sau khi
   gỡ MusicBar. Nó không làm gì khi MusicBar không chạy. Phần mềm diệt virus có thể để ý
   chuyện một DLL được nạp vào Explorer.
@@ -227,5 +240,5 @@ fully usable) and adds:
 It follows any app that talks to Windows Media Session (Spotify, browsers, Media Player…).
 Grab the installer or the portable zip from the
 [latest release](https://github.com/lvt1693/music-bar/releases/latest). Both are
-self-contained, so there is no .NET to install. The UI is in Vietnamese; the code and its
-comments are in English.
+self-contained, so there is no .NET to install. The UI is in English by default, with
+Vietnamese one click away in the settings window; the code and its comments are in English.

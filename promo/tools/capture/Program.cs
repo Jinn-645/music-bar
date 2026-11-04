@@ -28,6 +28,10 @@ using MusicBar.Views;
 //          the real control center panel: open, and with the playback-device list slid out
 //   assets <out>
 //          the app icon and the demo cover art as PNG
+//   settings <outDir> <English|Vietnamese> <scale>
+//          the real settings window, one PNG per page, in the given language
+//   controls <out.png> <taskbarHeightDip> <scale>
+//          the real widget's previous / play / next buttons in every control style, paused and playing
 static class Program
 {
     const double Fps = 30;
@@ -64,6 +68,8 @@ static class Program
                     case "lyrics": await Lyrics(args); break;
                     case "panel": await Panel(args); break;
                     case "assets": Assets(args); break;
+                    case "controls": await ControlStyles(args); break;
+                    case "settings": await SettingsPages(args); break;
                     default: throw new ArgumentException("unknown mode " + args[0]);
                 }
             }
@@ -244,6 +250,99 @@ static class Program
         SavePng(Snap(panel, scale), Path.Combine(outDir, "panel-outputs.png"));
         panel.Close();
         Console.WriteLine($"panel → {outDir} ({panel.ActualWidth}x{panel.ActualHeight} DIP)");
+    }
+
+    // ---------------------------------------------------------------- settings window
+
+    static async Task SettingsPages(string[] a)
+    {
+        string outDir = Directory.CreateDirectory(a[1]).FullName;
+        var language = Enum.Parse<AppLanguage>(a[2], true);
+        double scale = D(a[3]);
+        var settings = new AppSettings { Language = language };
+        MusicBar.Infrastructure.Loc.Instance.Language = language;
+        var window = new SettingsWindow(settings, new MediaService(settings), new LyricsService(settings))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000, Width = 1100, Height = 1300,
+            ShowActivated = false,
+        };
+        window.Show();
+        for (int page = 0; page < 4; page++)
+        {
+            window.Page = page;
+            await Task.Delay(700);
+            window.UpdateLayout();
+            // The window's own dark backdrop isn't part of its content: lay the content over one.
+            var content = Snap((FrameworkElement)window.Content, scale);
+            var sheet = new DrawingVisual();
+            using (var dc = sheet.RenderOpen())
+            {
+                var box = new Rect(0, 0, content.PixelWidth / scale, content.PixelHeight / scale);
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x24)), null, box);
+                dc.DrawImage(content, box);
+            }
+            var rtb = new RenderTargetBitmap(content.PixelWidth, content.PixelHeight, 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            rtb.Render(sheet);
+            SavePng(rtb, Path.Combine(outDir, $"settings-{language}-{page}.png"));
+        }
+        window.Close();
+        Console.WriteLine($"settings ({language}) → {outDir}");
+    }
+
+    // ---------------------------------------------------------------- control styles
+
+    /// <summary>One sheet: a row per control style, the buttons paused and then playing, on a dark taskbar.</summary>
+    static async Task ControlStyles(string[] a)
+    {
+        string outPath = Path.GetFullPath(a[1]);
+        double h = D(a[2]), scale = D(a[3]);
+        var accent = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
+        var glyph = new SolidColorBrush(Colors.White);
+        var settings = new AppSettings { ShowAlbumArt = false };
+        var widget = new WidgetWindow(new MediaService(settings), accent, glyph) { Width = 400, Height = h };
+        widget.Show();
+        widget.SetArt(DemoContent.CreateArt(DemoContent.Tracks[0]));
+        widget.SetAccent(accent.Color);
+        // The whole window is snapped (an element's own snapshot loses its layout offset) and the
+        // right end, where the pill sits, is cropped out of it.
+        var root = (FrameworkElement)widget.FindName("Root");
+        var shell = (FrameworkElement)widget.FindName("Pill");
+        var inner = (FrameworkElement)widget.FindName("ControlsShell");
+
+        const double labelW = 250, cellW = 170, rowH = 64;
+        var styles = Enum.GetValues<ControlStyle>();
+        var sheet = new DrawingVisual();
+        using (var dc = sheet.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x1B, 0x1C, 0x21)), null, new Rect(0, 0, labelW + cellW * 2, rowH * styles.Length));
+            var face = new Typeface("Segoe UI");
+            for (int i = 0; i < styles.Length; i++)
+            {
+                settings.ControlStyle = styles[i];
+                widget.ApplyStyle(settings, h, textShadow: false);
+                for (int state = 0; state < 2; state++)
+                {
+                    widget.SetPlaying(state == 1, animate: false);
+                    widget.SetProgress(0.62);
+                    widget.UpdateLayout();
+                    await Task.Delay(120);
+                    if (state == 0) Console.WriteLine($"{styles[i],-8} pill {shell.ActualWidth:F1}  shell {inner.ActualWidth:F1} (desired {inner.DesiredSize.Width:F1})");
+                    var full = Snap(root, scale);
+                    int cropW = (int)Math.Round((shell.ActualWidth + 6) * scale);
+                    var img = new CroppedBitmap(full, new Int32Rect(full.PixelWidth - cropW, 0, cropW, full.PixelHeight));
+                    double w = img.PixelWidth / scale, hh = img.PixelHeight / scale;
+                    dc.DrawImage(img, new Rect(labelW + cellW * state + (cellW - w) / 2, rowH * i + (rowH - hh) / 2, w, hh));
+                }
+                var label = SettingsOptions.ControlStyles.First(o => (ControlStyle)o.Value == styles[i]).Label.Split(':')[0];
+                dc.DrawText(new FormattedText(label, Inv, FlowDirection.LeftToRight, face, 15, Brushes.White, 1.0),
+                    new Point(16, rowH * i + rowH / 2 - 10));
+            }
+        }
+        var rtb = new RenderTargetBitmap((int)((labelW + cellW * 2) * scale), (int)(rowH * styles.Length * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        rtb.Render(sheet);
+        SavePng(rtb, outPath);
+        widget.Close();
+        Console.WriteLine($"{styles.Length} control styles → {outPath}");
     }
 
     // ---------------------------------------------------------------- icon and cover

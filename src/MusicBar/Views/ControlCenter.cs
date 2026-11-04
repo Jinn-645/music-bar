@@ -73,6 +73,9 @@ internal sealed class ControlCenter : IDisposable
         _hotspot.SetBadgeForeground(accent);
     }
 
+    /// <summary>The language changed: the panel re-renders the text it builds itself.</summary>
+    public void RefreshText() => _panel.RefreshText();
+
     public void Tick()
     {
         if (_disposed) return;

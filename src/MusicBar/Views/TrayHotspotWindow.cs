@@ -42,7 +42,7 @@ internal sealed class TrayHotspotWindow : Window
         Width = 32;
         Height = 30;
         Title = "MusicBar Control Center Button";
-        ToolTip = "Trung tâm điều khiển";
+        SetBinding(ToolTipProperty, new System.Windows.Data.Binding("[CC_Title]") { Source = Infrastructure.Loc.Instance });
         Cursor = Cursors.Arrow;
 
         _badge = new Border

@@ -194,7 +194,7 @@ public partial class ControlCenterWindow : Window
     {
         var current = _audio.Default();
         _defaultId = current?.Id;
-        OutputName.Text = current?.Name ?? "Không có thiết bị phát";
+        OutputName.Text = current?.Name ?? Loc.T("CC_NoOutput");
         OutputAdapter.Text = current?.Adapter ?? "";
         OutputAdapter.Visibility = OutputAdapter.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         OutputGlyph.Text = Glyph(current?.Kind ?? AudioFormFactor.Speakers);
@@ -284,11 +284,11 @@ public partial class ControlCenterWindow : Window
 
     void RenderOutputs()
     {
-        SideHeader("Đầu ra âm thanh");
+        SideHeader(Loc.T("CC_Outputs"));
         var outputs = _audio.List();
         if (outputs.Count == 0)
         {
-            SideMessage("Không tìm thấy thiết bị phát nào.");
+            SideMessage(Loc.T("CC_NoOutputs"));
             return;
         }
         foreach (var output in outputs.OrderBy(o => o.Name))
@@ -307,27 +307,28 @@ public partial class ControlCenterWindow : Window
         }
     }
 
+    // Title and detail are string keys.
     static readonly (ProjectMode Mode, string Glyph, string Title, string Detail)[] ProjectModes =
     [
-        (ProjectMode.PcScreenOnly, "", "Chỉ màn hình máy tính", "Tắt màn hình thứ hai"),
-        (ProjectMode.Duplicate, "", "Nhân bản", "Hai màn hình hiện giống nhau"),
-        (ProjectMode.Extend, "", "Mở rộng", "Kéo cửa sổ sang màn hình thứ hai"),
-        (ProjectMode.SecondScreenOnly, "", "Chỉ màn hình thứ hai", "Tắt màn hình chính"),
+        (ProjectMode.PcScreenOnly, "", "CC_PcOnly", "CC_PcOnly_Desc"),
+        (ProjectMode.Duplicate, "", "CC_Duplicate", "CC_Duplicate_Desc"),
+        (ProjectMode.Extend, "", "CC_Extend", "CC_Extend_Desc"),
+        (ProjectMode.SecondScreenOnly, "", "CC_SecondOnly", "CC_SecondOnly_Desc"),
     ];
 
     void RenderProject()
     {
-        SideHeader("Màn hình chiếu");
+        SideHeader(Loc.T("CC_Project"));
         var current = DisplayProjection.Current();
         foreach (var (mode, glyph, title, detail) in ProjectModes)
         {
             var m = mode;
-            SideRow(glyph, title, detail, m == current, () =>
+            SideRow(glyph, Loc.T(title), Loc.T(detail), m == current, () =>
             {
                 if (m != DisplayProjection.Current() && !DisplayProjection.Set(m))
                 {
                     RenderProject();
-                    SideMessage("Windows không đổi được sang chế độ này (cần có màn hình thứ hai đang cắm).");
+                    SideMessage(Loc.T("CC_ProjectFailed"));
                     return;
                 }
                 SetSide(SideKind.None);
@@ -338,26 +339,26 @@ public partial class ControlCenterWindow : Window
     async void RenderCast(string? note = null)
     {
         int token = _sideToken;
-        SideHeader("Truyền màn hình");
+        SideHeader(Loc.T("CC_Cast"));
         if (note != null) SideMessage(note);
         if (WirelessDisplays.Connected)
         {
-            SideRow("", "Ngắt kết nối", "Đang truyền tới màn hình không dây", true, async () =>
+            SideRow("", Loc.T("CC_Disconnect"), Loc.T("CC_Casting"), true, async () =>
             {
                 await WirelessDisplays.DisconnectAsync();
                 foreach (var paint in _tilePainters) paint();
                 if (_side == SideKind.Cast) RenderCast();
             });
         }
-        var searching = SideMessage("Đang tìm màn hình không dây…");
+        var searching = SideMessage(Loc.T("CC_Searching"));
         var displays = await WirelessDisplays.FindAsync();
         if (token != _sideToken) return;
         SideList.Children.Remove(searching);
         if (displays.Count == 0)
         {
             SideMessage(WirelessDisplays.HasWifi
-                ? "Không tìm thấy màn hình không dây nào. Bật chế độ nhận Miracast trên TV hoặc màn hình rồi mở lại."
-                : "Truyền màn hình qua Miracast cần Wi-Fi; máy chưa cắm bộ thu Wi-Fi nào.");
+                ? Loc.T("CC_NoDisplays")
+                : Loc.T("CC_NoWifi"));
             return;
         }
         foreach (var display in displays)
@@ -365,13 +366,13 @@ public partial class ControlCenterWindow : Window
             var d = display;
             SideRow("", d.Name, null, false, async () =>
             {
-                SideHeader("Truyền màn hình");
-                SideMessage($"Đang kết nối tới {d.Name}…");
+                SideHeader(Loc.T("CC_Cast"));
+                SideMessage(Loc.T("CC_Connecting", d.Name));
                 bool ok = await WirelessDisplays.ConnectAsync(d);
                 foreach (var paint in _tilePainters) paint();
                 if (_side != SideKind.Cast) return;
                 if (ok) SetSide(SideKind.None);
-                else RenderCast($"Không kết nối được tới {d.Name}.");
+                else RenderCast(Loc.T("CC_ConnectFailed", d.Name));
             });
         }
     }
@@ -464,7 +465,7 @@ public partial class ControlCenterWindow : Window
         bool any = items.Count > 0;
         NotificationScroll.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         EmptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        EmptyText.Text = _feed.Available ? "Không có thông báo mới" : "Windows chưa cho MusicBar đọc thông báo";
+        EmptyText.Text = _feed.Available ? Loc.T("CC_NoNotifications") : Loc.T("CC_NotificationsDenied");
         CountChip.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         CountText.Text = items.Count.ToString();
         ClearAllButton.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
@@ -476,7 +477,7 @@ public partial class ControlCenterWindow : Window
         {
             Style = (Style)FindResource("TextButton"), Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(4, -4, -6, -4),
             Content = new TextBlock { Text = "", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 10 },
-            Opacity = 0, ToolTip = "Bỏ thông báo này",
+            Opacity = 0, ToolTip = Loc.T("CC_DismissOne"),
         };
         dismiss.Click += (_, e) =>
         {
@@ -543,12 +544,21 @@ public partial class ControlCenterWindow : Window
     static string When(DateTimeOffset time)
     {
         var ago = DateTimeOffset.Now - time;
-        if (ago < TimeSpan.FromMinutes(1)) return "Vừa xong";
-        if (ago < TimeSpan.FromHours(1)) return $"{(int)ago.TotalMinutes} phút";
+        if (ago < TimeSpan.FromMinutes(1)) return Loc.T("CC_JustNow");
+        if (ago < TimeSpan.FromHours(1)) return Loc.T("CC_MinutesAgo", (int)ago.TotalMinutes);
         var local = time.ToLocalTime();
         if (local.Date == DateTime.Today) return local.ToString("HH:mm");
-        if (local.Date == DateTime.Today.AddDays(-1)) return "Hôm qua";
-        return local.ToString("dd/MM");
+        if (local.Date == DateTime.Today.AddDays(-1)) return Loc.T("CC_Yesterday");
+        return local.ToString(Loc.T("CC_DayMonth"), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Re-renders the text code builds, after the language changes.</summary>
+    public void RefreshText()
+    {
+        SyncOutput();
+        RenderNotifications();
+        RenderTiles();
+        if (_side != SideKind.None) SetSide(_side, animate: false);
     }
 
     static T Frozen<T>(T freezable) where T : Freezable

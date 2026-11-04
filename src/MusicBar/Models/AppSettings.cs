@@ -18,6 +18,12 @@ public enum AccentSource { AlbumArt, App, SystemAccent, Custom }
 /// <summary>How the playback progress is drawn across the taskbar.</summary>
 public enum SeekStyle { Classic, Aurora, Liquid, Neon, Spectrum, Waveform, Ribbon, Cinema, Mosaic, Mesh, Silk, Holo, Bokeh, Ink }
 
+/// <summary>The language of everything MusicBar shows.</summary>
+public enum AppLanguage { English, Vietnamese }
+
+/// <summary>How the previous / play / next buttons beside the cover look.</summary>
+public enum ControlStyle { Glow, Minimal, Capsule, Ring, Vinyl, Keys, Bubbles }
+
 public enum LyricEffect { SlideUp, Fade, Swipe, Zoom, Words, Typewriter, Ticker, None }
 
 public enum LyricsAlign { Center, Left }
@@ -114,6 +120,12 @@ public sealed class AppSettings : ObservableObject
 
     bool _showControls = true;
     public bool ShowControls { get => _showControls; set => Set(ref _showControls, value); }
+
+    AppLanguage _language = AppLanguage.English;
+    public AppLanguage Language { get => _language; set => Set(ref _language, value); }
+
+    ControlStyle _controlStyle = ControlStyle.Glow;
+    public ControlStyle ControlStyle { get => _controlStyle; set => Set(ref _controlStyle, value); }
 
     string _fontFamily = "Segoe UI Variable Text";
     public string FontFamily { get => _fontFamily; set => Set(ref _fontFamily, string.IsNullOrWhiteSpace(value) ? "Segoe UI" : value); }

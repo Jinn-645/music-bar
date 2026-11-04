@@ -93,10 +93,16 @@ public partial class App : Application
         Log.Info($"MusicBar starting ({string.Join(" ", e.Args)})");
         _settings = new SettingsService();
         var settings = _settings.Current;
+        Loc.Instance.Language = settings.Language;
+        // The default lyric font is Windows 11's; on Windows 10 use the Segoe UI it does have.
+        if (settings.FontFamily == "Segoe UI Variable Text"
+            && !System.Windows.Media.Fonts.SystemFontFamilies.Any(f => f.Source == settings.FontFamily))
+            settings.FontFamily = "Segoe UI";
         if (settings.StartWithWindows) StartupService.Apply(true);
         settings.PropertyChanged += (_, ev) =>
         {
             if (ev.PropertyName == nameof(AppSettings.StartWithWindows)) StartupService.Apply(settings.StartWithWindows);
+            else if (ev.PropertyName == nameof(AppSettings.Language)) SwitchLanguage(settings.Language);
         };
 
         _media = new MediaService(settings);
@@ -129,6 +135,30 @@ public partial class App : Application
             _settingsWindow.WindowState = WindowState.Normal;
         }
         _settingsWindow.Activate();
+    }
+
+    /// <summary>
+    /// Bound text follows the language at once. The settings window also builds text in code,
+    /// so it is reopened in place, on the same page, once the picker that changed it has returned.
+    /// </summary>
+    void SwitchLanguage(AppLanguage language)
+    {
+        Loc.Instance.Language = language;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_settingsWindow is not { } old || _settings == null || _media == null || _lyrics == null) return;
+            var (page, left, top, width, height) = (old.Page, old.Left, old.Top, old.Width, old.Height);
+            old.Close();
+            _settingsWindow = new SettingsWindow(_settings.Current, _media, _lyrics)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = left, Top = top, Width = width, Height = height,
+            };
+            _settingsWindow.Page = page;
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
+            _settingsWindow.Activate();
+        });
     }
 
     public void ExitApp()

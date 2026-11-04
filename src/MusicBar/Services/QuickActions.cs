@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -51,14 +51,16 @@ public static class QuickActions
         {
             actions.Add(new QuickAction
             {
-                Glyph = "", Label = "Ánh sáng đêm",
+                Glyph = "", Label = Loc.T("QA_NightLight"),
                 IsOn = () => NightLight.IsOn == true,
                 Run = () => Task.FromResult(NightLight.Set(NightLight.IsOn != true)),
             });
         }
+        // Live captions arrived in Windows 11 22H2; before that Win+Ctrl+L does nothing.
+        if (Environment.OSVersion.Version.Build >= 22621)
         actions.Add(new QuickAction
         {
-            Glyph = "", Label = "Phụ đề trực tiếp",
+            Glyph = "", Label = Loc.T("QA_LiveCaptions"),
             IsOn = () => Process.GetProcessesByName("LiveCaptions").Length > 0,
             Run = () =>
             {
@@ -66,11 +68,11 @@ public static class QuickActions
                 return Task.Delay(700);
             },
         });
-        actions.Add(Open("", "Tiết kiệm năng lượng", "ms-settings:powersleep"));
-        actions.Add(Open("", "Chia sẻ lân cận", "ms-settings:crossdevice"));
-        actions.Add(new QuickAction { Glyph = "", Label = "Màn hình chiếu", Panel = QuickPanel.Project });
-        actions.Add(new QuickAction { Glyph = "", Label = "Truyền màn hình", Panel = QuickPanel.Cast, IsOn = () => WirelessDisplays.Connected });
-        actions.Add(Open("", "Trợ năng", "ms-settings:easeofaccess"));
+        actions.Add(Open("", Loc.T("QA_EnergySaver"), "ms-settings:powersleep"));
+        actions.Add(Open("", Loc.T("QA_NearbySharing"), "ms-settings:crossdevice"));
+        actions.Add(new QuickAction { Glyph = "", Label = Loc.T("QA_Project"), Panel = QuickPanel.Project });
+        actions.Add(new QuickAction { Glyph = "", Label = Loc.T("QA_Cast"), Panel = QuickPanel.Cast, IsOn = () => WirelessDisplays.Connected });
+        actions.Add(Open("", Loc.T("QA_Accessibility"), "ms-settings:easeofaccess"));
         return actions;
     }
 

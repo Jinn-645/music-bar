@@ -117,6 +117,7 @@ public sealed class TaskbarOverlay : IDisposable
             _controlCenter.Tick();
         };
         _s.PropertyChanged += OnSettingChanged;
+        Loc.Changed += OnLanguageChanged;
         _media.PropertyChanged += OnMediaPropertyChanged;
         _media.TrackChanged += (_, _) => OnTrackChanged();
         _media.ThumbnailChanged += (_, _) => OnThumbnailChanged();
@@ -221,6 +222,7 @@ public sealed class TaskbarOverlay : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        Loc.Changed -= OnLanguageChanged;
         _controlCenter.Dispose();
         if (_transparencyApplied) RestoreTransparency();
         SetRendering(false);
@@ -529,7 +531,9 @@ public sealed class TaskbarOverlay : IDisposable
         var pos = _media.GetPosition();
         var dur = _media.Duration;
         bool timeline = _media.HasSession && dur > TimeSpan.Zero;
-        _layer.SetProgress(timeline ? Math.Clamp((double)pos.Ticks / dur.Ticks, 0, 1) : 0, timeline, _media.IsPlaying);
+        double progress = timeline ? Math.Clamp((double)pos.Ticks / dur.Ticks, 0, 1) : 0;
+        _layer.SetProgress(progress, timeline, _media.IsPlaying);
+        _widget.SetProgress(progress);
         if (_popup.IsOpen) _popup.SetProgress(pos, dur);
 
         UpdateQuietZones();
@@ -744,7 +748,7 @@ public sealed class TaskbarOverlay : IDisposable
         _details = null;
         _lyricsStatus = LyricsStatus.None;
         _popup.Dismiss();
-        ShowLyricsMessage("Không có nhạc đang phát", "");
+        ShowLyricsMessage(Loc.T("Msg_NothingPlaying"), "");
         _widget.SetArt(null);
         UpdateBadge();
         UpdateAccent(animate: true);
@@ -762,6 +766,15 @@ public sealed class TaskbarOverlay : IDisposable
         LoadDetails();
         _layer.SetTrack($"{_media.AppId}|{_media.Artist}|{_media.Title}");
         if (_popup.IsOpen) _popup.SetContent(BuildCard());
+    }
+
+    /// <summary>Messages already on the bar are re-said in the new language; menus pick it up when next built.</summary>
+    void OnLanguageChanged()
+    {
+        if (!_media.HasSession) ShowLyricsMessage(Loc.T("Msg_NothingPlaying"), "");
+        else if (_lyricsStatus == LyricsStatus.Instrumental) ShowLyricsMessage(_media.Title, Loc.T("Msg_Instrumental"));
+        if (_popup.IsOpen) _popup.SetContent(BuildCard());
+        _controlCenter.RefreshText();
     }
 
     void ShowTrackMessage()
@@ -795,7 +808,7 @@ public sealed class TaskbarOverlay : IDisposable
             if (result.Status == LyricsStatus.Synced && result.Lyrics != null)
                 ShowSyncedLyrics(result.Lyrics);
             else if (result.Status == LyricsStatus.Instrumental)
-                ShowLyricsMessage(_media.Title, "♪ Nhạc không lời");
+                ShowLyricsMessage(_media.Title, Loc.T("Msg_Instrumental"));
             Log.Info($"Lyrics for '{_media.Artist} - {_media.Title}': {result.Status} ({result.Source})");
 
             // Network trouble or LRCLIB briefly down: try again while the same song keeps playing.
@@ -875,7 +888,7 @@ public sealed class TaskbarOverlay : IDisposable
             .Take(3)
             .ToList();
         string? track = _media.TrackNumber > 0
-            ? _media.AlbumTrackCount > 0 ? $"Bài {_media.TrackNumber}/{_media.AlbumTrackCount}" : $"Bài {_media.TrackNumber}"
+            ? _media.AlbumTrackCount > 0 ? Loc.T("Card_TrackOf", _media.TrackNumber, _media.AlbumTrackCount) : Loc.T("Card_Track", _media.TrackNumber)
             : null;
         var album = _media.Album.Length > 0 ? _media.Album : d?.Album ?? "";
         var artist = _media.Artist.Length > 0 ? _media.Artist : d?.Artist ?? "";
@@ -909,19 +922,19 @@ public sealed class TaskbarOverlay : IDisposable
             menu.Items.Add(new MenuItem { Header = Shorten(_media.Title + artist, 52), IsEnabled = false, Icon = Glyph("") });
             if (!_media.IsDemo)
             {
-                var open = new MenuItem { Header = $"Mở {_media.AppName}", Icon = Glyph("") };
+                var open = new MenuItem { Header = Loc.T("Menu_OpenApp", _media.AppName), Icon = Glyph("") };
                 open.Click += (_, _) => AppVisualResolver.Activate(_media.AppId);
                 menu.Items.Add(open);
             }
             menu.Items.Add(new Separator());
         }
 
-        var showLyrics = new MenuItem { Header = "Hiện lời bài hát cạnh ảnh bìa", Icon = Glyph(""), IsChecked = _s.LyricsExpanded };
+        var showLyrics = new MenuItem { Header = Loc.T("Menu_ShowLyrics"), Icon = Glyph(""), IsChecked = _s.LyricsExpanded };
         showLyrics.Click += (_, _) => _s.LyricsExpanded = !_s.LyricsExpanded;
         menu.Items.Add(showLyrics);
 
-        var sources = new MenuItem { Header = "Nguồn phát", Icon = Glyph("") };
-        var auto = new MenuItem { Header = "Tự động (ưu tiên đang phát)", IsChecked = _s.PinnedAppId.Length == 0 };
+        var sources = new MenuItem { Header = Loc.T("Menu_Source"), Icon = Glyph("") };
+        var auto = new MenuItem { Header = Loc.T("Menu_SourceAuto"), IsChecked = _s.PinnedAppId.Length == 0 };
         auto.Click += (_, _) => _s.PinnedAppId = "";
         sources.Items.Add(auto);
         var sessions = _media.GetSessions();
@@ -940,31 +953,31 @@ public sealed class TaskbarOverlay : IDisposable
         }
         menu.Items.Add(sources);
 
-        var lyrics = new MenuItem { Header = "Lời bài hát", Icon = Glyph("") };
-        lyrics.Items.Add(new MenuItem { Header = "Trạng thái: " + LyricsStatusText(), IsEnabled = false });
+        var lyrics = new MenuItem { Header = Loc.T("Menu_Lyrics"), Icon = Glyph("") };
+        lyrics.Items.Add(new MenuItem { Header = Loc.T("Menu_LyricsStatus", LyricsStatusText()), IsEnabled = false });
         lyrics.Items.Add(new Separator());
-        var reload = new MenuItem { Header = "Tải lại từ LRCLIB", Icon = Glyph(""), IsEnabled = _media.HasSession && !_media.IsDemo };
+        var reload = new MenuItem { Header = Loc.T("Menu_Reload"), Icon = Glyph(""), IsEnabled = _media.HasSession && !_media.IsDemo };
         reload.Click += (_, _) => LoadLyrics(force: true);
         lyrics.Items.Add(reload);
 
         bool synced = _lyricsResult?.Lyrics != null;
         int offset = synced ? (int)_lyricsResult!.Lyrics!.Offset.TotalMilliseconds : 0;
-        var earlier = new MenuItem { Header = "Hiện lời sớm hơn 0,25 giây", Icon = Glyph(""), IsEnabled = synced };
+        var earlier = new MenuItem { Header = Loc.T("Menu_Earlier"), Icon = Glyph(""), IsEnabled = synced };
         earlier.Click += (_, _) => NudgeOffset(+250);
-        var later = new MenuItem { Header = "Hiện lời trễ hơn 0,25 giây", Icon = Glyph(""), IsEnabled = synced };
+        var later = new MenuItem { Header = Loc.T("Menu_Later"), Icon = Glyph(""), IsEnabled = synced };
         later.Click += (_, _) => NudgeOffset(-250);
-        var reset = new MenuItem { Header = $"Đặt lại độ lệch bài này ({offset:+0;-0;0} ms)", IsEnabled = synced && offset != 0 };
+        var reset = new MenuItem { Header = Loc.T("Menu_ResetOffset", offset.ToString("+0;-0;0")), IsEnabled = synced && offset != 0 };
         reset.Click += (_, _) => NudgeOffset(-offset);
         lyrics.Items.Add(earlier);
         lyrics.Items.Add(later);
         lyrics.Items.Add(reset);
         lyrics.Items.Add(new Separator());
-        var folder = new MenuItem { Header = "Mở thư mục lời bài hát", Icon = Glyph("") };
+        var folder = new MenuItem { Header = Loc.T("Menu_LyricsFolder"), Icon = Glyph("") };
         folder.Click += (_, _) => OpenLyricsFolder();
         lyrics.Items.Add(folder);
         menu.Items.Add(lyrics);
 
-        var effects = new MenuItem { Header = "Hiệu ứng lời", Icon = Glyph("") };
+        var effects = new MenuItem { Header = Loc.T("Menu_LyricEffect"), Icon = Glyph("") };
         foreach (var option in SettingsOptions.LyricEffects)
         {
             var value = (LyricEffect)option.Value;
@@ -978,7 +991,7 @@ public sealed class TaskbarOverlay : IDisposable
         }
         menu.Items.Add(effects);
 
-        var seek = new MenuItem { Header = "Kiểu thanh tiến trình", Icon = Glyph("") };
+        var seek = new MenuItem { Header = Loc.T("Menu_SeekStyle"), Icon = Glyph("") };
         foreach (var option in SettingsOptions.SeekStyles)
         {
             var item = new MenuItem { Header = option.Label, IsChecked = _s.SeekStyle == option.Value };
@@ -988,11 +1001,21 @@ public sealed class TaskbarOverlay : IDisposable
         }
         menu.Items.Add(seek);
 
+        var controls = new MenuItem { Header = Loc.T("Menu_ControlStyle"), Icon = Glyph("") };
+        foreach (var option in SettingsOptions.ControlStyles)
+        {
+            var value = (ControlStyle)option.Value;
+            var item = new MenuItem { Header = option.Label, IsChecked = _s.ControlStyle == value };
+            item.Click += (_, _) => _s.ControlStyle = value;
+            controls.Items.Add(item);
+        }
+        menu.Items.Add(controls);
+
         menu.Items.Add(new Separator());
-        var settings = new MenuItem { Header = "Cài đặt…", Icon = Glyph("") };
+        var settings = new MenuItem { Header = Loc.T("Menu_Settings"), Icon = Glyph("") };
         settings.Click += (_, _) => App.Instance.ShowSettings();
         menu.Items.Add(settings);
-        var exit = new MenuItem { Header = "Thoát MusicBar", Icon = Glyph("") };
+        var exit = new MenuItem { Header = Loc.T("Menu_Exit"), Icon = Glyph("") };
         exit.Click += (_, _) => App.Instance.ExitApp();
         menu.Items.Add(exit);
         return menu;
@@ -1004,18 +1027,18 @@ public sealed class TaskbarOverlay : IDisposable
 
     string LyricsStatusText() => _lyricsStatus switch
     {
-        LyricsStatus.Loading => "đang tìm…",
+        LyricsStatus.Loading => Loc.T("LyrSt_Loading"),
         LyricsStatus.Synced => _lyricsResult?.Source switch
         {
-            "LRCLIB" => "vừa tải từ LRCLIB",
-            "demo" => "lời demo",
-            _ => "lấy từ bộ nhớ máy",
+            "LRCLIB" => Loc.T("LyrSt_Downloaded"),
+            "demo" => Loc.T("LyrSt_Demo"),
+            _ => Loc.T("LyrSt_Cached"),
         },
-        LyricsStatus.PlainOnly => "chỉ có lời không đồng bộ",
-        LyricsStatus.Instrumental => "nhạc không lời",
-        LyricsStatus.NotFound => "không tìm thấy",
-        LyricsStatus.Error => "lỗi mạng, thử lại sau",
-        _ => _s.LyricsEnabled ? "chưa có" : "đang tắt",
+        LyricsStatus.PlainOnly => Loc.T("LyrSt_PlainOnly"),
+        LyricsStatus.Instrumental => Loc.T("LyrSt_Instrumental"),
+        LyricsStatus.NotFound => Loc.T("LyrSt_NotFound"),
+        LyricsStatus.Error => Loc.T("LyrSt_Error"),
+        _ => _s.LyricsEnabled ? Loc.T("LyrSt_None") : Loc.T("LyrSt_Off"),
     };
 
     void NudgeOffset(int deltaMs)

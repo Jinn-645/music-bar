@@ -10,9 +10,11 @@ $publish = Join-Path $artifacts "publish"
 
 if (Test-Path $artifacts) { Remove-Item $artifacts -Recurse -Force }
 
-# Self-contained single file: nothing to install first, not even .NET.
+# Self-contained single file: nothing to install first, not even .NET. Not compressed: a compressed
+# bundle is inflated into the process's private memory (measured 143 MB against 58 MB), while an
+# uncompressed one is mapped from disk; the installer and the zip compress it for the download anyway.
 dotnet publish (Join-Path $root "src\MusicBar\MusicBar.csproj") -c Release -r win-x64 --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=false `
     -p:DebugType=none -p:Version=$Version -o $publish
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 

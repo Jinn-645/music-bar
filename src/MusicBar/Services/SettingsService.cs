@@ -13,20 +13,26 @@ public sealed class SettingsService
     static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        Converters = { new SeekStyleConverter(), new JsonStringEnumConverter() },
+        Converters =
+        {
+            new StyleConverter<SeekStyle>(SeekStyle.Aurora),
+            new StyleConverter<ControlStyle>(ControlStyle.Glow),
+            new StyleConverter<AppLanguage>(AppLanguage.English),
+            new JsonStringEnumConverter(),
+        },
     };
 
-    /// <summary>A style removed in a later version loads as the default instead of failing the whole file.</summary>
-    sealed class SeekStyleConverter : JsonConverter<SeekStyle>
+    /// <summary>A style removed (or not yet known) in another version loads as the default instead of failing the whole file.</summary>
+    sealed class StyleConverter<T>(T fallback) : JsonConverter<T> where T : struct, Enum
     {
-        public override SeekStyle Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
             => reader.TokenType == JsonTokenType.String
-               && Enum.TryParse<SeekStyle>(reader.GetString(), ignoreCase: true, out var style)
+               && Enum.TryParse<T>(reader.GetString(), ignoreCase: true, out var style)
                && Enum.IsDefined(style)
                 ? style
-                : SeekStyle.Aurora;
+                : fallback;
 
-        public override void Write(Utf8JsonWriter writer, SeekStyle value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
             => writer.WriteStringValue(value.ToString());
     }
 

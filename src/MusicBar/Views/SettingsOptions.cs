@@ -1,89 +1,116 @@
 using System.Collections.Generic;
+using MusicBar.Infrastructure;
 using MusicBar.Models;
 
 namespace MusicBar.Views;
 
-public sealed record Option(object Value, string Label);
+/// <summary>A choice in a list; its label is looked up in <see cref="Strings"/> whenever it is shown.</summary>
+public sealed record Option(object Value, string LabelKey)
+{
+    public string Label => Loc.T(LabelKey);
+}
 
-public sealed record SeekStyleOption(SeekStyle Value, string Label, string Description);
+public sealed record SeekStyleOption(SeekStyle Value, string LabelKey, string DescriptionKey)
+{
+    public string Label => Loc.T(LabelKey);
+    public string Description => Loc.T(DescriptionKey);
+}
 
 /// <summary>Display labels for every enum the settings window exposes.</summary>
 public static class SettingsOptions
 {
+    /// <summary>Each language in its own words, so it can be found whatever language is showing.</summary>
+    public static IReadOnlyList<Option> Languages { get; } =
+    [
+        new(AppLanguage.English, "Lang_English"),
+        new(AppLanguage.Vietnamese, "Lang_Vietnamese"),
+    ];
+
     public static IReadOnlyList<Option> LayerModes { get; } =
     [
-        new(LayerMode.Auto, "Tự động"),
-        new(LayerMode.Under, "Nằm dưới icon taskbar"),
-        new(LayerMode.Over, "Phủ mờ lên taskbar"),
+        new(LayerMode.Auto, "Opt_Layer_Auto"),
+        new(LayerMode.Under, "Opt_Layer_Under"),
+        new(LayerMode.Over, "Opt_Layer_Over"),
     ];
 
     public static IReadOnlyList<Option> Placements { get; } =
     [
-        new(WidgetPlacement.Right, "Bên phải, cạnh khay hệ thống"),
-        new(WidgetPlacement.Left, "Bên trái"),
+        new(WidgetPlacement.Right, "Opt_Place_Right"),
+        new(WidgetPlacement.Left, "Opt_Place_Left"),
     ];
 
     public static IReadOnlyList<Option> LyricsPlacements { get; } =
     [
-        new(LyricsPlacement.BesideCover, "Ngay cạnh ảnh bìa"),
-        new(LyricsPlacement.LargestGap, "Khoảng trống lớn nhất trên taskbar"),
+        new(LyricsPlacement.BesideCover, "Opt_Lyrics_BesideCover"),
+        new(LyricsPlacement.LargestGap, "Opt_Lyrics_LargestGap"),
     ];
 
     public static IReadOnlyList<Option> TaskbarSizes { get; } =
     [
-        new(true, "Nhỏ"),
-        new(false, "Thường"),
+        new(true, "Opt_Size_Small"),
+        new(false, "Opt_Size_Medium"),
     ];
 
     public static IReadOnlyList<Option> Backgrounds { get; } =
     [
-        new(BarBackground.Dark, "Tối"),
-        new(BarBackground.Tinted, "Tối, pha màu bài hát"),
-        new(BarBackground.Transparent, "Trong suốt (chỉ có thanh tiến trình)"),
+        new(BarBackground.Dark, "Opt_Bg_Dark"),
+        new(BarBackground.Tinted, "Opt_Bg_Tinted"),
+        new(BarBackground.Transparent, "Opt_Bg_Transparent"),
+    ];
+
+    public static IReadOnlyList<Option> ControlStyles { get; } =
+    [
+        new(ControlStyle.Glow, "Opt_Ctl_Glow"),
+        new(ControlStyle.Minimal, "Opt_Ctl_Minimal"),
+        new(ControlStyle.Capsule, "Opt_Ctl_Capsule"),
+        new(ControlStyle.Ring, "Opt_Ctl_Ring"),
+        new(ControlStyle.Vinyl, "Opt_Ctl_Vinyl"),
+        new(ControlStyle.Keys, "Opt_Ctl_Keys"),
+        new(ControlStyle.Bubbles, "Opt_Ctl_Bubbles"),
     ];
 
     public static IReadOnlyList<Option> AccentSources { get; } =
     [
-        new(AccentSource.AlbumArt, "Theo ảnh bìa bài hát"),
-        new(AccentSource.App, "Theo màu ứng dụng phát nhạc"),
-        new(AccentSource.SystemAccent, "Theo màu nhấn của Windows"),
-        new(AccentSource.Custom, "Màu tự chọn"),
+        new(AccentSource.AlbumArt, "Opt_Accent_Art"),
+        new(AccentSource.App, "Opt_Accent_App"),
+        new(AccentSource.SystemAccent, "Opt_Accent_System"),
+        new(AccentSource.Custom, "Opt_Accent_Custom"),
     ];
 
     public static IReadOnlyList<SeekStyleOption> SeekStyles { get; } =
     [
-        new(SeekStyle.Aurora, "Cực quang", "Ba dải sáng uốn lượn theo màu bài hát, dâng lên theo nhạc"),
-        new(SeekStyle.Mesh, "Lưới màu", "Những mảng màu lớn của ảnh bìa trôi chậm, hòa vào nhau và thở theo nhạc"),
-        new(SeekStyle.Silk, "Sợi tơ", "Những sợi tơ mảnh xoắn quanh nhau, se lại thành một sợi ở đầu phát"),
-        new(SeekStyle.Holo, "Ánh kim", "Giấy kim tuyến đổi sắc quanh màu bài hát, ánh sáng lướt qua mặt giấy"),
-        new(SeekStyle.Bokeh, "Ánh đèn mờ", "Đốm đèn ngoài nét xa gần, mỗi đốm nhấp nháy theo một dải tần"),
-        new(SeekStyle.Ink, "Mực loang", "Màu nước loang ra sau đầu phát, từng giọt mực vẫn tiếp tục lan"),
-        new(SeekStyle.Ribbon, "Dải màu ảnh bìa", "Màu từng cột của ảnh bìa trải thành dải, lộ dần theo bài"),
-        new(SeekStyle.Cinema, "Điện ảnh", "Ảnh bìa nhòe sâu, trôi chậm như một cảnh phim"),
-        new(SeekStyle.Neon, "Ống neon", "Ống đèn neon dọc mép, chập chờn và hắt sáng xuống taskbar"),
-        new(SeekStyle.Liquid, "Chất lỏng", "Mặt chất lỏng gợn sóng ở đầu phát, bọt khí li ti nổi lên"),
-        new(SeekStyle.Spectrum, "Phổ âm", "Cột phổ âm thanh thật, phần đã phát được tô màu"),
-        new(SeekStyle.Waveform, "Dạng sóng", "Sóng âm kiểu SoundCloud, tự vẽ dạng sóng thật khi phát"),
-        new(SeekStyle.Mosaic, "Ô LED", "Ma trận ô vuông lấp lánh theo bảng màu bài hát"),
-        new(SeekStyle.Classic, "Cổ điển", "Phủ màu và quầng sáng ở đầu phát"),
+        new(SeekStyle.Aurora, "Seek_Aurora", "Seek_Aurora_Desc"),
+        new(SeekStyle.Mesh, "Seek_Mesh", "Seek_Mesh_Desc"),
+        new(SeekStyle.Silk, "Seek_Silk", "Seek_Silk_Desc"),
+        new(SeekStyle.Holo, "Seek_Holo", "Seek_Holo_Desc"),
+        new(SeekStyle.Bokeh, "Seek_Bokeh", "Seek_Bokeh_Desc"),
+        new(SeekStyle.Ink, "Seek_Ink", "Seek_Ink_Desc"),
+        new(SeekStyle.Ribbon, "Seek_Ribbon", "Seek_Ribbon_Desc"),
+        new(SeekStyle.Cinema, "Seek_Cinema", "Seek_Cinema_Desc"),
+        new(SeekStyle.Neon, "Seek_Neon", "Seek_Neon_Desc"),
+        new(SeekStyle.Liquid, "Seek_Liquid", "Seek_Liquid_Desc"),
+        new(SeekStyle.Spectrum, "Seek_Spectrum", "Seek_Spectrum_Desc"),
+        new(SeekStyle.Waveform, "Seek_Waveform", "Seek_Waveform_Desc"),
+        new(SeekStyle.Mosaic, "Seek_Mosaic", "Seek_Mosaic_Desc"),
+        new(SeekStyle.Classic, "Seek_Classic", "Seek_Classic_Desc"),
     ];
 
     public static IReadOnlyList<Option> LyricEffects { get; } =
     [
-        new(LyricEffect.SlideUp, "Cuộn lên (Slide up)"),
-        new(LyricEffect.Fade, "Mờ dần (Fade)"),
-        new(LyricEffect.Swipe, "Quét ngang (Swipe)"),
-        new(LyricEffect.Zoom, "Phóng to + nhòe (Zoom blur)"),
-        new(LyricEffect.Words, "Từng chữ nảy lên (Word pop)"),
-        new(LyricEffect.Typewriter, "Gõ chữ (Typewriter)"),
-        new(LyricEffect.Ticker, "Băng chữ chạy ngang (Ticker)"),
-        new(LyricEffect.None, "Không hiệu ứng"),
+        new(LyricEffect.SlideUp, "Fx_SlideUp"),
+        new(LyricEffect.Fade, "Fx_Fade"),
+        new(LyricEffect.Swipe, "Fx_Swipe"),
+        new(LyricEffect.Zoom, "Fx_Zoom"),
+        new(LyricEffect.Words, "Fx_Words"),
+        new(LyricEffect.Typewriter, "Fx_Typewriter"),
+        new(LyricEffect.Ticker, "Fx_Ticker"),
+        new(LyricEffect.None, "Fx_None"),
     ];
 
     public static IReadOnlyList<Option> Alignments { get; } =
     [
-        new(LyricsAlign.Left, "Sát ảnh bìa"),
-        new(LyricsAlign.Center, "Giữa widget"),
+        new(LyricsAlign.Left, "Opt_Align_Left"),
+        new(LyricsAlign.Center, "Opt_Align_Center"),
     ];
 
     public static IReadOnlyList<string> Swatches { get; } =
