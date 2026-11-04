@@ -1,0 +1,14 @@
+bin/
+obj/
+dist/
+artifacts/
+.vs/
+*.user
+__pycache__/
+
+# promo: HyperFrames working files and the rendered video (it ships with the release instead)
+promo/node_modules/
+promo/.hyperframes/
+promo/.capture/
+promo/.thumbnails/
+promo/renders/

@@ -1,0 +1,610 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using MusicBar.Infrastructure;
+using MusicBar.Models;
+using Windows.Foundation;
+using Windows.Media.Control;
+using Windows.Storage.Streams;
+
+namespace MusicBar.Services;
+
+public sealed record SessionInfo(string AppId, string AppName, string Title, bool IsPlaying, bool IsSelected);
+
+/// <summary>
+/// Follows every app that publishes a Windows media session (Spotify, browsers,
+/// Media Player, ...), picks the one to show, exposes its metadata and a
+/// smoothly interpolated playback position, and forwards transport commands.
+/// All public state is mutated on the UI thread.
+/// </summary>
+public sealed class MediaService : ObservableObject
+{
+    sealed class Subscription
+    {
+        public required GlobalSystemMediaTransportControlsSession Session;
+        public required TypedEventHandler<GlobalSystemMediaTransportControlsSession, PlaybackInfoChangedEventArgs> Playback;
+        public required TypedEventHandler<GlobalSystemMediaTransportControlsSession, MediaPropertiesChangedEventArgs> Media;
+        public required TypedEventHandler<GlobalSystemMediaTransportControlsSession, TimelinePropertiesChangedEventArgs> Timeline;
+    }
+
+    readonly AppSettings _settings;
+    readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(1) };
+    readonly List<Subscription> _subs = [];
+    readonly Dictionary<string, string> _sessionTitles = new();
+
+    GlobalSystemMediaTransportControlsSessionManager? _manager;
+    GlobalSystemMediaTransportControlsSession? _session;
+    int _mediaRequest;
+    int _pollTicks;
+    string _trackKey = "";
+
+    // Position model: position = anchor + (now - anchorTime) * rate while playing.
+    TimeSpan _anchorPos;
+    DateTimeOffset _anchorTime = DateTimeOffset.Now;
+    double _rate = 1;
+    TimeSpan _timelineStart;
+    TimeSpan _lastTimelinePos = TimeSpan.MinValue;
+    DateTimeOffset _lastTimelineUpdate;
+
+    // Demo mode
+    bool _demo;
+    int _demoIndex;
+
+    public MediaService(AppSettings settings)
+    {
+        _settings = settings;
+        _settings.PropertyChanged += OnSettingsChanged;
+        _poll.Tick += (_, _) => Poll();
+    }
+
+    public event EventHandler? TrackChanged;
+    public event EventHandler? ThumbnailChanged;
+
+    bool _hasSession;
+    public bool HasSession { get => _hasSession; private set => Set(ref _hasSession, value); }
+
+    string _appId = "";
+    public string AppId { get => _appId; private set => Set(ref _appId, value); }
+
+    string _appName = "";
+    public string AppName { get => _appName; private set => Set(ref _appName, value); }
+
+    ImageSource? _appIcon;
+    public ImageSource? AppIcon { get => _appIcon; private set => Set(ref _appIcon, value); }
+
+    Color? _appColor;
+    public Color? AppColor { get => _appColor; private set => Set(ref _appColor, value); }
+
+    string _title = "";
+    public string Title { get => _title; private set => Set(ref _title, value); }
+
+    string _artist = "";
+    public string Artist { get => _artist; private set => Set(ref _artist, value); }
+
+    string _album = "";
+    public string Album { get => _album; private set => Set(ref _album, value); }
+
+    string _albumArtist = "";
+    public string AlbumArtist { get => _albumArtist; private set => Set(ref _albumArtist, value); }
+
+    /// <summary>Genres published by the player (often empty).</summary>
+    string _genres = "";
+    public string Genres { get => _genres; private set => Set(ref _genres, value); }
+
+    int _trackNumber;
+    public int TrackNumber { get => _trackNumber; private set => Set(ref _trackNumber, value); }
+
+    int _albumTrackCount;
+    public int AlbumTrackCount { get => _albumTrackCount; private set => Set(ref _albumTrackCount, value); }
+
+    BitmapSource? _thumbnail;
+    public BitmapSource? Thumbnail { get => _thumbnail; private set => Set(ref _thumbnail, value); }
+
+    TimeSpan _duration;
+    public TimeSpan Duration { get => _duration; private set => Set(ref _duration, value); }
+
+    bool _isPlaying;
+    public bool IsPlaying { get => _isPlaying; private set => Set(ref _isPlaying, value); }
+
+    bool _canPlayPause;
+    public bool CanPlayPause { get => _canPlayPause; private set => Set(ref _canPlayPause, value); }
+
+    bool _canNext;
+    public bool CanNext { get => _canNext; private set => Set(ref _canNext, value); }
+
+    bool _canPrevious;
+    public bool CanPrevious { get => _canPrevious; private set => Set(ref _canPrevious, value); }
+
+    bool _canSeek;
+    public bool CanSeek { get => _canSeek; private set => Set(ref _canSeek, value); }
+
+    public bool IsDemo => _demo;
+
+    // ------------------------------------------------------------------ lifecycle
+
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Media session manager unavailable", ex);
+            return;
+        }
+
+        _manager.SessionsChanged += (_, _) => _ui.BeginInvoke(RefreshSessions);
+        _manager.CurrentSessionChanged += (_, _) => _ui.BeginInvoke(PickSession);
+        RefreshSessions();
+        _poll.Start();
+    }
+
+    void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.PinnedAppId) && !_demo) PickSession();
+    }
+
+    public TimeSpan GetPosition()
+    {
+        if (!HasSession) return TimeSpan.Zero;
+        var pos = _anchorPos;
+        if (IsPlaying) pos += TimeSpan.FromTicks((long)((DateTimeOffset.Now - _anchorTime).Ticks * _rate));
+        if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
+        if (Duration > TimeSpan.Zero && pos > Duration)
+        {
+            if (_demo)
+            {
+                _anchorPos = TimeSpan.Zero;
+                _anchorTime = DateTimeOffset.Now;
+                return TimeSpan.Zero;
+            }
+            pos = Duration;
+        }
+        return pos;
+    }
+
+    public IReadOnlyList<SessionInfo> GetSessions()
+    {
+        if (_demo) return [new SessionInfo(AppId, AppName, Title, IsPlaying, true)];
+        if (_manager == null) return [];
+        try
+        {
+            return _manager.GetSessions().Select(s =>
+            {
+                var id = s.SourceAppUserModelId;
+                _sessionTitles.TryGetValue(id, out var title);
+                return new SessionInfo(id, AppVisualResolver.Resolve(id).Name, title ?? "", IsPlayingSession(s),
+                    _session != null && id == _session.SourceAppUserModelId);
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Listing sessions failed", ex);
+            return [];
+        }
+    }
+
+    // ------------------------------------------------------------------ session tracking
+
+    void RefreshSessions()
+    {
+        if (_manager == null) return;
+        foreach (var sub in _subs)
+        {
+            try
+            {
+                sub.Session.PlaybackInfoChanged -= sub.Playback;
+                sub.Session.MediaPropertiesChanged -= sub.Media;
+                sub.Session.TimelinePropertiesChanged -= sub.Timeline;
+            }
+            catch (Exception)
+            {
+                // Session already gone.
+            }
+        }
+        _subs.Clear();
+
+        IReadOnlyList<GlobalSystemMediaTransportControlsSession> sessions;
+        try { sessions = _manager.GetSessions(); }
+        catch (Exception ex)
+        {
+            Log.Error("GetSessions failed", ex);
+            return;
+        }
+
+        foreach (var s in sessions)
+        {
+            var sub = new Subscription
+            {
+                Session = s,
+                Playback = (sender, _) => _ui.BeginInvoke(() => OnPlaybackChanged(sender)),
+                Media = (sender, _) => _ui.BeginInvoke(() => OnMediaChanged(sender)),
+                Timeline = (sender, _) => _ui.BeginInvoke(() => OnTimelineChanged(sender)),
+            };
+            s.PlaybackInfoChanged += sub.Playback;
+            s.MediaPropertiesChanged += sub.Media;
+            s.TimelinePropertiesChanged += sub.Timeline;
+            _subs.Add(sub);
+            _ = CacheSessionTitleAsync(s);
+        }
+        PickSession();
+    }
+
+    void PickSession()
+    {
+        if (_manager == null || _demo) return;
+        IReadOnlyList<GlobalSystemMediaTransportControlsSession> all;
+        GlobalSystemMediaTransportControlsSession? current = null;
+        try
+        {
+            all = _manager.GetSessions();
+            current = _manager.GetCurrentSession();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Picking session failed", ex);
+            return;
+        }
+
+        GlobalSystemMediaTransportControlsSession? target = null;
+        var pinned = _settings.PinnedAppId;
+        if (pinned.Length > 0) target = all.FirstOrDefault(s => s.SourceAppUserModelId == pinned);
+
+        if (target == null)
+        {
+            var mine = _session == null ? null : all.FirstOrDefault(s => Same(s, _session));
+            if (current != null && IsPlayingSession(current)) target = current;
+            else if (mine != null && IsPlayingSession(mine)) target = mine;
+            else target = all.FirstOrDefault(IsPlayingSession) ?? mine ?? current ?? all.FirstOrDefault();
+        }
+        SetSession(target);
+    }
+
+    static bool Same(GlobalSystemMediaTransportControlsSession a, GlobalSystemMediaTransportControlsSession b)
+        => ReferenceEquals(a, b) || a.SourceAppUserModelId == b.SourceAppUserModelId;
+
+    static bool IsPlayingSession(GlobalSystemMediaTransportControlsSession s)
+    {
+        try
+        {
+            return s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    bool IsSelected(GlobalSystemMediaTransportControlsSession s) => _session != null && Same(s, _session);
+
+    void SetSession(GlobalSystemMediaTransportControlsSession? target)
+    {
+        if (target == null)
+        {
+            if (_session == null && !HasSession) return;
+            _session = null;
+            ClearState();
+            return;
+        }
+
+        if (_session != null && Same(_session, target))
+        {
+            _session = target;
+            return;
+        }
+
+        _session = target;
+        var visual = AppVisualResolver.Resolve(target.SourceAppUserModelId);
+        AppId = target.SourceAppUserModelId;
+        AppName = visual.Name;
+        AppIcon = visual.Icon;
+        AppColor = visual.Color;
+        _trackKey = "";
+        _lastTimelinePos = TimeSpan.MinValue;
+        HasSession = true;
+        UpdatePlaybackInfo();
+        UpdateTimeline(force: true);
+        _ = UpdateMediaAsync();
+        Log.Info($"Following session {AppId}");
+    }
+
+    void ClearState()
+    {
+        HasSession = false;
+        IsPlaying = false;
+        Title = Artist = Album = AlbumArtist = Genres = AppName = AppId = "";
+        TrackNumber = AlbumTrackCount = 0;
+        AppIcon = null;
+        AppColor = null;
+        Thumbnail = null;
+        Duration = TimeSpan.Zero;
+        CanPlayPause = CanNext = CanPrevious = CanSeek = false;
+        _trackKey = "";
+        TrackChanged?.Invoke(this, EventArgs.Empty);
+        ThumbnailChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    void OnPlaybackChanged(GlobalSystemMediaTransportControlsSession s)
+    {
+        if (IsSelected(s)) UpdatePlaybackInfo();
+        PickSession();
+    }
+
+    void OnMediaChanged(GlobalSystemMediaTransportControlsSession s)
+    {
+        _ = CacheSessionTitleAsync(s);
+        if (IsSelected(s)) _ = UpdateMediaAsync();
+    }
+
+    void OnTimelineChanged(GlobalSystemMediaTransportControlsSession s)
+    {
+        if (IsSelected(s)) UpdateTimeline(force: false);
+    }
+
+    void Poll()
+    {
+        if (_session == null)
+        {
+            if (++_pollTicks % 3 == 0) PickSession();
+            return;
+        }
+        UpdatePlaybackInfo();
+        UpdateTimeline(force: false);
+        if (++_pollTicks % 3 == 0) PickSession();
+    }
+
+    async Task CacheSessionTitleAsync(GlobalSystemMediaTransportControlsSession s)
+    {
+        try
+        {
+            var p = await s.TryGetMediaPropertiesAsync();
+            if (p != null) _sessionTitles[s.SourceAppUserModelId] = p.Title ?? "";
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // ------------------------------------------------------------------ state readers
+
+    void UpdatePlaybackInfo()
+    {
+        var s = _session;
+        if (s == null) return;
+        GlobalSystemMediaTransportControlsSessionPlaybackInfo info;
+        try { info = s.GetPlaybackInfo(); }
+        catch (Exception) { return; }
+
+        var c = info.Controls;
+        CanPlayPause = c.IsPlayPauseToggleEnabled || c.IsPlayEnabled || c.IsPauseEnabled;
+        CanNext = c.IsNextEnabled;
+        CanPrevious = c.IsPreviousEnabled;
+        CanSeek = c.IsPlaybackPositionEnabled;
+        var rate = info.PlaybackRate ?? 1.0;
+        _rate = rate > 0 ? rate : 1.0;
+
+        bool playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        if (playing != IsPlaying)
+        {
+            // Freeze/resume from where we visually are, so pause/play never jumps.
+            _anchorPos = GetPosition();
+            _anchorTime = DateTimeOffset.Now;
+            IsPlaying = playing;
+        }
+    }
+
+    void UpdateTimeline(bool force)
+    {
+        var s = _session;
+        if (s == null) return;
+        GlobalSystemMediaTransportControlsSessionTimelineProperties t;
+        try { t = s.GetTimelineProperties(); }
+        catch (Exception) { return; }
+
+        _timelineStart = t.StartTime;
+        var duration = t.EndTime - t.StartTime;
+        if (duration <= TimeSpan.Zero && t.MaxSeekTime > TimeSpan.Zero) duration = t.MaxSeekTime - t.MinSeekTime;
+        Duration = duration > TimeSpan.Zero ? duration : TimeSpan.Zero;
+
+        var pos = t.Position - t.StartTime;
+        var updated = t.LastUpdatedTime;
+        if (!force && pos == _lastTimelinePos && updated == _lastTimelineUpdate) return;
+        _lastTimelinePos = pos;
+        _lastTimelineUpdate = updated;
+
+        var now = DateTimeOffset.Now;
+        bool sane = updated.Year > 2000 && updated <= now.AddSeconds(2) && now - updated < TimeSpan.FromHours(6);
+        _anchorPos = pos;
+        _anchorTime = sane ? updated : now;
+    }
+
+    async Task UpdateMediaAsync()
+    {
+        var s = _session;
+        if (s == null) return;
+        int request = ++_mediaRequest;
+
+        GlobalSystemMediaTransportControlsSessionMediaProperties? p = null;
+        try { p = await s.TryGetMediaPropertiesAsync(); }
+        catch (Exception ex) { Log.Error("Reading media properties failed", ex); }
+        if (p == null || request != _mediaRequest || !ReferenceEquals(s, _session)) return;
+
+        var title = (p.Title ?? "").Trim();
+        var artist = (p.Artist ?? "").Trim();
+        if (artist.Length == 0) artist = (p.AlbumArtist ?? "").Trim();
+        var album = (p.AlbumTitle ?? "").Trim();
+
+        var key = $"{AppId}\n{title}\n{artist}\n{album}";
+        bool trackChanged = key != _trackKey;
+        Title = title;
+        Artist = artist;
+        Album = album;
+        AlbumArtist = (p.AlbumArtist ?? "").Trim();
+        Genres = p.Genres is { Count: > 0 } g ? string.Join(", ", g) : "";
+        TrackNumber = p.TrackNumber;
+        AlbumTrackCount = p.AlbumTrackCount;
+
+        if (trackChanged)
+        {
+            _trackKey = key;
+            if (Thumbnail != null)
+            {
+                Thumbnail = null;
+                ThumbnailChanged?.Invoke(this, EventArgs.Empty);
+            }
+            UpdateTimeline(force: true);
+            TrackChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (p.Thumbnail != null && (trackChanged || Thumbnail == null))
+        {
+            var bmp = await LoadThumbnailAsync(p.Thumbnail);
+            if (bmp != null && key == _trackKey)
+            {
+                Thumbnail = bmp;
+                ThumbnailChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    static async Task<BitmapSource?> LoadThumbnailAsync(IRandomAccessStreamReference reference)
+    {
+        try
+        {
+            var ms = new MemoryStream();
+            using (var ras = await reference.OpenReadAsync())
+            using (var stream = ras.AsStreamForRead())
+            {
+                await stream.CopyToAsync(ms);
+            }
+            ms.Position = 0;
+            return await Task.Run(() =>
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.StreamSource = ms;
+                bmp.DecodePixelWidth = 300;
+                bmp.EndInit();
+                bmp.Freeze();
+                return (BitmapSource)bmp;
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Loading thumbnail failed", ex);
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------------------ commands
+
+    public async Task PlayPauseAsync()
+    {
+        if (_demo)
+        {
+            _anchorPos = GetPosition();
+            _anchorTime = DateTimeOffset.Now;
+            IsPlaying = !IsPlaying;
+            return;
+        }
+        if (_session is { } s) await Try(() => s.TryTogglePlayPauseAsync().AsTask());
+    }
+
+    public async Task NextAsync()
+    {
+        if (_demo)
+        {
+            LoadDemoTrack(_demoIndex + 1);
+            return;
+        }
+        if (_session is { } s) await Try(() => s.TrySkipNextAsync().AsTask());
+    }
+
+    public async Task PreviousAsync()
+    {
+        if (_demo)
+        {
+            if (GetPosition() > TimeSpan.FromSeconds(3)) await SeekAsync(TimeSpan.Zero);
+            else LoadDemoTrack(_demoIndex - 1);
+            return;
+        }
+        if (_session is { } s) await Try(() => s.TrySkipPreviousAsync().AsTask());
+    }
+
+    public async Task SeekAsync(TimeSpan target)
+    {
+        if (!HasSession) return;
+        if (target < TimeSpan.Zero) target = TimeSpan.Zero;
+        if (Duration > TimeSpan.Zero && target > Duration) target = Duration;
+
+        var previousAnchor = (_anchorPos, _anchorTime);
+        _anchorPos = target;
+        _anchorTime = DateTimeOffset.Now;
+        if (_demo) return;
+
+        var s = _session;
+        if (s == null || !CanSeek) return;
+        bool ok = await Try(() => s.TryChangePlaybackPositionAsync((_timelineStart + target).Ticks).AsTask());
+        if (!ok && ReferenceEquals(s, _session))
+        {
+            (_anchorPos, _anchorTime) = previousAnchor;
+            UpdateTimeline(force: true);
+        }
+    }
+
+    static async Task<bool> Try(Func<Task<bool>> action)
+    {
+        try { return await action(); }
+        catch (Exception ex)
+        {
+            Log.Error("Media command failed", ex);
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------ demo
+
+    public void StartDemo()
+    {
+        _demo = true;
+        _poll.Stop();
+        LoadDemoTrack(0);
+    }
+
+    void LoadDemoTrack(int index)
+    {
+        var tracks = DemoContent.Tracks;
+        _demoIndex = ((index % tracks.Count) + tracks.Count) % tracks.Count;
+        var t = tracks[_demoIndex];
+        AppId = DemoContent.AppId;
+        AppName = "MusicBar Demo";
+        AppIcon = null;
+        AppColor = null;
+        Title = t.Title;
+        Artist = t.Artist;
+        Album = t.Album;
+        AlbumArtist = t.Artist;
+        Genres = t.Genre;
+        TrackNumber = _demoIndex + 1;
+        AlbumTrackCount = tracks.Count;
+        Duration = t.Duration;
+        CanPlayPause = CanNext = CanPrevious = CanSeek = true;
+        _anchorPos = TimeSpan.Zero;
+        _anchorTime = DateTimeOffset.Now;
+        _rate = 1;
+        IsPlaying = true;
+        HasSession = true;
+        TrackChanged?.Invoke(this, EventArgs.Empty);
+        Thumbnail = DemoContent.CreateArt(t);
+        ThumbnailChanged?.Invoke(this, EventArgs.Empty);
+    }
+}

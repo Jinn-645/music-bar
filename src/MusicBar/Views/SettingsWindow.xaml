@@ -1,0 +1,647 @@
+<Window x:Class="MusicBar.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:MusicBar.Views"
+        Title="Cài đặt MusicBar"
+        Width="980" Height="720" MinWidth="800" MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        ThemeMode="Dark"
+        Icon="pack://application:,,,/Assets/MusicBar.ico"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+
+    <Window.Resources>
+        <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <SolidColorBrush x:Key="Accent" Color="{DynamicResource {x:Static SystemColors.AccentColorLight2Key}}" />
+
+        <Style TargetType="v:SettingCard">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="v:SettingCard">
+                        <Border Background="#0DFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1" CornerRadius="7"
+                                Padding="16,11" MinHeight="66">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{TemplateBinding Glyph}" FontFamily="{StaticResource Icons}" FontSize="18"
+                                           Margin="2,0,18,0" VerticalAlignment="Center" Opacity="0.92" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{TemplateBinding Header}" FontSize="14" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="Desc" Text="{TemplateBinding Description}" FontSize="12"
+                                               Opacity="0.62" TextWrapping="Wrap" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <ContentPresenter Grid.Column="2" VerticalAlignment="Center" Margin="20,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Description" Value="{x:Null}">
+                                <Setter TargetName="Desc" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Toggle switch -->
+        <Style x:Key="Switch" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Label" Text="Tắt" Width="30" Margin="0,0,10,0" TextAlignment="Right"
+                                       VerticalAlignment="Center" Opacity="0.8" />
+                            <Grid Width="40" Height="20">
+                                <Border x:Name="Track" CornerRadius="10" BorderThickness="1" BorderBrush="#A0FFFFFF"
+                                        Background="#0AFFFFFF" />
+                                <Ellipse x:Name="Thumb" Width="12" Height="12" Fill="#E0FFFFFF"
+                                         HorizontalAlignment="Left" Margin="4,0,0,0">
+                                    <Ellipse.RenderTransform>
+                                        <TranslateTransform />
+                                    </Ellipse.RenderTransform>
+                                </Ellipse>
+                            </Grid>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FF111111" />
+                                <Setter TargetName="Label" Property="Text" Value="Bật" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                             Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                             To="20" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                             Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                             To="0" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Thumb" Property="Width" Value="14" />
+                                <Setter TargetName="Thumb" Property="Height" Value="14" />
+                                <Setter TargetName="Thumb" Property="Margin" Value="3,0,0,0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Navigation entries -->
+        <Style x:Key="NavItem" TargetType="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Grid Height="38">
+                            <Border x:Name="Bg" CornerRadius="5" Background="Transparent" />
+                            <Border x:Name="Pill" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left"
+                                    Background="{StaticResource Accent}" Opacity="0" />
+                            <ContentPresenter Margin="14,0,8,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#0EFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#16FFFFFF" />
+                                <Setter TargetName="Pill" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PageTitle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="PageSubtitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Opacity" Value="0.62" />
+            <Setter Property="Margin" Value="0,0,0,22" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="Group" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="2,18,0,8" />
+        </Style>
+
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Opacity" Value="0.8" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        </Style>
+
+        <Style x:Key="Swatch" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="Ring" Stroke="White" StrokeThickness="2" Opacity="0" Margin="-3" />
+                            <Ellipse Fill="{TemplateBinding Background}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="Opacity" Value="0.7" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="256" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ Navigation ============ -->
+        <Grid Margin="14,14,4,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Orientation="Horizontal" Margin="8,4,0,22">
+                <Image Source="pack://application:,,,/Assets/MusicBar.ico" Width="30" Height="30"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="MusicBar" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock x:Name="VersionText" FontSize="11.5" Opacity="0.55" />
+                </StackPanel>
+            </StackPanel>
+
+            <ListBox x:Name="Nav" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0"
+                     ItemContainerStyle="{StaticResource NavItem}" SelectionChanged="Nav_SelectionChanged"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="Taskbar" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE790;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="Giao diện" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="Lời bài hát" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE946;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="Giới thiệu" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+            </ListBox>
+
+            <!-- Now playing -->
+            <Border Grid.Row="2" CornerRadius="10" Padding="10" Background="#0FFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="44" Height="44" CornerRadius="8" Background="#1AFFFFFF">
+                        <Grid>
+                            <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource Icons}" FontSize="16" Opacity="0.6"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Border CornerRadius="8">
+                                <Border.Background>
+                                    <ImageBrush x:Name="NowArt" Stretch="UniformToFill" />
+                                </Border.Background>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="ĐANG PHÁT" FontSize="10" FontWeight="SemiBold" Opacity="0.5" />
+                        <TextBlock x:Name="NowTitle" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="NowArtist" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ Pages ============ -->
+        <ScrollViewer x:Name="PageScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="30,22,34,30">
+            <Grid MaxWidth="900" HorizontalAlignment="Stretch">
+
+                <!-- Taskbar -->
+                <StackPanel x:Name="PageBar">
+                    <TextBlock Text="Taskbar" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="MusicBar chạy ngay trên taskbar của Windows: một lớp thanh tiến trình trải hết chiều ngang taskbar, cùng một widget lời bài hát và nút điều khiển ở vùng trống."
+                               Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="Taskbar của Windows" Style="{StaticResource Group}" />
+                    <v:SettingCard x:Name="TaskbarSizeCard" Glyph="&#xE740;" Header="Kích thước taskbar"
+                                   Description="Taskbar nhỏ: icon nhỏ và thanh mỏng hơn.">
+                        <ComboBox x:Name="TaskbarSizeCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.TaskbarSizes}" SelectionChanged="TaskbarSize_Changed" />
+                    </v:SettingCard>
+                    <v:SettingCard x:Name="TransparentCard" Glyph="&#xE81E;" Header="Làm taskbar trong suốt"
+                                   Description="Có sẵn trong MusicBar, không cần cài TranslucentTB.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding TransparentTaskbar}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE91C;" Header="Trung tâm điều khiển MusicBar">
+                        <v:SettingCard.Description>Nút mạng / âm lượng (Windows 11) hoặc nút Control Center (ExplorerPatcher) mở bảng của MusicBar: thông báo, cài đặt nhanh, âm lượng và chọn loa. Trên taskbar kiểu Windows 10, icon âm lượng và chuông thông báo được gộp vào đó. Thoát MusicBar là mọi thứ trở lại như cũ.</v:SettingCard.Description>
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ControlCenter}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8E3;" Header="Đặt nút Start và icon ở giữa"
+                                   Description="Start menu cũng mở ở giữa màn hình.">
+                        <CheckBox x:Name="TaskbarCenterSwitch" Style="{StaticResource Switch}"
+                                  Checked="TaskbarCenter_Changed" Unchecked="TaskbarCenter_Changed" />
+                    </v:SettingCard>
+                    <Border x:Name="TaskbarNotice" CornerRadius="7" Background="#0DFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1"
+                            Padding="16,10" Margin="0,0,0,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="TaskbarStatusText" FontSize="12" Opacity="0.7" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                <Button x:Name="SwitchTaskbarButton" Content="Dùng taskbar ExplorerPatcher" Padding="14,5"
+                                        Margin="0,0,0,6" Click="SwitchTaskbar_Click" HorizontalAlignment="Stretch" />
+                                <Button x:Name="RestartExplorerButton" Content="Khởi động lại Explorer" Padding="14,5"
+                                        Click="RestartExplorer_Click" HorizontalAlignment="Stretch" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Lớp tiến trình" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE81E;" Header="Vị trí lớp so với taskbar">
+                        <v:SettingCard.Description>Nằm dưới: icon taskbar ở trên lớp, cần taskbar trong suốt (vd. TranslucentTB). Phủ mờ: dùng khi taskbar không trong suốt, độ đậm tự giới hạn để icon vẫn rõ.</v:SettingCard.Description>
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.LayerModes}" SelectedValue="{Binding LayerMode}" />
+                    </v:SettingCard>
+                    <TextBlock x:Name="LayerStatusText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" />
+
+                    <TextBlock Text="Widget điều khiển" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE737;" Header="Vị trí widget" Description="Widget tự tìm khoảng trống giữa các icon và khay hệ thống.">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.Placements}" SelectedValue="{Binding WidgetPlacement}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8FD;" Header="Hiện lời bài hát trên taskbar"
+                                   Description="Bấm vào ảnh bìa trên taskbar để bật hoặc tắt nhanh.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsExpanded}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8A1;" Header="Lời bài hát nằm ở"
+                                   Description="Khoảng trống lớn nhất: lời tự dời theo icon, nằm giữa vùng trống dù icon căn giữa hay căn trái.">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.LyricsPlacements}" SelectedValue="{Binding LyricsPlacement}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE946;" Header="Thẻ thông tin bài hát"
+                                   Description="Giữ chuột trên ảnh bìa một lúc để xem ảnh bìa lớn, ca sĩ, album, thể loại.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowInfoPopup}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE774;" Header="Tra thể loại và năm phát hành"
+                                   Description="Hỏi danh mục iTunes theo tên bài và ca sĩ, vì đa số trình phát không gửi thể loại.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineTrackInfo}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE740;" Header="Độ rộng khi mở lời bài hát">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="240" Maximum="1200" TickFrequency="20" IsSnapToTickEnabled="True"
+                                    Value="{Binding WidgetMaxWidth}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding WidgetMaxWidth, StringFormat={}{0:0} px}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE767;" Header="Ứng dụng được theo dõi"
+                                   Description="Tự động sẽ chọn ứng dụng đang phát; ghim một ứng dụng để luôn hiện nó.">
+                        <ComboBox x:Name="SourceCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  SelectedValue="{Binding PinnedAppId}" DropDownOpened="SourceCombo_DropDownOpened" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="Hành vi" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7ED;" Header="Ẩn khi không có nhạc"
+                                   Description="Taskbar trở về như cũ; MusicBar tự hiện lại khi một ứng dụng bắt đầu phát.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideWhenIdle}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE740;" Header="Ẩn khi có ứng dụng toàn màn hình"
+                                   Description="Game, video toàn màn hình, trình chiếu...">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideInFullscreen}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE7E8;" Header="Khởi động cùng Windows">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding StartWithWindows}" />
+                    </v:SettingCard>
+                </StackPanel>
+
+                <!-- Look -->
+                <StackPanel x:Name="PageLook" Visibility="Collapsed">
+                    <TextBlock Text="Giao diện" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="Màu sắc, nền taskbar và những thứ hiển thị trong widget. Mọi thay đổi áp dụng ngay."
+                               Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="Nền và màu" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE771;" Header="Nền taskbar">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Backgrounds}"
+                                  SelectedValue="{Binding Background}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE706;" Header="Độ đậm nền" Description="Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%.">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding BackgroundOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding BackgroundOpacity, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE790;" Header="Màu nhấn của thanh tiến trình"
+                                   Description="Ảnh bìa không có màu nổi bật thì dùng màu ứng dụng, rồi tới màu Windows.">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.AccentSources}"
+                                  SelectedValue="{Binding AccentSource}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE2B1;" Header="Màu tự chọn" Description="Chọn một mẫu hoặc nhập mã hex.">
+                        <StackPanel Orientation="Horizontal">
+                            <ItemsControl ItemsSource="{x:Static v:SettingsOptions.Swatches}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource Swatch}" Background="{Binding}" Tag="{Binding}"
+                                                Click="Swatch_Click" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBox x:Name="HexBox" Width="92" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Text="{Binding CustomColor, UpdateSourceTrigger=LostFocus}" KeyDown="HexBox_KeyDown" />
+                        </StackPanel>
+                    </v:SettingCard>
+
+                    <TextBlock Text="Phong cách thanh tiến trình" Style="{StaticResource Group}" />
+                    <TextBlock Text="Bản xem trước chạy thật với màu của bài đang phát. Bấm để chọn."
+                               FontSize="12" Opacity="0.6" Margin="2,-4,0,10" />
+                    <WrapPanel x:Name="SeekGallery" Margin="0,0,-10,6" />
+                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0.08" Maximum="0.9" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding FillOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding FillOpacity, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE995;" Header="Nhảy theo nhạc"
+                                   Description="Đọc âm thanh đang phát ra loa để các kiểu như Phổ âm, Dạng sóng, Cực quang chuyển động theo nhạc. Chỉ xử lý trong máy.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AudioReactive}" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="Thành phần" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE91B;" Header="Ảnh bìa">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAlbumArt}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE71D;" Header="Biểu tượng ứng dụng đang phát" Description="Huy hiệu nhỏ ở góc ảnh bìa.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAppIcon}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE768;" Header="Nút điều khiển (lùi / phát / tới)">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowControls}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8D2;" Header="Phông chữ"
+                                   Description="10 phông đầu danh sách có sẵn trong MusicBar, miễn phí và hỗ trợ đủ tiếng Việt.">
+                        <ComboBox x:Name="FontCombo" MinWidth="260" SelectedItem="{Binding FontFamily}" MaxDropDownHeight="420"
+                                  VirtualizingPanel.IsVirtualizing="True">
+                            <ComboBox.Resources>
+                                <v:FontPreviewConverter x:Key="FontPreview" />
+                            </ComboBox.Resources>
+                            <ComboBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ComboBox.ItemsPanel>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontFamily="{Binding Converter={StaticResource FontPreview}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </v:SettingCard>
+                </StackPanel>
+
+                <!-- Lyrics -->
+                <StackPanel x:Name="PageLyrics" Visibility="Collapsed">
+                    <TextBlock Text="Lời bài hát" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="Lời đồng bộ theo từng dòng lấy từ LRCLIB (kho lời mở). Lời đã tải được lưu thành file .lrc để lần sau dùng ngay, không cần mạng."
+                               Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="Hiển thị" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8D6;" Header="Hiện lời bài hát">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsEnabled}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE945;" Header="Hiệu ứng chuyển dòng">
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.LyricEffects}"
+                                      SelectedValue="{Binding LyricEffect}" />
+                            <Button Content="Xem thử" Margin="8,0,0,0" Padding="14,5" Click="PreviewEffect_Click" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xEC4A;" Header="Tốc độ hiệu ứng">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0.5" Maximum="2" SmallChange="0.1" LargeChange="0.25"
+                                    Value="{Binding AnimationSpeed}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding AnimationSpeed, StringFormat={}{0:0.0}×}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE7E6;" Header="Tô màu karaoke theo thời gian"
+                                   Description="Dòng đang hát được tô dần từ trái sang phải.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Karaoke}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8FD;" Header="Hiện dòng kế tiếp" Description="Cần taskbar cao từ 40 px (icon cỡ thường).">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowNextLine}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8E3;" Header="Căn lề lời">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Alignments}"
+                                  SelectedValue="{Binding LyricsAlign}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE916;" Header="Độ lệch thời gian chung"
+                                   Description="Số dương: lời hiện sớm hơn. Từng bài có thể chỉnh riêng bằng chuột phải lên thanh.">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="-3000" Maximum="3000" TickFrequency="100" IsSnapToTickEnabled="True"
+                                    Value="{Binding LyricsOffsetMs}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding LyricsOffsetMs, StringFormat={}{0:+0;-0;0} ms}" />
+                        </StackPanel>
+                    </v:SettingCard>
+
+                    <TextBlock Text="Kiểu chữ" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8E9;" Header="Cỡ chữ lời">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0.6" Maximum="2" SmallChange="0.05" LargeChange="0.1"
+                                    Value="{Binding LyricScale}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding LyricScale, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE790;" Header="Màu chữ"
+                                   Description="Phần đã hát trong karaoke pha thêm màu của bài.">
+                        <StackPanel Orientation="Horizontal">
+                            <ItemsControl ItemsSource="{x:Static v:SettingsOptions.LyricSwatches}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource Swatch}" Background="{Binding}" Tag="{Binding}"
+                                                Click="LyricSwatch_Click" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBox Width="92" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Text="{Binding LyricColor, UpdateSourceTrigger=LostFocus}" KeyDown="ColorBox_KeyDown" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm chữ" Description="Dòng kế tiếp và phần chưa hát nhạt hơn theo.">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0.2" Maximum="1" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding LyricOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding LyricOpacity, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8E5;" Header="Viền chữ"
+                                   Description="Quầng màu quanh từng chữ để lời nổi trên thanh tiến trình.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricStroke}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE790;" Header="Màu viền" IsEnabled="{Binding LyricStroke}">
+                        <StackPanel Orientation="Horizontal">
+                            <ItemsControl ItemsSource="{x:Static v:SettingsOptions.StrokeSwatches}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource Swatch}" Background="{Binding}" Tag="{Binding}"
+                                                Click="StrokeSwatch_Click" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBox Width="92" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Text="{Binding LyricStrokeColor, UpdateSourceTrigger=LostFocus}" KeyDown="ColorBox_KeyDown" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE793;" Header="Độ đậm viền" IsEnabled="{Binding LyricStroke}">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding LyricStrokeOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding LyricStrokeOpacity, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE740;" Header="Độ rộng viền" IsEnabled="{Binding LyricStroke}"
+                                   Description="Nhỏ là viền sắc quanh chữ, lớn là quầng sáng mềm.">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="1" Maximum="24" SmallChange="1" LargeChange="2"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    Value="{Binding LyricStrokeRadius}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding LyricStrokeRadius, StringFormat={}{0:0} px}" />
+                        </StackPanel>
+                    </v:SettingCard>
+
+                    <TextBlock Text="Nguồn và bộ nhớ" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE774;" Header="Tải lời từ LRCLIB" Description="Tắt để chỉ dùng file .lrc có sẵn trong máy.">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FetchOnline}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE968;" Header="Proxy" Description="Để trống để dùng cài đặt mạng của Windows. Ví dụ: http://127.0.0.1:1080">
+                        <TextBox Width="260" Text="{Binding ProxyUrl, UpdateSourceTrigger=LostFocus}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8B7;" Header="Thư mục lưu lời">
+                        <v:SettingCard.Description>Bỏ file "Ca sĩ - Tên bài.lrc" của bạn vào đây, MusicBar sẽ ưu tiên dùng.</v:SettingCard.Description>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Mở" Padding="14,5" Click="OpenLyricsFolder_Click" />
+                            <Button Content="Đổi…" Padding="14,5" Margin="6,0,0,0" Click="ChangeLyricsFolder_Click" />
+                            <Button Content="Mặc định" Padding="14,5" Margin="6,0,0,0" Click="ResetLyricsFolder_Click" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <TextBlock x:Name="LyricsFolderText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" TextTrimming="CharacterEllipsis" />
+                    <v:SettingCard x:Name="CacheCard" Glyph="&#xE74D;" Header="Bộ nhớ đệm">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Thử tìm lại bài lỗi" Padding="14,5" Click="ClearMisses_Click" />
+                            <Button Content="Xóa lời đã tải" Padding="14,5" Margin="6,0,0,0" Click="ClearDownloaded_Click" />
+                        </StackPanel>
+                    </v:SettingCard>
+                </StackPanel>
+
+                <!-- About -->
+                <StackPanel x:Name="PageAbout" Visibility="Collapsed">
+                    <TextBlock Text="Giới thiệu" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="Biến taskbar Windows thành thanh nhạc: tiến trình bài hát chạy dưới các icon, lời bài hát đồng bộ và nút điều khiển ngay trên taskbar."
+                               Style="{StaticResource PageSubtitle}" />
+
+                    <Border CornerRadius="10" Background="#0DFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1" Padding="22">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/MusicBar.ico" Width="64" Height="64"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                            <StackPanel Margin="20,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="MusicBar" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock x:Name="AboutVersion" Opacity="0.6" Margin="0,2,0,0" />
+                                <TextBlock Opacity="0.6" Margin="0,6,0,0" TextWrapping="Wrap">
+                                    Lời bài hát: <Hyperlink NavigateUri="https://lrclib.net" RequestNavigate="Link_RequestNavigate">LRCLIB</Hyperlink> · Điều khiển nhạc: Windows Media Session
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Mẹo" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7F4;" Header="Cả taskbar là thanh tiến trình"
+                                   Description="Phần đã phát phủ màu từ mép trái taskbar. Lớp này không nhận chuột, taskbar dùng như bình thường." />
+                    <v:SettingCard Glyph="&#xE712;" Header="Chuột phải lên widget"
+                                   Description="Đổi nguồn phát, tải lại lời, chỉnh lời sớm/trễ cho từng bài, đổi nhanh hiệu ứng." />
+                    <v:SettingCard Glyph="&#xE8A7;" Header="Nhấp vào ảnh bìa" Description="Mở cửa sổ ứng dụng đang phát nhạc." />
+
+                    <TextBlock Text="Dữ liệu" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8B7;" Header="Thư mục dữ liệu" Description="Cài đặt, nhật ký và lời bài hát mặc định.">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Mở thư mục" Padding="14,5" Click="OpenDataFolder_Click" />
+                            <Button Content="Xem log" Padding="14,5" Margin="6,0,0,0" Click="OpenLog_Click" />
+                        </StackPanel>
+                    </v:SettingCard>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>

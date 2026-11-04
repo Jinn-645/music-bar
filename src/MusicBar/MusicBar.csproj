@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>MusicBar</AssemblyName>
+    <RootNamespace>MusicBar</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\MusicBar.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>MusicBar</Product>
+    <Description>Full-width music bar with seekbar and synced lyrics</Description>
+    <!-- WPF0001: Fluent ThemeMode is still flagged experimental.
+         WFO0003: WPF reads DPI awareness from the manifest; the WinForms API it suggests does not apply. -->
+    <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\MusicBar.ico" />
+    <!-- Free OFL fonts with Vietnamese support; their licenses ship next to the app. -->
+    <Resource Include="Assets\Fonts\*.ttf" />
+    <None Include="Assets\Fonts\licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The native module that clears the Windows 11 taskbar's XAML background from inside
+       Explorer (see src/MusicBar.TaskbarTap). Built with MSVC and embedded; MusicBar writes
+       it out to its data folder when it is needed. -->
+  <PropertyGroup>
+    <TaskbarTapSource>$(MSBuildProjectDirectory)\..\MusicBar.TaskbarTap\</TaskbarTapSource>
+    <TaskbarTapOut>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)tap</TaskbarTapOut>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(TaskbarTapOut)\MusicBar.TaskbarTap.dll" LogicalName="MusicBar.TaskbarTap.dll" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="BuildTaskbarTap" BeforeTargets="PrepareForBuild"
+          Inputs="$(TaskbarTapSource)TaskbarTap.cpp;$(TaskbarTapSource)TaskbarTap.def;$(TaskbarTapSource)build.cmd"
+          Outputs="$(TaskbarTapOut)\MusicBar.TaskbarTap.dll">
+    <Exec Command="&quot;$(TaskbarTapSource)build.cmd&quot; &quot;$(TaskbarTapOut)&quot;" />
+  </Target>
+
+</Project>

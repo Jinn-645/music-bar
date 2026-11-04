@@ -1,0 +1,116 @@
+using System;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using MusicBar.Infrastructure;
+using MusicBar.Interop;
+using MusicBar.Models;
+using MusicBar.Services;
+
+namespace MusicBar.Views;
+
+/// <summary>
+/// Click-through window covering the whole taskbar. It paints the taskbar
+/// background and the playback progress; it is kept just below the taskbar
+/// in z-order so the icons stay on top of it.
+/// </summary>
+public partial class TaskbarLayerWindow : Window
+{
+    static readonly Color SurfaceColor = Color.FromRgb(0x0B, 0x0B, 0x0F);
+
+    // Over the taskbar the layer must not hide the icons, so it is capped.
+    const double OverSurfaceCap = 0.35;
+    const double OverFillCap = 0.5;
+
+    readonly SolidColorBrush _surfaceBrush = new();
+    readonly LinearGradientBrush _tintBrush = new() { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+    readonly GradientStop _tint0 = new() { Offset = 0 };
+    readonly GradientStop _tint1 = new() { Offset = 1 };
+
+    double _surfaceOpacity;
+    Color _primary = ColorUtil.Brand;
+    Color _secondary = ColorUtil.Brand;
+
+    public TaskbarLayerWindow()
+    {
+        InitializeComponent();
+        _tintBrush.GradientStops.Add(_tint0);
+        _tintBrush.GradientStops.Add(_tint1);
+        SourceInitialized += (_, _) =>
+        {
+            Hwnd = new WindowInteropHelper(this).Handle;
+            Native.AddExStyle(Hwnd, Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE | Native.WS_EX_TRANSPARENT,
+                Native.WS_EX_APPWINDOW);
+        };
+    }
+
+    public IntPtr Hwnd { get; private set; }
+
+    public AudioMeter? Audio
+    {
+        get => Seek.Audio;
+        set => Seek.Audio = value;
+    }
+
+    public void ApplyStyle(AppSettings s, bool over, bool edgeAtTop)
+    {
+        _surfaceOpacity = over ? Math.Min(s.BackgroundOpacity, OverSurfaceCap) : s.BackgroundOpacity;
+        switch (s.Background)
+        {
+            case BarBackground.Dark:
+                _surfaceBrush.Color = ColorUtil.WithAlpha(SurfaceColor, _surfaceOpacity);
+                Surface.Background = _surfaceBrush;
+                break;
+            case BarBackground.Tinted:
+                Surface.Background = _tintBrush;
+                break;
+            default:
+                Surface.Background = null;
+                break;
+        }
+
+        Seek.Look = s.SeekStyle;
+        Seek.Intensity = over ? Math.Min(s.FillOpacity, OverFillCap) : s.FillOpacity;
+        Seek.SetEdge(edgeAtTop);
+        SetColors(_primary, _secondary, animate: false);
+    }
+
+    public void SetColors(Color primary, Color secondary, bool animate)
+    {
+        _primary = primary;
+        _secondary = secondary;
+        var d = animate ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
+        AnimateColor(_tint0, ColorUtil.WithAlpha(ColorUtil.Lerp(SurfaceColor, secondary, 0.24), _surfaceOpacity), d);
+        AnimateColor(_tint1, ColorUtil.WithAlpha(ColorUtil.Lerp(SurfaceColor, primary, 0.14), _surfaceOpacity), d);
+        Seek.SetColors(primary, secondary, animate);
+    }
+
+    static void AnimateColor(GradientStop stop, Color to, TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            stop.BeginAnimation(GradientStop.ColorProperty, null);
+            stop.Color = to;
+            return;
+        }
+        stop.BeginAnimation(GradientStop.ColorProperty, new ColorAnimation(to, duration)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+        });
+    }
+
+    public void SetArt(BitmapSource? art) => Seek.SetArt(art);
+
+    public void SetTrack(string key) => Seek.SetTrack(key);
+
+    public void SetQuietZones(System.Collections.Generic.IReadOnlyList<(double Left, double Right)> zones) => Seek.SetQuietZones(zones);
+
+    /// <summary>Called every frame by the overlay.</summary>
+    public void SetProgress(double fraction, bool hasTimeline, bool playing)
+    {
+        Seek.SetState(fraction, hasTimeline, playing);
+        Seek.Tick();
+    }
+}

@@ -1,0 +1,5 @@
+LIBRARY "MusicBar.TaskbarTap.dll"
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
+    TapHookProc
