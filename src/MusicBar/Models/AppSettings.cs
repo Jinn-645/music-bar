@@ -11,7 +11,11 @@ public enum WidgetPlacement { Auto, Left, Right }
 /// <summary>Where lyrics appear when shown: the biggest empty stretch of taskbar, or right beside the cover.</summary>
 public enum LyricsPlacement { LargestGap, BesideCover }
 
-public enum BarBackground { Dark, Tinted, Transparent }
+/// <summary>
+/// The taskbar background MusicBar paints. Auto follows the Windows taskbar's light or dark mode, so the
+/// taskbar's own icons (black in light mode) stay readable.
+/// </summary>
+public enum BarBackground { Dark, Tinted, Transparent, Light, LightTinted, Auto }
 
 public enum AccentSource { AlbumArt, App, SystemAccent, Custom }
 
@@ -32,6 +36,9 @@ public enum PlayerTarget { SameAsBar, Main, All, One }
 
 /// <summary>What sits on the taskbar besides the progress bar.</summary>
 public enum PlayerMode { Full, LyricsOnly, Off }
+
+/// <summary>Where the face sits on the taskbar.</summary>
+public enum FacePlacement { BesidePlayer, Start, BeforeIcons, AfterIcons }
 
 /// <summary>The language of everything MusicBar shows.</summary>
 public enum AppLanguage { English, Vietnamese }
@@ -98,7 +105,7 @@ public sealed class AppSettings : ObservableObject
     public string PinnedAppId { get => _pinnedAppId; set => Set(ref _pinnedAppId, value ?? ""); }
 
     // ---------- Appearance ----------
-    BarBackground _background = BarBackground.Dark;
+    BarBackground _background = BarBackground.Auto;
     public BarBackground Background { get => _background; set => Set(ref _background, value); }
 
     double _backgroundOpacity = 0.86;
@@ -165,6 +172,35 @@ public sealed class AppSettings : ObservableObject
 
     string _fontFamily = "Segoe UI Variable Text";
     public string FontFamily { get => _fontFamily; set => Set(ref _fontFamily, string.IsNullOrWhiteSpace(value) ? "Segoe UI" : value); }
+
+    // ---------- Face ----------
+    /// <summary>The little face that lives on the taskbar, as in the promo film.</summary>
+    bool _faceEnabled = true;
+    public bool FaceEnabled { get => _faceEnabled; set => Set(ref _faceEnabled, value); }
+
+    Views.Face.FaceStyle _faceStyle = Views.Face.FaceStyle.Classic;
+    public Views.Face.FaceStyle FaceStyle { get => _faceStyle; set => Set(ref _faceStyle, value); }
+
+    FacePlacement _facePlacement = FacePlacement.BesidePlayer;
+    public FacePlacement FacePlacement { get => _facePlacement; set => Set(ref _facePlacement, value); }
+
+    /// <summary>The face's size against the taskbar's thickness.</summary>
+    double _faceScale = 1.0;
+    public double FaceScale { get => _faceScale; set => Set(ref _faceScale, Math.Clamp(value, 0.6, 1.0)); }
+
+    /// <summary>Sleepy at night, waking up in the morning, a yawn after lunch.</summary>
+    bool _faceFollowsClock = true;
+    public bool FaceFollowsClock { get => _faceFollowsClock; set => Set(ref _faceFollowsClock, value); }
+
+    bool _faceReactsToMusic = true;
+    public bool FaceReactsToMusic { get => _faceReactsToMusic; set => Set(ref _faceReactsToMusic, value); }
+
+    bool _faceWatchesPointer = true;
+    public bool FaceWatchesPointer { get => _faceWatchesPointer; set => Set(ref _faceWatchesPointer, value); }
+
+    /// <summary>With nothing playing, MusicBar steps aside but the face stays on the taskbar (and naps).</summary>
+    bool _faceStaysWhenIdle = true;
+    public bool FaceStaysWhenIdle { get => _faceStaysWhenIdle; set => Set(ref _faceStaysWhenIdle, value); }
 
     // ---------- Lyrics ----------
     bool _lyricsEnabled = true;

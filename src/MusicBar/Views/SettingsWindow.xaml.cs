@@ -38,7 +38,7 @@ public partial class SettingsWindow : Window
         _lyrics = lyrics;
         InitializeComponent();
         DataContext = settings;
-        _pages = [PageGeneral, PageBar, PagePlayer, PageProgress, PageLyrics, PageAbout];
+        _pages = [PageGeneral, PageBar, PagePlayer, PageFace, PageProgress, PageLyrics, PageAbout];
 
         var version = Loc.T("Set_Version", Assembly.GetExecutingAssembly().GetName().Version?.ToString(3));
         VersionText.Text = version;
@@ -53,6 +53,7 @@ public partial class SettingsWindow : Window
         RefreshDisplays();
         PlayerParts.IsEnabled = settings.PlayerMode == PlayerMode.Full;
         BuildSeekGallery();
+        BuildFaceGallery();
         CompositionTarget.Rendering += OnPreviewFrame;
         UpdateNowPlaying();
         Nav.SelectedIndex = 0;
@@ -139,6 +140,9 @@ public partial class SettingsWindow : Window
 
     /// <summary>The page on screen, by its place in the navigation list.</summary>
     public int Page { get => Nav.SelectedIndex; set => Nav.SelectedIndex = value; }
+
+    /// <summary>The face's page, for the face's own menu.</summary>
+    public const int FacePage = 3;
 
     public int PageCount => _pages.Length;
 
@@ -307,9 +311,68 @@ public partial class SettingsWindow : Window
         foreach (var (value, tile, _) in _seekTiles) tile.BorderBrush = value == _s.SeekStyle ? accent : idle;
     }
 
-    /// <summary>Keeps the previews moving while the progress bar page is on screen.</summary>
+    // ------------------------------------------------------------------ face gallery
+
+    readonly System.Collections.Generic.List<(Face.FaceStyle Value, Border Tile, Face.FaceView Preview)> _faceTiles = [];
+
+    /// <summary>Every face set, live: each runs through its expressions on its own.</summary>
+    void BuildFaceGallery()
+    {
+        var (primary, _, _) = Overlay?.PreviewPalette() ?? DemoPalette();
+        int seed = 0;
+        foreach (var option in SettingsOptions.FaceStyles)
+        {
+            var preview = new Face.FaceView(++seed * 7) { Look = option.Value, Accent = primary, Touchable = false, IsHitTestVisible = false, Height = 84 };
+            preview.Brain.Demo = true;
+            var screen = new Border
+            {
+                Margin = new Thickness(8, 8, 8, 0),
+                Background = new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0F)),
+                CornerRadius = new CornerRadius(6),
+                Child = preview,
+            };
+            var text = new StackPanel { Margin = new Thickness(12, 8, 12, 10) };
+            text.Children.Add(new TextBlock { Text = option.Label, FontSize = 13, FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = option.Description, FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            var body = new StackPanel();
+            body.Children.Add(screen);
+            body.Children.Add(text);
+
+            var tile = new Border
+            {
+                Width = 186,
+                Margin = new Thickness(0, 0, 10, 10),
+                CornerRadius = new CornerRadius(9),
+                BorderThickness = new Thickness(1.5),
+                Background = new SolidColorBrush(Color.FromArgb(0x0D, 255, 255, 255)),
+                Cursor = Cursors.Hand,
+                Child = body,
+            };
+            var value = option.Value;
+            tile.MouseLeftButtonUp += (_, _) => _s.FaceStyle = value;
+            tile.MouseEnter += (_, _) => tile.Background = new SolidColorBrush(Color.FromArgb(0x18, 255, 255, 255));
+            tile.MouseLeave += (_, _) => tile.Background = new SolidColorBrush(Color.FromArgb(0x0D, 255, 255, 255));
+            _faceTiles.Add((value, tile, preview));
+            FaceGallery.Children.Add(tile);
+        }
+        UpdateFaceSelection();
+    }
+
+    void UpdateFaceSelection()
+    {
+        var accent = (Brush)FindResource("Accent");
+        var idle = new SolidColorBrush(Color.FromArgb(0x14, 255, 255, 255));
+        foreach (var (value, tile, _) in _faceTiles) tile.BorderBrush = value == _s.FaceStyle ? accent : idle;
+    }
+
+    /// <summary>Keeps the previews moving while their page is on screen.</summary>
     void OnPreviewFrame(object? sender, EventArgs e)
     {
+        if (IsVisible && PageFace.Visibility == Visibility.Visible)
+        {
+            var senses = new Face.FaceSenses(DateTime.Now, true, false, -1, TimeSpan.Zero, null, false);
+            foreach (var (_, _, preview) in _faceTiles) preview.Step(senses);
+        }
         if (!IsVisible || PageProgress.Visibility != Visibility.Visible) return;
         double t = _previewClock.Elapsed.TotalSeconds;
         double progress = 0.22 + (t * 0.015) % 0.6;
@@ -338,6 +401,7 @@ public partial class SettingsWindow : Window
         if (e.PropertyName == nameof(AppSettings.SeekDirection))
             foreach (var (_, _, preview) in _seekTiles) preview.Direction = _s.SeekDirection;
         if (e.PropertyName == nameof(AppSettings.PlayerMode)) PlayerParts.IsEnabled = _s.PlayerMode == PlayerMode.Full;
+        if (e.PropertyName == nameof(AppSettings.FaceStyle)) UpdateFaceSelection();
     }
 
     void OnMediaChanged(object? sender, PropertyChangedEventArgs e)

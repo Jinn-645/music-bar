@@ -71,6 +71,8 @@ static class Program
                     case "controls": await ControlStyles(args); break;
                     case "settings": await SettingsPages(args); break;
                     case "wireless": await Wireless(); break;
+                    case "faces": Faces(args); break;
+                    case "facelife": await FaceLife(args); break;
                     default: throw new ArgumentException("unknown mode " + args[0]);
                 }
             }
@@ -277,6 +279,157 @@ static class Program
         panel.Close();
         Console.WriteLine($"panel → {outDir} ({panel.ActualWidth}x{panel.ActualHeight} DIP)");
     }
+
+    // ---------------------------------------------------------------- faces
+
+    /// <summary>
+    /// One sheet per background (dark, light): a row per face set, a column per expression, each
+    /// face drawn the way the taskbar draws it (design box fitted to a taskbar-tall cell).
+    /// </summary>
+    static void Faces(string[] a)
+    {
+        string outDir = Directory.CreateDirectory(a[1]).FullName;
+        double cell = D(a[2]);   // cell height in pixels, like the taskbar's thickness
+        var accent = Color.FromRgb(0xFF, 0x6B, 0x6B);
+        var poses = new (string Name, Func<Color, MusicBar.Views.Face.FaceFrame> Make)[]
+        {
+            ("rest", ink => Pose(ink, accent)),
+            ("smile", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Happy, Mouth = MusicBar.Views.Face.MouthShape.Grin, Blush = 0.5 }),
+            ("look", ink => Pose(ink, accent) with { Look = new Vector(0.9, -0.4), LidLeft = 0.3, LidRight = 0.3, Mouth = MusicBar.Views.Face.MouthShape.Flat }),
+            ("wow", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Wide, Pupil = 0.65, Mouth = MusicBar.Views.Face.MouthShape.O, Open = 0.9, Brows = 0.6, Extras = MusicBar.Views.Face.FaceExtras.Exclaim }),
+            ("angry", ink => Pose(ink, accent) with { LidLeft = 0.25, LidRight = 0.25, Brows = -1, Mouth = MusicBar.Views.Face.MouthShape.Teeth, Extras = MusicBar.Views.Face.FaceExtras.Anger }),
+            ("asleep", ink => Pose(ink, accent) with { LidLeft = 1, LidRight = 1, Mouth = MusicBar.Views.Face.MouthShape.O, Open = 0.2, Extras = MusicBar.Views.Face.FaceExtras.Zzz }),
+            ("laugh", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Squeeze, Mouth = MusicBar.Views.Face.MouthShape.Open, Open = 0.9, Blush = 0.8, Extras = MusicBar.Views.Face.FaceExtras.Tears }),
+            ("love", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Heart, Mouth = MusicBar.Views.Face.MouthShape.Smile, Blush = 0.9, Extras = MusicBar.Views.Face.FaceExtras.Hearts }),
+            ("dizzy", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Spiral, Mouth = MusicBar.Views.Face.MouthShape.Wavy, Brows = 0.4, Extras = MusicBar.Views.Face.FaceExtras.Sweat }),
+            ("star", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Star, Mouth = MusicBar.Views.Face.MouthShape.Open, Open = 0.7, Extras = MusicBar.Views.Face.FaceExtras.Sparkle }),
+            ("sad", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Teary, Brows = 0.9, Mouth = MusicBar.Views.Face.MouthShape.Frown, Extras = MusicBar.Views.Face.FaceExtras.Tears }),
+            ("yawn", ink => Pose(ink, accent) with { LidLeft = 0.8, LidRight = 0.8, Mouth = MusicBar.Views.Face.MouthShape.Yawn, Open = 1, Brows = 0.35 }),
+            ("sing", ink => Pose(ink, accent) with { Mouth = MusicBar.Views.Face.MouthShape.O, Open = 0.5, Level = 0.7, Extras = MusicBar.Views.Face.FaceExtras.Notes, Blush = 0.25 }),
+            ("cat", ink => Pose(ink, accent) with { Eyes = MusicBar.Views.Face.EyeShape.Happy, Mouth = MusicBar.Views.Face.MouthShape.Cat, Blush = 0.5 }),
+            ("cheeky", ink => Pose(ink, accent) with { LidLeft = 1, Mouth = MusicBar.Views.Face.MouthShape.Tongue, Blush = 0.4 }),
+        };
+        var styles = Enum.GetValues<MusicBar.Views.Face.FaceStyle>();
+        double cw = cell * 116 / 88, labelW = 110, headH = 22;
+        foreach (var (name, background, ink) in new[]
+                 {
+                     ("dark", Color.FromRgb(0x14, 0x15, 0x1A), Color.FromRgb(0xFF, 0xFD, 0xF6)),
+                     ("light", Color.FromRgb(0xF2, 0xF3, 0xF5), Color.FromRgb(0x15, 0x17, 0x1E)),
+                 })
+        {
+            var sheet = new DrawingVisual();
+            double width = labelW + cw * poses.Length, height = headH + cell * styles.Length;
+            using (var dc = sheet.RenderOpen())
+            {
+                dc.DrawRectangle(new SolidColorBrush(background), null, new Rect(0, 0, width, height));
+                var face = new Typeface("Segoe UI");
+                var text = new SolidColorBrush(ink);
+                for (int c = 0; c < poses.Length; c++)
+                    dc.DrawText(new FormattedText(poses[c].Name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 11, text, 1),
+                        new Point(labelW + c * cw + 4, 4));
+                for (int r = 0; r < styles.Length; r++)
+                {
+                    dc.DrawText(new FormattedText(styles[r].ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 12, text, 1),
+                        new Point(6, headH + r * cell + cell / 2 - 8));
+                    var painter = MusicBar.Views.Face.FacePainters.For(styles[r]);
+                    for (int c = 0; c < poses.Length; c++)
+                    {
+                        var frame = poses[c].Make(ink) with { Time = 1.3 + c * 0.37 };
+                        double unit = Math.Min(cw / 116, cell / 88);
+                        var m = Matrix.Identity;
+                        m.Scale(unit, unit);
+                        m.Translate(labelW + c * cw + (cw - 100 * unit) / 2, headH + r * cell + (cell - 72 * unit) / 2);
+                        dc.PushClip(new RectangleGeometry(new Rect(labelW + c * cw, headH + r * cell, cw, cell)));
+                        dc.PushTransform(new MatrixTransform(m));
+                        painter.Draw(dc, frame);
+                        MusicBar.Views.Face.FacePainters.DrawExtras(dc, frame);
+                        dc.Pop();
+                        dc.Pop();
+                    }
+                }
+            }
+            var rtb = new RenderTargetBitmap((int)width * 2, (int)height * 2, 192, 192, PixelFormats.Pbgra32);
+            rtb.Render(sheet);
+            SavePng(rtb, Path.Combine(outDir, $"faces-{name}.png"));
+        }
+        Console.WriteLine($"faces → {outDir}");
+    }
+
+    /// <summary>
+    /// The face living for a while in real time, through a script of what happens around it (a
+    /// poke, a burst of pokes, a rub, the scroll wheel, music, the user leaving), as a sheet of
+    /// frames half a second apart.
+    /// </summary>
+    static async Task FaceLife(string[] a)
+    {
+        string outPath = Path.GetFullPath(a[1]);
+        var style = Enum.Parse<MusicBar.Views.Face.FaceStyle>(a[2], true);
+        const double w = 132, h = 96, step = 0.5;
+        var view = new MusicBar.Views.Face.FaceView(3) { Look = style, Width = w, Height = h, Accent = Color.FromRgb(0xFF, 0x6B, 0x6B) };
+        var host = new Window
+        {
+            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromRgb(0x14, 0x15, 0x1A)),
+            Left = -20000, Top = -20000, Width = w, Height = h, ShowActivated = false, Content = view,
+        };
+        host.Show();
+        var frames = new List<(string Label, BitmapSource Shot)>();
+        var clock = Stopwatch.StartNew();
+        double nextShot = 0;
+        string label = "idle";
+        while (clock.Elapsed.TotalSeconds < 19)
+        {
+            double t = clock.Elapsed.TotalSeconds;
+            bool playing = t is >= 11 and < 14;
+            double level = playing ? 0.35 + 0.35 * Math.Max(0, Math.Sin(t * Math.PI * 2 * 1.9)) : -1;
+            var idle = t >= 14 ? TimeSpan.FromMinutes(6) : TimeSpan.Zero;
+            var senses = new MusicBar.Views.Face.FaceSenses(new DateTime(2026, 1, 5, 15, 30, 0), true, playing, level, idle, null, false);
+            // The script.
+            double now = view.Now;
+            if (Cross(t, 1.0)) { view.Brain.Poke(now); label = "poke"; }
+            if (t is >= 3 and < 3.7 && Every(t, 0.1)) { view.Brain.Poke(now); label = "pokes"; }
+            if (t is >= 6.5 and < 8 && Every(t, 0.05)) { view.Brain.Rub(0.12); label = "rub"; }
+            if (t is >= 9 and < 9.6 && Every(t, 0.08)) { view.Brain.Scroll(now, 120); label = "scroll"; }
+            if (Cross(t, 11)) label = "music";
+            if (Cross(t, 14)) label = "user away";
+            view.Step(senses);
+            if (t >= nextShot)
+            {
+                nextShot += step;
+                host.UpdateLayout();
+                frames.Add(($"{t:0.0}s {label}", Snap(view, 2)));
+            }
+            await Task.Delay(16);
+        }
+        host.Close();
+
+        int columns = 8, rows = (frames.Count + columns - 1) / columns;
+        var sheet = new DrawingVisual();
+        using (var dc = sheet.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x14, 0x15, 0x1A)), null, new Rect(0, 0, columns * w, rows * (h + 16)));
+            var face = new Typeface("Segoe UI");
+            for (int i = 0; i < frames.Count; i++)
+            {
+                double x = i % columns * w, y = i / columns * (h + 16);
+                dc.DrawImage(frames[i].Shot, new Rect(x, y, w, h));
+                dc.DrawText(new FormattedText(frames[i].Label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 10, Brushes.Gray, 1), new Point(x + 4, y + h));
+            }
+        }
+        var rtb = new RenderTargetBitmap((int)(columns * w) * 2, (int)(rows * (h + 16)) * 2, 192, 192, PixelFormats.Pbgra32);
+        rtb.Render(sheet);
+        SavePng(rtb, outPath);
+        Console.WriteLine($"face life → {outPath} ({frames.Count} frames)");
+
+        bool Cross(double time, double at) => time >= at && time - at < 0.017;
+        bool Every(double time, double period) => time % period < 0.017;
+    }
+
+    static MusicBar.Views.Face.FaceFrame Pose(Color ink, Color accent) => new()
+    {
+        Time = 1, Eyes = MusicBar.Views.Face.EyeShape.Open, LidLeft = 0.05, LidRight = 0.05, Look = new Vector(0, 0.1),
+        Pupil = 1, Brows = 0, Mouth = MusicBar.Views.Face.MouthShape.Smile, Open = 0, Blush = 0.15,
+        Extras = MusicBar.Views.Face.FaceExtras.None, Accent = accent, Ink = ink, Level = 0,
+    };
 
     // ---------------------------------------------------------------- Wi-Fi and Bluetooth
 

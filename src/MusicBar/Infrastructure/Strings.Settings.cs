@@ -57,6 +57,7 @@ public static partial class Strings
         d.Add("Set_Transparent_DescTranslucentTB", ("TranslucentTB is running, so MusicBar leaves this to it.", "TranslucentTB đang chạy nên MusicBar để nó lo phần này."));
         d.Add("Set_Transparent_DescRestartExplorer", ("The taskbar helper from an older MusicBar is still loaded in Explorer and would clear every monitor's taskbar, so MusicBar is tinting over the taskbar for now. Restart Explorer (button below) to finish the update.", "Bộ phận làm trong suốt của bản MusicBar cũ vẫn đang nạp trong Explorer và sẽ xoá nền taskbar của mọi màn hình, nên tạm thời MusicBar phủ mờ lên taskbar. Bấm Khởi động lại Explorer (bên dưới) để hoàn tất cập nhật."));
         d.Add("Set_Background", ("Background under the progress bar", "Nền dưới thanh tiến trình"));
+        d.Add("Set_Background_Desc", ("Light suits Windows' light mode, where the taskbar icons are black. On a light background the lyrics and buttons turn dark too.", "Nền sáng hợp với chế độ sáng của Windows, khi icon taskbar màu đen. Trên nền sáng, lời bài hát và nút cũng chuyển sang màu tối."));
         d.Add("Set_BgOpacity", ("Background opacity", "Độ đậm nền"));
         d.Add("Set_BgOpacity_Desc", ("Doesn't apply to the transparent background. Capped at 35% when tinted over the taskbar.", "Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%."));
         d.Add("Set_LayerMode", ("MusicBar's layer and the taskbar icons", "Lớp MusicBar so với icon taskbar"));
@@ -110,6 +111,34 @@ public static partial class Strings
         d.Add("Set_InfoPopup_Desc", ("Hover over the cover for a moment to see a large cover, the artist, album and genre.", "Giữ chuột trên ảnh bìa một lúc để xem ảnh bìa lớn, ca sĩ, album, thể loại."));
         d.Add("Set_OnlineInfo", ("Look up genre and release year", "Tra thể loại và năm phát hành"));
         d.Add("Set_OnlineInfo_Desc", ("Searches the iTunes catalog by song title and artist, since most players don't send a genre.", "Hỏi danh mục iTunes theo tên bài và ca sĩ, vì đa số trình phát không gửi thể loại."));
+
+        // ---- face page
+        d.Add("Set_Page_Face", ("Face", "Cái mặt"));
+        d.Add("Set_Face_Subtitle", ("A little face that lives on the taskbar: it dances to the music, gets sleepy at night, and reacts when you play with it.", "Một cái mặt nhỏ sống trên taskbar: nhún theo nhạc, buồn ngủ về đêm, và phản ứng khi bạn trêu nó."));
+        d.Add("Set_FaceEnabled", ("Show the face", "Hiện cái mặt"));
+        d.Add("Set_FaceEnabled_Desc", ("Right-click it to change its look or hide it.", "Chuột phải lên nó để đổi kiểu hoặc ẩn đi."));
+        d.Add("Set_Face_GroupStyle", ("Look", "Kiểu mặt"));
+        d.Add("Set_Face_StyleHint", ("The previews run through their expressions. Click one to choose it.", "Bản xem trước tự chạy qua các biểu cảm. Bấm để chọn."));
+        d.Add("Set_Face_GroupPlace", ("Where", "Vị trí"));
+        d.Add("Set_FacePlacement", ("Position", "Đặt ở"));
+        d.Add("Set_FacePlacement_Desc", ("Without the player it sits beside the system tray.", "Khi ẩn trình phát thì mặt ngồi cạnh khay hệ thống."));
+        d.Add("Set_FaceScale", ("Size", "Cỡ"));
+        d.Add("Set_FaceStaysIdle", ("Stay when MusicBar hides", "Ở lại khi MusicBar ẩn"));
+        d.Add("Set_FaceStaysIdle_Desc", ("With nothing playing, the taskbar goes back to normal but the face stays (and naps).", "Khi không có nhạc, taskbar trở về như cũ nhưng cái mặt vẫn ở lại (và ngủ gật)."));
+        d.Add("Set_Face_GroupMood", ("What it follows", "Nó để ý gì"));
+        d.Add("Set_FaceClock", ("The time of day", "Giờ giấc trong ngày"));
+        d.Add("Set_FaceClock_Desc", ("Stretches in the morning, thinks about lunch, yawns after it, gets sleepy late at night and dozes off when you leave the PC.", "Buổi sáng vươn vai, gần trưa thèm ăn, ăn xong ngáp, khuya thì buồn ngủ và ngủ gật khi bạn rời máy."));
+        d.Add("Set_FaceMusic", ("The music", "Âm nhạc"));
+        d.Add("Set_FaceMusic_Desc", ("Bobs to the beat and sings along, cheers at a new song, sulks a little when it stops.", "Nhún theo nhịp, hát theo, reo lên khi qua bài mới, hơi buồn khi nhạc tắt."));
+        d.Add("Set_FacePointer", ("The mouse pointer", "Con trỏ chuột"));
+        d.Add("Set_FacePointer_Desc", ("Its eyes follow the pointer when it comes near.", "Mắt nhìn theo con trỏ khi nó lại gần."));
+        d.Add("Set_Face_GroupPlay", ("Playing with it", "Trêu nó"));
+        d.Add("Set_Face_Poke", ("Click it", "Bấm vào nó"));
+        d.Add("Set_Face_Poke_Desc", ("A click makes it giggle. Keep clicking and it gets annoyed, then angry, then sulks.", "Bấm một cái là nó cười. Bấm liên tục thì nó bực, rồi nổi cáu, rồi dỗi."));
+        d.Add("Set_Face_Rub", ("Rub it", "Xoa nó"));
+        d.Add("Set_Face_Rub_Desc", ("Hold the button and wiggle, or just wiggle the pointer over it: it melts, then laughs till it cries, then hearts.", "Giữ chuột rồi rê qua rê lại, hoặc chỉ rê con trỏ qua lại trên nó: nó khoái, rồi cười chảy nước mắt, rồi thả tim."));
+        d.Add("Set_Face_More", ("And more", "Còn nữa"));
+        d.Add("Set_Face_More_Desc", ("Double-click to thrill it, scroll over it to make it dizzy, poke it awake when it naps.", "Bấm đúp để nó mắt sao, cuộn chuột trên nó để nó chóng mặt, chọc lúc nó ngủ thì nó giật mình."));
 
         // ---- progress bar page
         d.Add("Set_Progress_Subtitle", ("The song's progress runs along the whole taskbar. Changes apply right away.", "Tiến trình bài hát chạy dọc cả taskbar. Mọi thay đổi áp dụng ngay."));

@@ -38,9 +38,16 @@ public partial class WidgetWindow : Window
     readonly RotateTransform _spin = new();
     static readonly Brush CapsuleFill = Frozen(new SolidColorBrush(Color.FromArgb(0x8C, 0x16, 0x17, 0x1C)));
     static readonly Brush CapsuleRim = Frozen(new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)));
+    // Glyphs drawn straight on the taskbar: white on a dark one, ink on a light one.
+    static readonly Brush Ink = Frozen(new SolidColorBrush(LyricStyle.Ink));
+    static readonly Brush InkSoft = Frozen(new SolidColorBrush(ColorUtil.WithAlpha(LyricStyle.Ink, 0.7)));
+    static readonly Brush PaleSoft = Frozen(new SolidColorBrush(Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF)));
+    static readonly Brush DarkWash = Frozen(new SolidColorBrush(Color.FromArgb(0x1A, 0x00, 0x00, 0x00)));
+    static readonly Brush PaleWash = Frozen(new SolidColorBrush(Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF)));
 
     ControlStyle _controlStyle = ControlStyle.Glow;
     bool _spinning;
+    bool _light;
 
     bool _artFrontIsA;
     BitmapSource? _shownArt;
@@ -100,8 +107,13 @@ public partial class WidgetWindow : Window
     public ILyricsView LyricsView => _vertical ? StackLyrics : LineLyrics;
 
     /// <param name="h">The taskbar's short side (its height, or its width when vertical), in DIPs.</param>
-    public void ApplyStyle(AppSettings s, double h, bool textShadow, bool vertical)
+    /// <param name="lightBar">The taskbar behind is light: glyphs and default lyrics drawn straight on it turn dark.</param>
+    public void ApplyStyle(AppSettings s, double h, bool textShadow, bool vertical, bool lightBar = false)
     {
+        _light = lightBar;
+        _textShadow.Color = lightBar ? Colors.White : Colors.Black;
+        ArtGlyph.Foreground = lightBar ? InkSoft : PaleSoft;
+        ArtPlaceholder.Background = lightBar ? DarkWash : PaleWash;
         if (vertical != _vertical)
         {
             _vertical = vertical;
@@ -110,7 +122,7 @@ public partial class WidgetWindow : Window
             Arrange();
         }
         FontFamily = BundledFonts.Resolve(s.FontFamily);
-        LyricsHost.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke);
+        LyricsHost.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke, lightBar);
 
         double pill = Math.Max(16, h - 4);
         Pill.CornerRadius = new CornerRadius(pill / 2);
@@ -185,16 +197,19 @@ public partial class WidgetWindow : Window
         // the record, whose label is the cover.
         PrevButton.Background = NextButton.Background = _accentBrush;
         PlayButton.Background = style == ControlStyle.Vinyl && _labelBrush.ImageSource != null ? _labelBrush : _accentBrush;
+        // Bare glyphs sit straight on the taskbar and follow its ink; drawn buttons carry their own contrast.
+        bool bare = style is ControlStyle.Glow or ControlStyle.Minimal or ControlStyle.Ring or ControlStyle.Vinyl;
+        PrevPath.Fill = NextPath.Fill = bare && _light ? Ink : Brushes.White;
         PlayGlyph.Fill = PauseGlyph.Fill = style switch
         {
             ControlStyle.Glow or ControlStyle.Capsule => _playGlyphBrush,
             ControlStyle.Minimal => _accentBrush,
+            ControlStyle.Ring when _light => Ink,
             _ => Brushes.White,
         };
         Transport.SetLamp(PlayButton, style == ControlStyle.Keys);
 
-        // Bare glyphs need the shadow to read over a transparent taskbar; drawn buttons carry their own contrast.
-        bool bare = style is ControlStyle.Glow or ControlStyle.Minimal or ControlStyle.Ring or ControlStyle.Vinyl;
+        // Bare glyphs need the shadow to read over a transparent taskbar.
         PrevButton.Effect = NextButton.Effect = bare && textShadow ? _textShadow : null;
         PlayButton.Effect = style switch
         {

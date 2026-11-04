@@ -112,6 +112,20 @@ public static class ColorUtil
 
     public static string ToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
 
+    /// <summary>The Windows taskbar is in light mode (Settings → Personalization → Colors → "Choose your mode").</summary>
+    public static bool WindowsTaskbarIsLight()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return key?.GetValue("SystemUsesLightTheme") is 1;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public static Color SystemAccent()
     {
         try

@@ -79,7 +79,7 @@
                     <Button x:Name="PrevButton" Style="{StaticResource TransportButton}" Click="Prev_Click">
                         <Viewbox x:Name="PrevIcon" Width="14" Height="14">
                             <Canvas Width="24" Height="24">
-                                <Path Data="{StaticResource GlyphPrevious}" Fill="White">
+                                <Path x:Name="PrevPath" Data="{StaticResource GlyphPrevious}" Fill="White">
                                     <Path.RenderTransform>
                                         <TranslateTransform x:Name="PrevShift" />
                                     </Path.RenderTransform>
@@ -106,7 +106,7 @@
                     <Button x:Name="NextButton" Style="{StaticResource TransportButton}" Click="Next_Click">
                         <Viewbox x:Name="NextIcon" Width="14" Height="14">
                             <Canvas Width="24" Height="24">
-                                <Path Data="{StaticResource GlyphNext}" Fill="White">
+                                <Path x:Name="NextPath" Data="{StaticResource GlyphNext}" Fill="White">
                                     <Path.RenderTransform>
                                         <TranslateTransform x:Name="NextShift" />
                                     </Path.RenderTransform>

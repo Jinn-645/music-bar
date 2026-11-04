@@ -19,6 +19,8 @@ namespace MusicBar.Views;
 public partial class TaskbarLayerWindow : Window
 {
     static readonly Color SurfaceColor = Color.FromRgb(0x0B, 0x0B, 0x0F);
+    // Close to Windows 11's own light taskbar, so its black icons read the same.
+    static readonly Color LightSurfaceColor = Color.FromRgb(0xF2, 0xF3, 0xF5);
 
     // Over the taskbar the layer must not hide the icons, so it is capped.
     const double OverSurfaceCap = 0.35;
@@ -30,6 +32,7 @@ public partial class TaskbarLayerWindow : Window
     readonly GradientStop _tint1 = new() { Offset = 1 };
 
     double _surfaceOpacity;
+    Color _base = SurfaceColor;
     Color _primary = ColorUtil.Brand;
     Color _secondary = ColorUtil.Brand;
 
@@ -54,16 +57,18 @@ public partial class TaskbarLayerWindow : Window
         set => Seek.Audio = value;
     }
 
-    internal void ApplyStyle(AppSettings s, bool over, TaskbarEdge edge)
+    /// <param name="background">The background to paint, with Auto already resolved to Dark or Light.</param>
+    internal void ApplyStyle(AppSettings s, bool over, TaskbarEdge edge, BarBackground background)
     {
         _surfaceOpacity = over ? Math.Min(s.BackgroundOpacity, OverSurfaceCap) : s.BackgroundOpacity;
-        switch (s.Background)
+        _base = background is BarBackground.Light or BarBackground.LightTinted ? LightSurfaceColor : SurfaceColor;
+        switch (background)
         {
-            case BarBackground.Dark:
-                _surfaceBrush.Color = ColorUtil.WithAlpha(SurfaceColor, _surfaceOpacity);
+            case BarBackground.Dark or BarBackground.Light:
+                _surfaceBrush.Color = ColorUtil.WithAlpha(_base, _surfaceOpacity);
                 Surface.Background = _surfaceBrush;
                 break;
-            case BarBackground.Tinted:
+            case BarBackground.Tinted or BarBackground.LightTinted:
                 Surface.Background = _tintBrush;
                 break;
             default:
@@ -92,8 +97,8 @@ public partial class TaskbarLayerWindow : Window
         _primary = primary;
         _secondary = secondary;
         var d = animate ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
-        AnimateColor(_tint0, ColorUtil.WithAlpha(ColorUtil.Lerp(SurfaceColor, secondary, 0.24), _surfaceOpacity), d);
-        AnimateColor(_tint1, ColorUtil.WithAlpha(ColorUtil.Lerp(SurfaceColor, primary, 0.14), _surfaceOpacity), d);
+        AnimateColor(_tint0, ColorUtil.WithAlpha(ColorUtil.Lerp(_base, secondary, 0.24), _surfaceOpacity), d);
+        AnimateColor(_tint1, ColorUtil.WithAlpha(ColorUtil.Lerp(_base, primary, 0.14), _surfaceOpacity), d);
         Seek.SetColors(primary, secondary, animate);
     }
 

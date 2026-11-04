@@ -2,8 +2,8 @@
 
 Thanh taskbar nằm im ba mươi năm rồi. Cho nó hát đi.
 
-**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.2.0-Setup.exe)
-hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.2.0-portable.zip)
+**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.3.0-Setup.exe)
+hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.3.0-portable.zip)
 (Windows 10 2004 trở lên hoặc Windows 11, 64-bit, không cần cài .NET).
 
 - [x] **04/11** Bản 1.0 lên GitHub: 14 bộ áo cho thanh tiến trình, karaoke đủ dấu, taskbar
@@ -18,6 +18,9 @@ hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/dow
   mờ nhòe ở màn phụ, chọn màn riêng cho thanh tiến trình và cho trình phát), 4 hướng chạy của
   thanh tiến trình, chế độ tối giản, danh sách Wi-Fi và Bluetooth ngay trong Control Center, và
   trang cài đặt sắp xếp lại cho dễ tìm.
+- [x] **04/11** Bản 1.3: cái mặt trong video giới thiệu dọn lên ở hẳn trên taskbar (8 kiểu mặt,
+  nhún theo nhạc, ngủ gật về đêm, bấm, xoa, cuộn chuột là nó phản ứng), nền taskbar sáng cho
+  Windows chế độ sáng, Control Center không còn tràn khỏi màn hình khi nhiều thông báo.
 
 ![Thanh taskbar ngủ gật, tiếng cào đĩa, icon MusicBar rơi xuống và đèn sân khấu bật sáng](docs/wake-up.gif)
 
@@ -42,6 +45,10 @@ Media Player, Apple Music… Không có nhạc thì nó lặn mất, taskbar v�
   màn cho trình phát với lời bài hát (Cài đặt → Chung → Màn hình).
 - **Tối giản nếu thích:** ẩn trình phát mà giữ lời (lời tự dời vào khoảng trống lớn nhất), hoặc
   ẩn cả hai, chỉ để thanh tiến trình chạy (Cài đặt → Trình phát).
+- **Một cái mặt sống trên taskbar** (chi tiết ở dưới): nhún theo nhạc, ngủ gật về đêm, cười khi
+  bị chọc, giận khi bị chọc hoài.
+- **Nền sáng hay tối:** mặc định theo chế độ sáng / tối của Windows. Nền sáng thì lời bài hát,
+  nút và cái mặt chuyển sang màu tối cho icon đen của Windows vẫn rõ.
 - **Nhảy theo nhạc thật.** Các kiểu động nghe chính âm thanh đang ra loa (WASAPI loopback),
   xử lý ngay trong máy, không gửi đi đâu. Tắt đi thì chúng nhún theo nhịp giả lập.
 - **Lời bài hát đồng bộ** từ [LRCLIB](https://lrclib.net), tô màu karaoke từng chữ, 8 hiệu ứng
@@ -165,6 +172,25 @@ mở bảng của MusicBar, từ trên xuống:
 Bảng gốc của Windows vẫn ở đó: Win+A và Win+N. Tắt tính năng hoặc thoát MusicBar là khay về
 nguyên như Windows sắp xếp.
 
+## Cái mặt
+
+Anh em xem video giới thiệu thích cái mặt quá, nên giờ nó ở hẳn trên taskbar, cạnh trình phát
+(đổi chỗ ở **Cài đặt → Cái mặt**).
+
+- **8 kiểu mặt:** Cổ điển (đúng cái mặt trong video), Cổ điển nữ, Anime nữ, Anime nam, Người
+  ngoài hành tinh, Rô-bốt (mắt LED, miệng là cột sóng nhạc), Mèo, Ngáo.
+- **Sống theo tình hình:** có nhạc thì nhún theo nhịp và hát theo, qua bài mới thì mắt sao, tạm
+  dừng thì ngó quanh chờ, nhạc tắt sau một buổi dài thì rưng rưng.
+- **Sống theo giờ:** sáng ngáp rồi vươn vai, gần trưa thèm ăn, ăn xong gật gù, đúng giờ chẵn giật
+  mình, khuya thì mí mắt sụp, bạn rời máy là nó ngủ (có Zzz), quay lại là nó dậy.
+- **Không đứng yên:** chớp mắt, liếc ngang liếc dọc, ngân nga, nháy mắt, lè lưỡi, mắt nhìn theo
+  con trỏ khi lại gần.
+- **Trêu được:** bấm là cười, bấm liên tục thì bực rồi nổi cáu rồi dỗi quay đi; giữ chuột rê qua
+  lại (hoặc rê con trỏ qua lại trên nó) là cười chảy nước mắt rồi thả tim; bấm đúp mắt sao; cuộn
+  chuột là chóng mặt; đang ngủ mà chọc là giật mình.
+- Chuột phải lên nó để đổi kiểu hay ẩn đi. Không có nhạc mà MusicBar ẩn thì mặt vẫn ở lại ngủ gật
+  (tắt được).
+
 ## Lời bài hát
 
 ![Lời bài hát chạy karaoke trên taskbar bằng phông Playfair Display](docs/karaoke.jpg)
@@ -183,7 +209,7 @@ C++") cho module taskbar Windows 11.
 ```powershell
 dotnet build src/MusicBar/MusicBar.csproj
 dotnet run --project src/MusicBar -- --demo
-.\installer\build.ps1 -Version 1.2.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
+.\installer\build.ps1 -Version 1.3.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
 ```
 
 ## Bên trong
@@ -205,6 +231,7 @@ src/MusicBar/
   Views/LyricsPresenter.cs      lời bài hát và các hiệu ứng;  WordStackPresenter.cs cho taskbar dọc
   Views/TaskbarOverlay.cs       điều phối: xếp lớp, màu, lời, menu
   Views/TaskbarOverlays.cs      một overlay cho mỗi taskbar được chọn
+  Views/Face/                   cái mặt: FaceBrain (tâm trạng), FaceRig (chuyển động), FacePainters (8 kiểu)
 src/MusicBar.TaskbarTap/        module C++ chạy trong Explorer (build bằng MSVC cùng app)
 installer/                      Inno Setup + build.ps1
 promo/                          video giới thiệu (HyperFrames)
@@ -271,7 +298,11 @@ fully usable) and adds:
   Wi-Fi and Bluetooth lists (join, pair, connect, forget);
 - taskbars on any edge (a vertical taskbar gets one word of the lyrics per line), several
   screens with separate choices for the bar and the player, four progress directions, and a
-  minimal mode with just the bar (and the lyrics, if you like).
+  minimal mode with just the bar (and the lyrics, if you like);
+- a little face from the promo film living on the taskbar, in eight looks: it dances to the
+  music, gets sleepy at night, and giggles, sulks, laughs or gets dizzy when you click, rub or
+  scroll over it;
+- light and dark backgrounds, following Windows' mode by default.
 
 It follows any app that talks to Windows Media Session (Spotify, browsers, Media Player…).
 Grab the installer or the portable zip from the

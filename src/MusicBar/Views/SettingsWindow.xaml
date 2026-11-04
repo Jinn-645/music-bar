@@ -252,6 +252,12 @@
                 </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE76E;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Face}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE790;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
                         <TextBlock Text="{l:Tr Set_Page_Progress}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
@@ -347,7 +353,7 @@
                                    Description="{l:Tr Set_Transparent_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding TransparentTaskbar}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE771;" Header="{l:Tr Set_Background}">
+                    <v:SettingCard Glyph="&#xE771;" Header="{l:Tr Set_Background}" Description="{l:Tr Set_Background_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Backgrounds}"
                                   SelectedValue="{Binding Background}" />
                     </v:SettingCard>
@@ -441,6 +447,54 @@
                                        Description="{l:Tr Set_OnlineInfo_Desc}" IsEnabled="{Binding ShowInfoPopup}">
                             <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineTrackInfo}" />
                         </v:SettingCard>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Face -->
+                <StackPanel x:Name="PageFace" Visibility="Collapsed">
+                    <TextBlock Text="{l:Tr Set_Page_Face}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Face_Subtitle}" Style="{StaticResource PageSubtitle}" />
+
+                    <v:SettingCard Glyph="&#xE76E;" Header="{l:Tr Set_FaceEnabled}" Description="{l:Tr Set_FaceEnabled_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceEnabled}" />
+                    </v:SettingCard>
+
+                    <StackPanel IsEnabled="{Binding FaceEnabled}">
+                        <TextBlock Text="{l:Tr Set_Face_GroupStyle}" Style="{StaticResource Group}" />
+                        <TextBlock Text="{l:Tr Set_Face_StyleHint}" FontSize="12" Opacity="0.6" Margin="2,-4,0,10" />
+                        <WrapPanel x:Name="FaceGallery" Margin="0,0,-10,6" />
+
+                        <TextBlock Text="{l:Tr Set_Face_GroupPlace}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE737;" Header="{l:Tr Set_FacePlacement}" Description="{l:Tr Set_FacePlacement_Desc}">
+                            <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      ItemsSource="{x:Static v:SettingsOptions.FacePlacements}" SelectedValue="{Binding FacePlacement}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_FaceScale}">
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Width="220" Minimum="0.6" Maximum="1" SmallChange="0.05" LargeChange="0.1"
+                                        Value="{Binding FaceScale}" VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Value}" Text="{Binding FaceScale, StringFormat={}{0:P0}}" />
+                            </StackPanel>
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE7ED;" Header="{l:Tr Set_FaceStaysIdle}" Description="{l:Tr Set_FaceStaysIdle_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceStaysWhenIdle}" />
+                        </v:SettingCard>
+
+                        <TextBlock Text="{l:Tr Set_Face_GroupMood}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE823;" Header="{l:Tr Set_FaceClock}" Description="{l:Tr Set_FaceClock_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceFollowsClock}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE8D6;" Header="{l:Tr Set_FaceMusic}" Description="{l:Tr Set_FaceMusic_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceReactsToMusic}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE962;" Header="{l:Tr Set_FacePointer}" Description="{l:Tr Set_FacePointer_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceWatchesPointer}" />
+                        </v:SettingCard>
+
+                        <TextBlock Text="{l:Tr Set_Face_GroupPlay}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE815;" Header="{l:Tr Set_Face_Poke}" Description="{l:Tr Set_Face_Poke_Desc}" />
+                        <v:SettingCard Glyph="&#xE7C9;" Header="{l:Tr Set_Face_Rub}" Description="{l:Tr Set_Face_Rub_Desc}" />
+                        <v:SettingCard Glyph="&#xE8B5;" Header="{l:Tr Set_Face_More}" Description="{l:Tr Set_Face_More_Desc}" />
                     </StackPanel>
                 </StackPanel>
 

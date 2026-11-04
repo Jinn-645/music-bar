@@ -22,6 +22,9 @@ public sealed class SettingsService
             new StyleConverter<SeekDirection>(SeekDirection.FromStart),
             new StyleConverter<PlayerTarget>(PlayerTarget.SameAsBar),
             new StyleConverter<PlayerMode>(PlayerMode.Full),
+            new StyleConverter<BarBackground>(BarBackground.Auto),
+            new StyleConverter<Views.Face.FaceStyle>(Views.Face.FaceStyle.Classic),
+            new StyleConverter<FacePlacement>(FacePlacement.BesidePlayer),
             new JsonStringEnumConverter(),
         },
     };

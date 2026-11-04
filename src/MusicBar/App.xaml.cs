@@ -66,7 +66,7 @@ public partial class App : Application
             {
                 int which = WaitHandle.WaitAny(handles);
                 if (_exiting) break;
-                if (which == 0) Dispatcher.BeginInvoke(ShowSettings);
+                if (which == 0) Dispatcher.BeginInvoke(() => ShowSettings());
                 else Dispatcher.BeginInvoke(ExitApp);
             }
         })
@@ -110,7 +110,7 @@ public partial class App : Application
         _bars = new TaskbarOverlays(settings, _media, _lyrics);
         _bars.Start();
 
-        _tray = new TrayIcon(ShowSettings, _bars.Main.ShowMenu);
+        _tray = new TrayIcon(() => ShowSettings(), _bars.Main.ShowMenu);
         _media.TrackChanged += (_, _) =>
             _tray.SetTooltip(_media.HasSession && _media.Title.Length > 0 ? $"MusicBar · {_media.Title}" : "MusicBar");
 
@@ -121,7 +121,8 @@ public partial class App : Application
             ShowSettings();
     }
 
-    public void ShowSettings()
+    /// <param name="page">A page to open on (its place in the navigation list), or null to keep the one shown.</param>
+    public void ShowSettings(int? page = null)
     {
         if (_settings == null || _media == null || _lyrics == null || _exiting) return;
         if (_settingsWindow == null)
@@ -134,6 +135,7 @@ public partial class App : Application
         {
             _settingsWindow.WindowState = WindowState.Normal;
         }
+        if (page is int p) _settingsWindow.Page = p;
         _settingsWindow.Activate();
     }
 

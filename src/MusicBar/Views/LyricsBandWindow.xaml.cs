@@ -49,13 +49,14 @@ public partial class LyricsBandWindow : Window
     public void SetAccent(Color accent) => LineLyrics.Accent = StackLyrics.Accent = accent;
 
     /// <param name="thickness">The taskbar's short side, in DIPs.</param>
-    public void ApplyStyle(AppSettings s, double thickness, bool vertical)
+    /// <param name="lightBar">The taskbar behind is light: default white text turns dark.</param>
+    public void ApplyStyle(AppSettings s, double thickness, bool vertical, bool lightBar)
     {
         _vertical = vertical;
         LineLyrics.Visibility = vertical ? Visibility.Collapsed : Visibility.Visible;
         StackLyrics.Visibility = vertical ? Visibility.Visible : Visibility.Collapsed;
         FontFamily = BundledFonts.Resolve(s.FontFamily);
-        Root.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke);
+        Root.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke, lightBar);
         double h = thickness;
         // Stacked words have room for the next line below them; a horizontal strip needs the height.
         bool twoLine = s.ShowNextLine && (vertical || h >= 40);

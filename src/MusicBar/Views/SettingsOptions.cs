@@ -16,6 +16,12 @@ public sealed record SeekStyleOption(SeekStyle Value, string LabelKey, string De
     public string Description => Loc.T(DescriptionKey);
 }
 
+public sealed record FaceStyleOption(Face.FaceStyle Value, string LabelKey, string DescriptionKey)
+{
+    public string Label => Loc.T(LabelKey);
+    public string Description => Loc.T(DescriptionKey);
+}
+
 /// <summary>Display labels for every enum the settings window exposes.</summary>
 public static class SettingsOptions
 {
@@ -53,8 +59,11 @@ public static class SettingsOptions
 
     public static IReadOnlyList<Option> Backgrounds { get; } =
     [
+        new(BarBackground.Auto, "Opt_Bg_Auto"),
         new(BarBackground.Dark, "Opt_Bg_Dark"),
         new(BarBackground.Tinted, "Opt_Bg_Tinted"),
+        new(BarBackground.Light, "Opt_Bg_Light"),
+        new(BarBackground.LightTinted, "Opt_Bg_LightTinted"),
         new(BarBackground.Transparent, "Opt_Bg_Transparent"),
     ];
 
@@ -67,6 +76,26 @@ public static class SettingsOptions
         new(ControlStyle.Vinyl, "Opt_Ctl_Vinyl"),
         new(ControlStyle.Keys, "Opt_Ctl_Keys"),
         new(ControlStyle.Bubbles, "Opt_Ctl_Bubbles"),
+    ];
+
+    public static IReadOnlyList<FaceStyleOption> FaceStyles { get; } =
+    [
+        new(Face.FaceStyle.Classic, "Face_Classic", "Face_Classic_Desc"),
+        new(Face.FaceStyle.ClassicGirl, "Face_ClassicGirl", "Face_ClassicGirl_Desc"),
+        new(Face.FaceStyle.AnimeGirl, "Face_AnimeGirl", "Face_AnimeGirl_Desc"),
+        new(Face.FaceStyle.AnimeBoy, "Face_AnimeBoy", "Face_AnimeBoy_Desc"),
+        new(Face.FaceStyle.Alien, "Face_Alien", "Face_Alien_Desc"),
+        new(Face.FaceStyle.Robot, "Face_Robot", "Face_Robot_Desc"),
+        new(Face.FaceStyle.Cat, "Face_Cat", "Face_Cat_Desc"),
+        new(Face.FaceStyle.Derp, "Face_Derp", "Face_Derp_Desc"),
+    ];
+
+    public static IReadOnlyList<Option> FacePlacements { get; } =
+    [
+        new(FacePlacement.BesidePlayer, "Opt_Face_BesidePlayer"),
+        new(FacePlacement.Start, "Opt_Face_Start"),
+        new(FacePlacement.BeforeIcons, "Opt_Face_BeforeIcons"),
+        new(FacePlacement.AfterIcons, "Opt_Face_AfterIcons"),
     ];
 
     public static IReadOnlyList<Option> PlayerModes { get; } =

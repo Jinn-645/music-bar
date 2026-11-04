@@ -272,10 +272,11 @@ internal sealed class TaskbarTracker : IDisposable
         var bar = Along.Of(rc, horizontal);
         var spans = new List<Span>();
         var quick = new List<Span>();
+        var power = new List<Span>();
         double? startAt = null;
         try
         {
-            CollectFromAutomation(tray, bar, horizontal, spans, quick, ref startAt);
+            CollectFromAutomation(tray, bar, horizontal, spans, quick, power, ref startAt);
         }
         catch (Exception ex)
         {
@@ -286,8 +287,7 @@ internal sealed class TaskbarTracker : IDisposable
         if (startAt is double start && start - bar.Start > bar.Length * 0.1)
             spans.Add(new Span((int)start, (int)(bar.Start + bar.End - start)));
 
-        Span? quickSettings = quick.Count == 0 ? null : new Span(quick.Min(q => q.Start), quick.Max(q => q.End));
-        return (Merge(spans), quickSettings);
+        return (Merge(spans), QuickSettingsSpan(quick, power));
     }
 
     /// <summary>
@@ -300,6 +300,35 @@ internal sealed class TaskbarTracker : IDisposable
     static bool IsQuickSettingsButton(string cls, string name) =>
         cls.StartsWith("SystemTray.", StringComparison.Ordinal)
         && QuickSettingsNames.Any(n => name.StartsWith(n, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Battery and power words in a few languages. A tray button naming one of them, right next to the
+    /// Quick Settings buttons, is the battery (its name differs between Windows builds and languages);
+    /// anywhere else it is some app's icon and stays out.
+    /// </summary>
+    static readonly System.Text.RegularExpressions.Regex PowerWords = new(
+        @"\b(battery|batterie|bateria|batería|akku|power|charging|plugged|pin|sạc|nguồn)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>The Quick Settings buttons as one span, grown over battery buttons that sit right beside them.</summary>
+    static Span? QuickSettingsSpan(List<Span> quick, List<Span> power)
+    {
+        if (quick.Count == 0) return null;
+        int start = quick.Min(q => q.Start), end = quick.Max(q => q.End);
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach (var p in power)
+            {
+                if (p.Start >= start && p.End <= end) continue;
+                if (p.End < start - 6 || p.Start > end + 6) continue;
+                start = Math.Min(start, p.Start);
+                end = Math.Max(end, p.End);
+                grew = true;
+            }
+        }
+        return new Span(start, end);
+    }
 
     /// <summary>
     /// Fallback for when UI Automation returns nothing: the Windows 10 style
@@ -327,7 +356,7 @@ internal sealed class TaskbarTracker : IDisposable
         }
     }
 
-    static void CollectFromAutomation(IntPtr tray, Along bar, bool horizontal, List<Span> spans, List<Span> quick, ref double? startAt)
+    static void CollectFromAutomation(IntPtr tray, Along bar, bool horizontal, List<Span> spans, List<Span> quick, List<Span> power, ref double? startAt)
     {
         var root = AutomationElement.FromHandle(tray);
         var all = root.FindAll(TreeScope.Descendants, Condition.TrueCondition);
@@ -352,6 +381,7 @@ internal sealed class TaskbarTracker : IDisposable
             if (b.IsEmpty) continue;
             var a = Along.Of(b, horizontal);
             if (IsQuickSettingsButton(cls, name)) quick.Add(a.ToSpan());
+            else if (cls.StartsWith("SystemTray.", StringComparison.Ordinal) && PowerWords.IsMatch(name)) power.Add(a.ToSpan());
 
             if (b.Width < 2 || b.Height < 2) continue;
             if (a.Length > bar.Length * 0.3 || cls == TrayContainer) continue;

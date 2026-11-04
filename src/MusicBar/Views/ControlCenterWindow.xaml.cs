@@ -62,10 +62,12 @@ public partial class ControlCenterWindow : Window
             else Dismiss();
             e.Handled = true;
         };
-        // Growing (a new notification) keeps the panel's edge where it is.
+        // Growing (a new notification, the tiles arriving) keeps the panel's edge where it is.
         SizeChanged += (_, _) =>
         {
-            if (IsOpen) Place();
+            if (!IsOpen) return;
+            FitToScreen();
+            Place();
         };
     }
 
@@ -104,6 +106,7 @@ public partial class ControlCenterWindow : Window
         Main.VerticalAlignment = Side.VerticalAlignment = edge == TaskbarEdge.Top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
         IsOpen = true;
         NotificationScroll.MaxHeight = Math.Max(160, monitorBounds.Height / Scale() * 0.5);
+        _fitted = false;
         SetSide(SideKind.None, animate: false);
         SyncVolume();
         SyncOutput();
@@ -114,6 +117,7 @@ public partial class ControlCenterWindow : Window
 
         if (!IsVisible) Show();
         UpdateLayout();
+        FitToScreen();
         Place();
         Activate();
         _volumePoll.Start();
@@ -160,6 +164,26 @@ public partial class ControlCenterWindow : Window
         (columns[0].Width, columns[2].Width) = (columns[2].Width, columns[0].Width);
         Grid.SetColumn(Main, mirrored ? 0 : 2);
         Grid.SetColumn(Side, mirrored ? 2 : 0);
+    }
+
+    bool _fitted;
+
+    /// <summary>
+    /// Keeps the whole panel on the screen: on a short screen, or with many notifications, the
+    /// notification list gives up height (it scrolls) instead of pushing the panel past the top.
+    /// </summary>
+    void FitToScreen()
+    {
+        double s = Scale();
+        double screen = _monitor.Height / s;
+        double taskbar = TaskbarSide.IsVertical(_edge) ? 0 : (_taskbar.Bottom - _taskbar.Top) / s;
+        double room = screen - taskbar - 2 * Gap - Root.Margin.Top - Root.Margin.Bottom;
+        // Everything in the column except the list itself.
+        double rest = Main.ActualHeight - NotificationScroll.ActualHeight;
+        double max = Math.Clamp(room - rest, 120, Math.Max(160, screen * 0.5));
+        if (_fitted && Math.Abs(max - NotificationScroll.MaxHeight) < 1) return;
+        _fitted = true;
+        NotificationScroll.MaxHeight = max;
     }
 
     /// <summary>How far a closed side list sits tucked toward the controls.</summary>

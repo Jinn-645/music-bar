@@ -38,6 +38,8 @@ public sealed class TaskbarOverlay : IDisposable
     readonly WidgetWindow _widget;
     readonly InfoPopupWindow _popup;
     readonly LyricsBandWindow _band;
+    readonly Face.FaceWindow _face;
+    bool _faceShown;
     readonly SolidColorBrush _accentBrush = new(ColorUtil.Brand);
     readonly SolidColorBrush _playGlyphBrush = new(Colors.White);
     readonly DispatcherTimer _watch = new() { Interval = TimeSpan.FromMilliseconds(500) };
@@ -105,6 +107,7 @@ public sealed class TaskbarOverlay : IDisposable
         _widget = new WidgetWindow(media, _accentBrush, _playGlyphBrush);
         _popup = new InfoPopupWindow(_accentBrush);
         _band = new LyricsBandWindow();
+        _face = new Face.FaceWindow(settings, media, audio);
         _widget.MenuRequested += ShowMenu;
         _widget.InfoRequested += ShowInfo;
         _widget.InfoDismissed += _popup.Dismiss;
@@ -248,6 +251,7 @@ public sealed class TaskbarOverlay : IDisposable
         new WindowInteropHelper(_widget).EnsureHandle();
         new WindowInteropHelper(_popup).EnsureHandle();
         new WindowInteropHelper(_band).EnsureHandle();
+        new WindowInteropHelper(_face).EnsureHandle();
         ApplyAppearance();
         UpdateLyricsSurface(animate: false);
         _widget.SetPlaying(_media.IsPlaying, animate: false);
@@ -286,6 +290,7 @@ public sealed class TaskbarOverlay : IDisposable
         _widget.Close();
         _popup.Close();
         _band.Close();
+        _face.Close();
     }
 
     // ------------------------------------------------------------------ placement
@@ -294,9 +299,13 @@ public sealed class TaskbarOverlay : IDisposable
     {
         if (_disposed) return;
         bool show = (_showsBar || _showsPlayer) && _tracker.Shown && !_fullscreen && !_idle;
+        // With nothing playing MusicBar steps aside, but the face may stay and nap on the plain taskbar.
+        bool faceAlone = !show && _idle && _showsPlayer && _tracker.Shown && !_fullscreen && _s.FaceEnabled && _s.FaceStaysWhenIdle;
         if (!show)
         {
-            HideAll();
+            bool keepFace = faceAlone && _tracker.HasScanned;
+            HideAll(keepFace);
+            if (keepFace) PlaceFace(FaceRect(_tracker.Rect, _tracker.Scale, null, true, FaceLength(), 0));
             return;
         }
 
@@ -345,8 +354,13 @@ public sealed class TaskbarOverlay : IDisposable
 
         // A minimal taskbar has no player: only the progress, and the lyrics in a gap of their own if wanted.
         _playerOn = _showsPlayer && _s.PlayerMode != PlayerMode.Off;
+        // The face goes with the player; beside it, the widget leaves it room at its anchored end.
+        bool faceOn = _showsPlayer && _s.FaceEnabled && _tracker.HasScanned;
+        int faceLength = faceOn ? FaceLength() : 0;
+        int faceGap = (int)Math.Round(4 * scale);
+        int reserve = faceOn && _s.FacePlacement == FacePlacement.BesidePlayer ? faceLength + faceGap : 0;
         bool anchorEnd = true;
-        var widgetRect = _playerOn && _s.PlayerMode == PlayerMode.Full ? WidgetRect(rc, scale, out anchorEnd) : null;
+        var widgetRect = _playerOn && _s.PlayerMode == PlayerMode.Full ? WidgetRect(rc, scale, out anchorEnd, reserve) : null;
         if (widgetRect is { } w)
         {
             _widget.SetAnchor(anchorEnd);
@@ -369,47 +383,136 @@ public sealed class TaskbarOverlay : IDisposable
             _popup.Dismiss();
         }
 
-        _bandRect = _playerOn ? BandRect(rc, scale, widgetRect) : null;
+        var faceRect = faceOn ? FaceRect(rc, scale, widgetRect, anchorEnd, faceLength, faceGap) : null;
+        PlaceFace(faceRect);
+
+        _bandRect = _playerOn ? BandRect(rc, scale, widgetRect, faceRect) : null;
         UpdateLyricsSurface(animate: true);
         SetRendering(true);
     }
 
-    void HideAll()
+    void HideAll(bool keepFace = false)
     {
         if (_layerShown) _layer.Hide();
         if (_widgetShown) _widget.Hide();
+        if (_faceShown && !keepFace)
+        {
+            _face.Hide();
+            _faceShown = false;
+        }
         _layerShown = _widgetShown = _playerOn = false;
         _popup.Dismiss();
         _band.Reveal(false, 0);
         SetRendering(false);
     }
 
+    void PlaceFace(Native.RECT? rect)
+    {
+        if (rect is not { } r)
+        {
+            if (_faceShown) _face.Hide();
+            _faceShown = false;
+            return;
+        }
+        // Alone on the plain taskbar, its lines follow Windows' own light or dark mode.
+        _face.ApplyStyle(_s, _layerShown ? LightBar : _windowsLight);
+        if (!_faceShown)
+        {
+            _face.Show();
+            _faceShown = true;
+        }
+        Native.SetWindowPos(_face.Hwnd, Native.HWND_TOPMOST, r.Left, r.Top, r.Width, r.Height, Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>The face's length along the taskbar in physical pixels: its box (116 x 88 design units) across the taskbar's thickness.</summary>
+    int FaceLength()
+    {
+        int t = _tracker.Thickness;
+        return (int)Math.Round(_tracker.IsHorizontal ? t * 116.0 / 88 * _s.FaceScale : t * 0.8 * _s.FaceScale);
+    }
+
     /// <summary>
-    /// The biggest empty stretch of taskbar not taken by the widget, whatever
+    /// Where the face sits: in the room the widget left beside its cover, or at the start of the
+    /// taskbar, or just before or after the app icons. With no player it goes to the far end,
+    /// beside the tray.
+    /// </summary>
+    Native.RECT? FaceRect(Native.RECT rc, double scale, Native.RECT? widget, bool anchorEnd, int length, int gap)
+    {
+        if (_s.FacePlacement == FacePlacement.BesidePlayer && widget is { } wr)
+        {
+            var w = AlongBar(wr);
+            int at = anchorEnd ? w.End + gap : w.Start - gap - length;
+            return AcrossBar(rc, at, at + length);
+        }
+        int margin = (int)Math.Round(6 * scale);
+        var pieces = FreePieces(widget).Where(p => p.Width >= length + 2 * margin).ToList();
+        if (pieces.Count == 0) return null;
+        var icons = IconGroup();
+        Span piece;
+        bool atEnd;
+        switch (_s.FacePlacement)
+        {
+            case FacePlacement.Start:
+                (piece, atEnd) = (pieces[0], false);
+                break;
+            case FacePlacement.BeforeIcons when icons is { } i && pieces.LastOrDefault(p => p.End <= i.Start + 2) is { Width: > 0 } before:
+                (piece, atEnd) = (before, true);
+                break;
+            case FacePlacement.AfterIcons when icons is { } i && pieces.FirstOrDefault(p => p.Start >= i.End - 2) is { Width: > 0 } after:
+                (piece, atEnd) = (after, false);
+                break;
+            default:
+                (piece, atEnd) = (pieces[^1], true);
+                break;
+        }
+        int start = atEnd ? piece.End - margin - length : piece.Start + margin;
+        return AcrossBar(rc, start, start + length);
+    }
+
+    /// <summary>The app icons with the Start button: the widest occupied stretch before the tray.</summary>
+    Span? IconGroup()
+    {
+        var spans = _tracker.Occupied.Where(s => s.End < _tracker.End - _tracker.Length / 20).ToList();
+        return spans.Count == 0 ? null : spans.MaxBy(s => s.Width);
+    }
+
+    /// <summary>The taskbar's empty stretches, less what the given windows take.</summary>
+    System.Collections.Generic.List<Span> FreePieces(params Native.RECT?[] taken)
+    {
+        var pieces = _tracker.FreeSpans();
+        foreach (var t in taken)
+        {
+            if (t is not { } r) continue;
+            var w = AlongBar(r);
+            var cut = new System.Collections.Generic.List<Span>();
+            foreach (var f in pieces)
+            {
+                if (w.End <= f.Start || w.Start >= f.End)
+                {
+                    cut.Add(f);
+                    continue;
+                }
+                if (w.Start > f.Start) cut.Add(new Span(f.Start, w.Start));
+                if (w.End < f.End) cut.Add(new Span(w.End, f.End));
+            }
+            pieces = cut;
+        }
+        return pieces;
+    }
+
+    /// <summary>
+    /// The biggest empty stretch of taskbar not taken by the widget or the face, whatever
     /// the icon alignment: the left side when icons are centred, the middle
     /// when they sit on the left. Lyrics are centred inside it.
     /// </summary>
-    Native.RECT? BandRect(Native.RECT rc, double scale, Native.RECT? widget)
+    Native.RECT? BandRect(Native.RECT rc, double scale, Native.RECT? widget, Native.RECT? face)
     {
         if (!_tracker.HasScanned || _tracker.Occupied.Count == 0) return null;
         int margin = (int)Math.Round(16 * scale);
         int min = (int)Math.Round(220 * scale);
         int max = (int)Math.Round(820 * scale);
 
-        var pieces = new System.Collections.Generic.List<Span>();
-        foreach (var f in _tracker.FreeSpans())
-        {
-            if (widget is { } wr && AlongBar(wr) is var w && w.End > f.Start && w.Start < f.End)
-            {
-                if (w.Start > f.Start) pieces.Add(new Span(f.Start, w.Start));
-                if (w.End < f.End) pieces.Add(new Span(w.End, f.End));
-            }
-            else
-            {
-                pieces.Add(f);
-            }
-        }
-
+        var pieces = FreePieces(widget, face);
         var best = pieces.Where(p => p.Width - 2 * margin >= min).OrderByDescending(p => p.Width).FirstOrDefault();
         if (best.Width == 0) return null;
         int length = Math.Min(best.Width - 2 * margin, max);
@@ -490,7 +593,8 @@ public sealed class TaskbarOverlay : IDisposable
     /// On a vertical taskbar the same rules run top to bottom: "right" is the bottom end, where
     /// the tray is, and "left" the top.
     /// </remarks>
-    Native.RECT? WidgetRect(Native.RECT rc, double scale, out bool anchorEnd)
+    /// <param name="reserve">Room to leave at the anchored end of the stretch (for the face beside the cover).</param>
+    Native.RECT? WidgetRect(Native.RECT rc, double scale, out bool anchorEnd, int reserve = 0)
     {
         anchorEnd = _s.WidgetPlacement != WidgetPlacement.Left;
         if (!_tracker.HasScanned) return null;
@@ -508,10 +612,11 @@ public sealed class TaskbarOverlay : IDisposable
         }
         else
         {
-            var free = _tracker.FreeSpans().Where(f => f.Width - 2 * margin >= min).ToList();
+            var free = _tracker.FreeSpans().Where(f => f.Width - 2 * margin - reserve >= min).ToList();
             if (free.Count == 0) return null;
             span = anchorEnd ? free[^1] : free[0];
         }
+        span = anchorEnd ? span with { End = span.End - reserve } : span with { Start = span.Start + reserve };
 
         int length = Math.Min(span.Width - 2 * margin, max);
         if (length < min) return null;
@@ -525,8 +630,10 @@ public sealed class TaskbarOverlay : IDisposable
     /// </summary>
     void EnsureZOrder()
     {
-        if (_disposed || !(_layerShown || _playerOn) || _tracker.Handle == IntPtr.Zero) return;
+        if (_disposed || !(_layerShown || _playerOn || _faceShown) || _tracker.Handle == IntPtr.Zero) return;
         var tray = _tracker.Handle;
+        if (_faceShown && !Native.IsAbove(_face.Hwnd, tray))
+            Native.SetWindowPos(_face.Hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, KeepPlace);
         if (!_layerShown)
         {
             // The player on its own, on a taskbar without the bar: it only has to stay above the taskbar.
@@ -555,6 +662,7 @@ public sealed class TaskbarOverlay : IDisposable
         if (_media.HasSession) _noSessionSince = DateTime.MinValue;
         else if (_noSessionSince == DateTime.MinValue) _noSessionSince = DateTime.Now;
 
+        CheckTheme();
         bool idle = _s.HideWhenIdle && _noSessionSince != DateTime.MinValue
                     && (DateTime.Now - _noSessionSince).TotalSeconds > 2;
         bool fullscreen = _s.HideInFullscreen && IsForegroundFullscreen();
@@ -689,7 +797,9 @@ public sealed class TaskbarOverlay : IDisposable
         switch (e.PropertyName)
         {
             case nameof(AppSettings.LayerMode) or nameof(AppSettings.WidgetPlacement) or nameof(AppSettings.WidgetMaxWidth)
-                or nameof(AppSettings.PlayerMode):
+                or nameof(AppSettings.PlayerMode)
+                or nameof(AppSettings.FaceEnabled) or nameof(AppSettings.FacePlacement) or nameof(AppSettings.FaceScale)
+                or nameof(AppSettings.FaceStaysWhenIdle):
                 Reposition();
                 break;
             case nameof(AppSettings.TransparentTaskbar):
@@ -731,14 +841,48 @@ public sealed class TaskbarOverlay : IDisposable
         }
     }
 
+    // Windows' taskbar mode as last read: Auto paints to match it, and a see-through taskbar follows it.
+    bool _windowsLight = ColorUtil.WindowsTaskbarIsLight();
+    DateTime _themeCheckedAt = DateTime.Now;
+
+    /// <summary>The background actually painted: Auto becomes Dark or Light with Windows' taskbar mode.</summary>
+    BarBackground EffectiveBackground => _s.Background == BarBackground.Auto
+        ? _windowsLight ? BarBackground.Light : BarBackground.Dark
+        : _s.Background;
+
+    /// <summary>
+    /// Text and lines drawn straight on the taskbar go dark: on a light background, or on a see-through
+    /// taskbar while Windows is in light mode (its own icons are black then).
+    /// </summary>
+    bool LightBar => EffectiveBackground switch
+    {
+        BarBackground.Light or BarBackground.LightTinted => true,
+        BarBackground.Transparent => _windowsLight,
+        _ => false,
+    };
+
+    /// <summary>Picks up a switch between Windows' light and dark mode.</summary>
+    void CheckTheme()
+    {
+        if (DateTime.Now - _themeCheckedAt < TimeSpan.FromSeconds(2)) return;
+        _themeCheckedAt = DateTime.Now;
+        bool light = ColorUtil.WindowsTaskbarIsLight();
+        if (light == _windowsLight) return;
+        _windowsLight = light;
+        Log.Info($"Windows taskbar mode: {(light ? "light" : "dark")}");
+        ApplyAppearance();
+    }
+
     void ApplyAppearance()
     {
         double h = _styledThickness > 0 ? _styledThickness : 30;
         bool over = _styledThickness > 0 ? _styledOver : IsOverMode;
-        _layer.ApplyStyle(_s, over, _styledEdge);
-        bool shadow = over || _s.Background == BarBackground.Transparent || _s.BackgroundOpacity < 0.45;
-        _widget.ApplyStyle(_s, h, shadow, Vertical);
-        _band.ApplyStyle(_s, h, Vertical);
+        var background = EffectiveBackground;
+        _layer.ApplyStyle(_s, over, _styledEdge, background);
+        bool shadow = over || background == BarBackground.Transparent || _s.BackgroundOpacity < 0.45;
+        _widget.ApplyStyle(_s, h, shadow, Vertical, LightBar);
+        _band.ApplyStyle(_s, h, Vertical, LightBar);
+        _face.ApplyStyle(_s, _layerShown || !_faceShown ? LightBar : _windowsLight);
         UpdateBadge();
         UpdateAccent(animate: false);
     }
@@ -798,6 +942,7 @@ public sealed class TaskbarOverlay : IDisposable
         _popup.SetAccent(primary);
         _controlCenter?.SetAccent(primary);
         _band.SetAccent(primary);
+        _face.SetAccent(primary);
     }
 
     // ------------------------------------------------------------------ media state
@@ -1037,6 +1182,10 @@ public sealed class TaskbarOverlay : IDisposable
             player.Items.Add(item);
         }
         menu.Items.Add(player);
+
+        var face = new MenuItem { Header = Loc.T("Menu_Face"), Icon = Glyph(""), IsChecked = _s.FaceEnabled };
+        face.Click += (_, _) => _s.FaceEnabled = !_s.FaceEnabled;
+        menu.Items.Add(face);
 
         var sources = new MenuItem { Header = Loc.T("Menu_Source"), Icon = Glyph("") };
         var auto = new MenuItem { Header = Loc.T("Menu_SourceAuto"), IsChecked = _s.PinnedAppId.Length == 0 };
