@@ -2,8 +2,8 @@
 
 Thanh taskbar nằm im ba mươi năm rồi. Cho nó hát đi.
 
-**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.0-Setup.exe)
-hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.0-portable.zip)
+**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.1-Setup.exe)
+hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.1.1-portable.zip)
 (Windows 10 2004 trở lên hoặc Windows 11, 64-bit, không cần cài .NET).
 
 - [x] **04/11** Bản 1.0 lên GitHub: 14 bộ áo cho thanh tiến trình, karaoke đủ dấu, taskbar
@@ -12,6 +12,8 @@ hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/dow
 - [x] **04/11** Bản 1.1: bảy kiểu nút ⏮ ⏯ ⏭ (có cả đĩa than xoay và phím cassette), giao
   diện tiếng Anh mặc định với tiếng Việt chỉ cách một cú bấm, bản cài nhẹ RAM hơn hẳn
   (143 MB xuống còn khoảng 58 MB), và vài chỗ chỉnh cho Windows 10.
+- [x] **04/11** Bản 1.1.1: hết cảnh widget nhảy vào góc đè lên khay mỗi khi mở Quick Settings
+  của Windows (lúc Control Center của MusicBar đang tắt).
 
 ![Thanh taskbar ngủ gật, tiếng cào đĩa, icon MusicBar rơi xuống và đèn sân khấu bật sáng](docs/wake-up.gif)
 
@@ -81,11 +83,11 @@ Kiểu động vẽ 30 khung / giây khi đang phát (các kiểu trôi chậm 2
 
 ## Cài
 
-- **Bản cài đặt** (`MusicBar-1.1.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
+- **Bản cài đặt** (`MusicBar-1.1.1-Setup.exe`): cài cho riêng tài khoản của bạn vào
   `%LOCALAPPDATA%\Programs\MusicBar`, không hỏi quyền admin, có mục trong Start và gỡ được
   trong Cài đặt → Ứng dụng. Cài đè hay gỡ đi thì MusicBar được báo thoát trước, để trả taskbar
   và khay về đúng như Windows sắp xếp.
-- **Bản portable** (`MusicBar-1.1.0-portable.zip`): giải nén ra đâu cũng được, chạy
+- **Bản portable** (`MusicBar-1.1.1-portable.zip`): giải nén ra đâu cũng được, chạy
   `MusicBar.exe`.
 
 Hai bản là cùng một app, đã gói sẵn .NET 10 nên không cần cài gì thêm, và chạy tốn khoảng
@@ -158,7 +160,7 @@ C++") cho module taskbar Windows 11.
 ```powershell
 dotnet build src/MusicBar/MusicBar.csproj
 dotnet run --project src/MusicBar -- --demo
-.\installer\build.ps1 -Version 1.1.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
+.\installer\build.ps1 -Version 1.1.1     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
 ```
 
 ## Bên trong

@@ -25,6 +25,7 @@ internal sealed class TaskbarTracker : IDisposable
     static readonly TimeSpan SlowTick = TimeSpan.FromMilliseconds(250);
     static readonly TimeSpan FastTick = TimeSpan.FromMilliseconds(30);
     static readonly TimeSpan ScanEvery = TimeSpan.FromSeconds(2.5);
+    static readonly TimeSpan PartialRetry = TimeSpan.FromSeconds(0.5);
 
     /// <summary>
     /// The notification area's container. Its visible children cover the same
@@ -39,7 +40,7 @@ internal sealed class TaskbarTracker : IDisposable
     DateTime _fastUntil;
     DateTime _lastScan = DateTime.MinValue;
     bool _scanning;
-    int _emptyScans;
+    int _partialScans;
 
     public TaskbarTracker()
     {
@@ -155,16 +156,33 @@ internal sealed class TaskbarTracker : IDisposable
         {
             var (occupied, quickSettings) = await Task.Run(() => FindOccupied(hwnd, rc));
             if (hwnd != Handle || !rc.Same(Rect)) return;
+
+            // UI Automation on the taskbar sometimes answers with nothing, or with a fragment: at
+            // startup, and for as long as Windows' Quick Settings is open. The notification area
+            // always ends a horizontal taskbar, so a scan without it is not the taskbar's layout.
+            // Once a layout with it is known, keep that one until a scan finds the tray again;
+            // before that (startup), look again shortly and settle for what there is after a few tries.
+            if (!Complete(occupied, rc))
+            {
+                if (++_partialScans == 1)
+                    Log.Info($"Taskbar scan without the tray ignored: [{string.Join(", ", occupied.Select(o => $"{o.Left}-{o.Right}"))}]");
+                if (HasScanned && Complete(Occupied, rc)) return;
+                if (_partialScans < 4)
+                {
+                    _lastScan = DateTime.Now - ScanEvery + PartialRetry;
+                    return;
+                }
+            }
+            else
+            {
+                _partialScans = 0;
+            }
+
             if (quickSettings != QuickSettings && (quickSettings != null || occupied.Count > 0))
             {
                 QuickSettings = quickSettings;
                 LayoutChanged?.Invoke();
             }
-
-            // UI Automation on the taskbar sometimes answers with nothing for a few
-            // seconds; keep the last known layout instead of jumping the widget around.
-            if (occupied.Count == 0 && Occupied.Count > 0 && ++_emptyScans < 4) return;
-            if (occupied.Count > 0) _emptyScans = 0;
 
             if (!HasScanned || !occupied.SequenceEqual(Occupied))
             {
@@ -182,6 +200,10 @@ internal sealed class TaskbarTracker : IDisposable
             _scanning = false;
         }
     }
+
+    /// <summary>The spans reach the far end of a horizontal taskbar, where the notification area is.</summary>
+    bool Complete(IEnumerable<Span> spans, Native.RECT rc)
+        => !IsHorizontal || spans.Any(s => s.Right >= rc.Right - rc.Width / 20);
 
     /// <summary>
     /// Walks the taskbar's UI Automation tree and collects the horizontal
