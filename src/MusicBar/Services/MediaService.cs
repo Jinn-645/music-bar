@@ -160,16 +160,27 @@ public sealed class MediaService : ObservableObject
         if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
         if (Duration > TimeSpan.Zero && pos > Duration)
         {
-            if (_demo)
+            // Well past the end and still playing: the song is on repeat, and many players (Spotify,
+            // a browser looping a video) never say so, so the lyrics would sit on the last line.
+            // Start over; a real timeline update or the next song's details correct it if wrong.
+            if (IsPlaying && (_demo || pos > Duration + LoopGrace))
             {
-                _anchorPos = TimeSpan.Zero;
+                var over = TimeSpan.FromTicks((pos - Duration).Ticks % Duration.Ticks);
+                _anchorPos = over;
                 _anchorTime = DateTimeOffset.Now;
-                return TimeSpan.Zero;
+                _ui.BeginInvoke(() => Restarted?.Invoke(this, EventArgs.Empty));
+                return over;
             }
             pos = Duration;
         }
         return pos;
     }
+
+    /// <summary>How long past the end a playing song waits for the next song before it counts as repeating.</summary>
+    static readonly TimeSpan LoopGrace = TimeSpan.FromSeconds(2.5);
+
+    /// <summary>The same song began again from the top (repeat one, or a jump back from its end).</summary>
+    public event EventHandler? Restarted;
 
     public IReadOnlyList<SessionInfo> GetSessions()
     {
@@ -422,8 +433,12 @@ public sealed class MediaService : ObservableObject
 
         var now = DateTimeOffset.Now;
         bool sane = updated.Year > 2000 && updated <= now.AddSeconds(2) && now - updated < TimeSpan.FromHours(6);
+        // From the last stretch of the song back to its first seconds: it is playing again.
+        var before = force ? TimeSpan.Zero : GetPosition();
         _anchorPos = pos;
         _anchorTime = sane ? updated : now;
+        if (!force && Duration > TimeSpan.FromSeconds(20) && before > Duration - TimeSpan.FromSeconds(8) && GetPosition() < TimeSpan.FromSeconds(6))
+            Restarted?.Invoke(this, EventArgs.Empty);
     }
 
     async Task UpdateMediaAsync()

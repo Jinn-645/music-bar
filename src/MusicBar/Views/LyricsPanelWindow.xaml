@@ -1,0 +1,124 @@
+<Window x:Class="MusicBar.Views.LyricsPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MusicBar.Infrastructure"
+        Title="{l:Tr LyrP_WindowTitle}"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        Width="432" SizeToContent="Height" Left="-20000" Top="-20000"
+        UseLayoutRounding="True" Foreground="White"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="Accent" Color="#FFFF6B6B" />
+    </Window.Resources>
+
+    <!-- The margin leaves room for the shadow. -->
+    <Border x:Name="Root" Margin="16" CornerRadius="14" Background="{StaticResource CardBackground}"
+            BorderBrush="{StaticResource CardEdge}" BorderThickness="1" Padding="16,14,16,12" RenderTransformOrigin="0.5,1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" ShadowDepth="5" Direction="270" Opacity="0.5" Color="Black" />
+        </Border.Effect>
+        <Border.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="RootScale" />
+                <TranslateTransform x:Name="RootShift" />
+            </TransformGroup>
+        </Border.RenderTransform>
+        <StackPanel>
+            <!-- The song -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Width="44" Height="44" CornerRadius="8" Background="#1FFFFFFF" ClipToBounds="True">
+                    <Border x:Name="Cover" CornerRadius="8">
+                        <Border.Background>
+                            <ImageBrush x:Name="CoverBrush" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border.Background>
+                    </Border>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="SongTitle" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="SongArtist" FontSize="12" Opacity="0.6" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="2" Style="{StaticResource CardIconButton}" Content="&#xE711;" VerticalAlignment="Top"
+                        ToolTip="{l:Tr LyrP_Close}" Click="Close_Click" />
+            </Grid>
+
+            <!-- The lyrics -->
+            <Grid x:Name="LyricsView" Margin="0,12,0,0">
+                <ScrollViewer x:Name="LineScroll" Style="{StaticResource CardScroll}" Height="320"
+                              PreviewMouseWheel="LineScroll_PreviewMouseWheel">
+                    <StackPanel x:Name="LinePanel" Margin="0,120,0,140" />
+                </ScrollViewer>
+                <!-- Lines fade out at the top and bottom edges. -->
+                <Border Height="36" VerticalAlignment="Top" IsHitTestVisible="False" Margin="0,0,8,0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FF141418" Offset="0" />
+                            <GradientStop Color="#00141418" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <Border Height="44" VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="0,0,8,0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00141418" Offset="0" />
+                            <GradientStop Color="#FF141418" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <StackPanel x:Name="MessagePanel" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" Margin="12,0">
+                    <TextBlock x:Name="MessageGlyph" FontFamily="{StaticResource IconFont}" FontSize="28" Opacity="0.5"
+                               HorizontalAlignment="Center" Text="&#xE8D6;" />
+                    <TextBlock x:Name="MessageText" FontSize="13" Opacity="0.75" Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap" />
+                    <Button x:Name="MessageSearch" Style="{StaticResource CardAccentButton}" Margin="0,14,0,0" HorizontalAlignment="Center"
+                            Content="{l:Tr LyrP_SearchOthers}" Click="Search_Click" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Search by hand -->
+            <StackPanel x:Name="SearchView" Margin="0,12,0,0" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Style="{StaticResource CardIconButton}" Content="&#xE72B;" ToolTip="{l:Tr LyrP_Back}" Click="Back_Click" Margin="0,0,6,0" />
+                    <TextBox x:Name="SearchBox" Grid.Column="1" Style="{StaticResource CardTextBox}" KeyDown="SearchBox_KeyDown" />
+                    <Button Grid.Column="2" Style="{StaticResource CardAccentButton}" Margin="8,0,0,0" Padding="14,7"
+                            Content="{l:Tr LyrP_Find}" Click="Find_Click" />
+                </Grid>
+                <TextBlock x:Name="SearchNote" FontSize="11.5" Opacity="0.6" Margin="2,8,0,0" TextWrapping="Wrap" Text="{l:Tr LyrP_SearchHint}" />
+                <ScrollViewer Style="{StaticResource CardScroll}" Height="262" Margin="0,8,0,0">
+                    <StackPanel x:Name="ResultPanel" />
+                </ScrollViewer>
+            </StackPanel>
+
+            <!-- Timing, romanization, other lyrics -->
+            <Border x:Name="Footer" Margin="0,10,0,0" Padding="0,10,0,0" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel x:Name="OffsetPanel" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource CardIconButton}" Content="&#xE738;" ToolTip="{l:Tr LyrP_Later}" Click="Later_Click" />
+                        <TextBlock x:Name="OffsetText" FontSize="12" MinWidth="64" TextAlignment="Center" VerticalAlignment="Center"
+                                   Opacity="0.8" ToolTip="{l:Tr LyrP_OffsetTip}" Cursor="Hand" MouseLeftButtonUp="OffsetText_Click" />
+                        <Button Style="{StaticResource CardIconButton}" Content="&#xE710;" ToolTip="{l:Tr LyrP_Earlier}" Click="Earlier_Click" />
+                    </StackPanel>
+                    <ToggleButton x:Name="RomanChip" Grid.Column="1" Style="{StaticResource CardChip}" HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" Content="{l:Tr LyrP_Romanize}" Click="RomanChip_Click" />
+                    <Button x:Name="OthersLink" Grid.Column="2" Style="{StaticResource CardLinkButton}" VerticalAlignment="Center"
+                            Content="{l:Tr LyrP_SearchOthers}" Click="Search_Click" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </Border>
+</Window>

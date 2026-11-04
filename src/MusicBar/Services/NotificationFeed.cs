@@ -28,6 +28,7 @@ public sealed class NotificationFeed
     readonly DispatcherTimer _poll = new() { Interval = SlowPoll };
     readonly Dictionary<string, ImageSource?> _logos = new();
     readonly HashSet<uint> _seen = new();
+    readonly HashSet<uint> _removed = new();
     UserNotificationListener? _listener;
     bool _refreshing;
     string _signature = "";
@@ -88,8 +89,11 @@ public sealed class NotificationFeed
         try
         {
             var raw = await _listener.GetNotificationsAsync(NotificationKinds.Toast);
+            // One the user took away but Windows still lists (or a read that started before the clear): try again, keep it hidden.
+            _removed.IntersectWith(raw.Select(n => n.Id));
+            foreach (var id in _removed.ToList()) Remove(id);
             var items = new List<NotificationItem>(raw.Count);
-            foreach (var n in raw.OrderByDescending(n => n.CreationTime))
+            foreach (var n in raw.Where(n => !_removed.Contains(n.Id)).OrderByDescending(n => n.CreationTime))
             {
                 var texts = n.Notification?.Visual?.GetBinding(KnownNotificationBindings.ToastGeneric)?.GetTextElements();
                 string title = texts?.FirstOrDefault()?.Text?.Trim() ?? "";
@@ -127,32 +131,46 @@ public sealed class NotificationFeed
 
     public void Dismiss(uint id)
     {
+        Remove(id);
+        Items = Items.Where(i => i.Id != id).ToList();
+        _signature = string.Join(",", Items.Select(i => i.Id));
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Takes every notification away. ClearNotifications leaves other apps' toasts in place for a
+    /// desktop app (they came back a few seconds later), so each one is removed by itself,
+    /// including any that arrived since the list was last read.
+    /// </summary>
+    public async void ClearAll()
+    {
+        var ids = Items.Select(i => i.Id).ToList();
+        Items = [];
+        _signature = "";
+        Changed?.Invoke();
+        try
+        {
+            if (_listener != null) ids.AddRange((await _listener.GetNotificationsAsync(NotificationKinds.Toast)).Select(n => n.Id));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Reading notifications to clear failed", ex);
+        }
+        foreach (var id in ids.Distinct()) Remove(id);
+    }
+
+    /// <summary>Removes one notification from Windows, and keeps it off the list should Windows still hand it back.</summary>
+    void Remove(uint id)
+    {
+        _removed.Add(id);
         try
         {
             _listener?.RemoveNotification(id);
         }
         catch (Exception ex)
         {
-            Log.Error("Dismissing a notification failed", ex);
+            Log.Error("Removing a notification failed", ex);
         }
-        Items = Items.Where(i => i.Id != id).ToList();
-        _signature = string.Join(",", Items.Select(i => i.Id));
-        Changed?.Invoke();
-    }
-
-    public void ClearAll()
-    {
-        try
-        {
-            _listener?.ClearNotifications();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Clearing notifications failed", ex);
-        }
-        Items = [];
-        _signature = "";
-        Changed?.Invoke();
     }
 
     /// <summary>Opens the app that sent the notification and takes the notification away, as Windows does.</summary>

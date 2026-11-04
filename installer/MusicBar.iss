@@ -68,6 +68,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 
 [Run]
 Filename: "{app}\MusicBar.exe"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
+; An update started from inside MusicBar runs silently: open the new version when it is done.
+Filename: "{app}\MusicBar.exe"; Flags: nowait; Check: WizardSilent
 
 [Code]
 function MusicBarRunning(): Boolean;

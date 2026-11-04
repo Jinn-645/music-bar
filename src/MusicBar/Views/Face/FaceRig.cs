@@ -23,6 +23,8 @@ public sealed class FaceRig
     public double Blush;
     /// <summary>The head's resting tilt in degrees (the springs swing around it).</summary>
     public double Lean;
+    /// <summary>Holding the microphone (it springs in and drops away).</summary>
+    public bool Mic;
 
     // ---- drawn values
     double _lidL, _lidR, _brows, _open, _blush, _pupil = 1;
@@ -31,6 +33,7 @@ public sealed class FaceRig
     readonly Spring _squash = new(1, 260, 14);
     readonly Spring _hop = new(0, 220, 13);
     readonly Spring _tilt = new(0, 160, 10);
+    readonly Spring _mic = new(0, 170, 11);
     double _shakeUntil, _shakeAmount;
 
     const double BlinkDown = 0.07, BlinkHold = 0.04, BlinkUp = 0.11;
@@ -66,10 +69,15 @@ public sealed class FaceRig
         _pupil = Ease(_pupil, Pupil, dt, 10);
         _look = new Vector(Ease(_look.X, Look.X, dt, 9), Ease(_look.Y, Look.Y, dt, 9));
         _tilt.Rest = Lean;
+        _mic.Rest = Mic ? 1 : 0;
         _squash.Step(dt);
         _hop.Step(dt);
         _tilt.Step(dt);
+        _mic.Step(dt);
     }
+
+    /// <summary>How far the mic is in: 0 gone, about 1 held, a little over 1 as it pops in.</summary>
+    public double MicAmount => Math.Clamp(_mic.Value, 0, 1.25);
 
     static double Ease(double from, double to, double dt, double rate) => from + (to - from) * (1 - Math.Exp(-dt * rate));
 

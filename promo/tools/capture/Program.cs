@@ -16,6 +16,7 @@ using System.Windows.Threading;
 using MusicBar.Models;
 using MusicBar.Services;
 using MusicBar.Views;
+using MusicBar.Views.Face;
 
 // Renders MusicBar's own UI to PNG frames with transparency, for the promo video.
 //
@@ -32,6 +33,9 @@ using MusicBar.Views;
 //          the real settings window, one PNG per page, in the given language
 //   controls <out.png> <taskbarHeightDip> <scale>
 //          the real widget's previous / play / next buttons in every control style, paused and playing
+//   props  <outDir> <cellHeight> [scale]
+//          what the taskbar face wears (hats, glasses, headphones, mic, timer) on every face set,
+//          and the newer signs, on a dark and a light taskbar
 static class Program
 {
     const double Fps = 30;
@@ -73,6 +77,8 @@ static class Program
                     case "wireless": await Wireless(); break;
                     case "faces": Faces(args); break;
                     case "facelife": await FaceLife(args); break;
+                    case "props": Props(args); break;
+                    case "download": await Download(args); break;
                     default: throw new ArgumentException("unknown mode " + args[0]);
                 }
             }
@@ -424,12 +430,133 @@ static class Program
         bool Every(double time, double period) => time % period < 0.017;
     }
 
+    /// <summary>
+    /// What the face wears, on every set. Per background (dark, light): a sheet with a row per face
+    /// set and a column per hat, glasses, headphones, mic, timer and one combination; and a sheet of
+    /// the newer signs on two sets, each at three moments of its loop. Every cell is drawn the way
+    /// the taskbar draws the face: props behind, the set, props in front, signs; clipped to the
+    /// window's box.
+    /// </summary>
+    static void Props(string[] a)
+    {
+        string outDir = Directory.CreateDirectory(a[1]).FullName;
+        double cell = D(a[2]);
+        double scale = a.Length > 3 ? D(a[3]) : 2;
+        var accent = Color.FromRgb(0xFF, 0x6B, 0x6B);
+        var singing = new Func<Color, FaceFrame>(ink => Pose(ink, accent) with { Mouth = MouthShape.O, Open = 0.55, Level = 0.6 });
+        var resting = new Func<Color, FaceFrame>(ink => Pose(ink, accent));
+        var outfits = new (string Name, FaceOutfit Outfit, Func<Color, FaceFrame> Make)[]
+        {
+            ("plain", default, resting),
+            ("cap", new FaceOutfit { Hat = FaceHat.Cap }, resting),
+            ("beanie", new FaceOutfit { Hat = FaceHat.Beanie }, resting),
+            ("crown", new FaceOutfit { Hat = FaceHat.Crown }, resting),
+            ("santa", new FaceOutfit { Hat = FaceHat.Santa }, resting),
+            ("witch", new FaceOutfit { Hat = FaceHat.Witch }, resting),
+            ("bunny", new FaceOutfit { Hat = FaceHat.Bunny }, resting),
+            ("mai", new FaceOutfit { Hat = FaceHat.Mai }, resting),
+            ("round", new FaceOutfit { Glasses = FaceGlasses.Round }, resting),
+            ("shades", new FaceOutfit { Glasses = FaceGlasses.Shades }, resting),
+            ("pixel", new FaceOutfit { Glasses = FaceGlasses.Pixel }, resting),
+            ("phones", new FaceOutfit { Headphones = true }, resting),
+            ("mic 1.0", new FaceOutfit { Mic = 1 }, singing),
+            ("mic 1.2", new FaceOutfit { Mic = 1.2 }, singing),
+            ("focus .6", new FaceOutfit { Timer = 0.6 }, resting),
+            ("break .3", new FaceOutfit { Timer = 0.3, TimerBreak = true }, resting),
+            ("combo", new FaceOutfit { Hat = FaceHat.Beanie, Glasses = FaceGlasses.Round, Headphones = true, Mic = 1 }, singing),
+        };
+        var signs = new (string Name, FaceExtras Extras)[]
+        {
+            ("bolt", FaceExtras.Bolt), ("no signal", FaceExtras.NoSignal), ("water", FaceExtras.Water), ("steam", FaceExtras.Steam),
+        };
+        var styles = Enum.GetValues<FaceStyle>();
+        var signStyles = new[] { FaceStyle.Classic, FaceStyle.AnimeGirl };
+        double cw = cell * 116 / 88;
+        foreach (var (name, background, ink) in new[]
+                 {
+                     ("dark", Color.FromRgb(0x14, 0x15, 0x1A), Color.FromRgb(0xFF, 0xFD, 0xF6)),
+                     ("light", Color.FromRgb(0xF2, 0xF3, 0xF5), Color.FromRgb(0x15, 0x17, 0x1E)),
+                 })
+        {
+            Sheet($"props-{name}-{cell:0}.png", outfits.Select(o => o.Name).ToArray(), styles, (r, c) =>
+            {
+                var (_, outfit, make) = outfits[c];
+                return (styles[r], make(ink) with { Time = 1.3 + c * 0.37 }, outfit);
+            });
+            const int Moments = 3;
+            Sheet($"signs-{name}-{cell:0}.png",
+                signs.SelectMany(s => Enumerable.Range(0, Moments).Select(k => $"{s.Name} {k + 1}")).ToArray(), signStyles, (r, c) =>
+                {
+                    var (_, extras) = signs[c / Moments];
+                    return (signStyles[r], Pose(ink, accent) with { Extras = extras, Time = 2 + (c % Moments) * 0.61 }, default(FaceOutfit));
+                });
+
+            void Sheet(string file, string[] columns, FaceStyle[] rows, Func<int, int, (FaceStyle Style, FaceFrame Frame, FaceOutfit Outfit)> at)
+            {
+                double labelW = 84, headH = 18;
+                var sheet = new DrawingVisual();
+                double width = labelW + cw * columns.Length, height = headH + cell * rows.Length;
+                using (var dc = sheet.RenderOpen())
+                {
+                    dc.DrawRectangle(new SolidColorBrush(background), null, new Rect(0, 0, width, height));
+                    var face = new Typeface("Segoe UI");
+                    var text = new SolidColorBrush(ink);
+                    for (int c = 0; c < columns.Length; c++)
+                        dc.DrawText(new FormattedText(columns[c], Inv, FlowDirection.LeftToRight, face, 10, text, 1), new Point(labelW + c * cw + 3, 3));
+                    for (int r = 0; r < rows.Length; r++)
+                    {
+                        dc.DrawText(new FormattedText(rows[r].ToString(), Inv, FlowDirection.LeftToRight, face, 11, text, 1),
+                            new Point(4, headH + r * cell + cell / 2 - 7));
+                        for (int c = 0; c < columns.Length; c++)
+                        {
+                            var (style, frame, outfit) = at(r, c);
+                            double unit = Math.Min(cw / 116, cell / 88);
+                            var m = Matrix.Identity;
+                            m.Scale(unit, unit);
+                            m.Translate(labelW + c * cw + (cw - 100 * unit) / 2, headH + r * cell + (cell - 72 * unit) / 2);
+                            dc.PushClip(new RectangleGeometry(new Rect(labelW + c * cw, headH + r * cell, cw, cell)));
+                            dc.PushTransform(new MatrixTransform(m));
+                            FaceProps.DrawBehind(dc, style, frame, outfit);
+                            FacePainters.For(style).Draw(dc, frame);
+                            FaceProps.DrawFront(dc, style, frame, outfit);
+                            FacePainters.DrawExtras(dc, frame);
+                            dc.Pop();
+                            dc.Pop();
+                        }
+                    }
+                }
+                var rtb = new RenderTargetBitmap((int)Math.Round(width * scale), (int)Math.Round(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+                rtb.Render(sheet);
+                SavePng(rtb, Path.Combine(outDir, file));
+            }
+        }
+        Console.WriteLine($"props → {outDir}");
+    }
+
     static MusicBar.Views.Face.FaceFrame Pose(Color ink, Color accent) => new()
     {
         Time = 1, Eyes = MusicBar.Views.Face.EyeShape.Open, LidLeft = 0.05, LidRight = 0.05, Look = new Vector(0, 0.1),
         Pupil = 1, Brows = 0, Mouth = MusicBar.Views.Face.MouthShape.Smile, Open = 0, Blush = 0.15,
         Extras = MusicBar.Views.Face.FaceExtras.None, Accent = accent, Ink = ink, Level = 0,
     };
+
+    // ---------------------------------------------------------------- updates
+
+    /// <summary>The updater's download of a real release installer, checked against a digest (right or wrong).</summary>
+    static async Task Download(string[] a)
+    {
+        var release = new ReleaseInfo(new Version(a[1].TrimStart('v')), a[1], "", "", new Uri(a[2]), 0, a[3]);
+        var updates = new UpdateService(new AppSettings());
+        var last = -1;
+        var progress = new Progress<double>(p =>
+        {
+            int pct = (int)(p * 100);
+            if (pct / 25 != last / 25) Console.WriteLine($"  {pct}%");
+            last = pct;
+        });
+        string? path = await updates.DownloadAsync(release, progress, default);
+        Console.WriteLine(path == null ? "download refused or failed" : $"downloaded and verified: {path} ({new FileInfo(path).Length} bytes)");
+    }
 
     // ---------------------------------------------------------------- Wi-Fi and Bluetooth
 

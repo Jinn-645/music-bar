@@ -2,6 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:v="clr-namespace:MusicBar.Views">
 
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Cards.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <!-- Transport glyphs on a 24x24 grid, every corner rounded. -->

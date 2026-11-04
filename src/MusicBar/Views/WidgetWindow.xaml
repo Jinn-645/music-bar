@@ -27,7 +27,10 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border x:Name="LyricsHost" Grid.Column="0" Width="0" Opacity="0" ClipToBounds="True">
+                <!-- A click opens the whole song's lyrics; the wheel moves them earlier or later. -->
+                <Border x:Name="LyricsHost" Grid.Column="0" Width="0" Opacity="0" ClipToBounds="True"
+                        Background="#01FFFFFF" Cursor="Hand"
+                        MouseLeftButtonUp="Lyrics_MouseLeftButtonUp" MouseWheel="Lyrics_MouseWheel">
                     <Grid>
                         <v:LyricsPresenter x:Name="LineLyrics" Margin="10,0,6,0" IsHitTestVisible="False" />
                         <v:WordStackPresenter x:Name="StackLyrics" Margin="0,8,0,6" IsHitTestVisible="False" Visibility="Collapsed" />

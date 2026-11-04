@@ -22,6 +22,7 @@ public static partial class Strings
         d.Add("Opt_Size_Small", ("Small", "Nhỏ"));
         d.Add("Opt_Size_Medium", ("Medium", "Thường"));
         d.Add("Opt_Bg_Auto", ("Match Windows (light or dark)", "Theo Windows (sáng hoặc tối)"));
+        d.Add("Opt_Bg_AutoTinted", ("Match Windows, tinted with the song's color", "Theo Windows, pha màu bài hát"));
         d.Add("Opt_Bg_Dark", ("Dark", "Tối"));
         d.Add("Opt_Bg_Light", ("Light", "Sáng"));
         d.Add("Opt_Bg_LightTinted", ("Light, tinted with the song's color", "Sáng, pha màu bài hát"));
@@ -94,6 +95,17 @@ public static partial class Strings
         d.Add("Menu_ShowLyrics", ("Show lyrics", "Hiện lời bài hát"));
         d.Add("Menu_Player", ("On the taskbar", "Hiện trên taskbar"));
         d.Add("Menu_Face", ("Show the face", "Hiện cái mặt"));
+        d.Add("Upd_WindowTitle", ("MusicBar update", "Cập nhật MusicBar"));
+        d.Add("Upd_Title", ("MusicBar {0} is out", "Đã có MusicBar {0}"));
+        d.Add("Upd_Running", ("You have {0}", "Bạn đang dùng {0}"));
+        d.Add("Upd_Skip", ("Skip this version", "Bỏ qua phiên bản này"));
+        d.Add("Upd_Later", ("Later", "Để lần sau"));
+        d.Add("Upd_Install", ("Update now", "Cập nhật ngay"));
+        d.Add("Upd_Download", ("Download", "Tải về"));
+        d.Add("Upd_Page", ("What's new on GitHub", "Xem trên GitHub"));
+        d.Add("Upd_Downloading", ("Downloading… {0}%", "Đang tải… {0}%"));
+        d.Add("Upd_Installing", ("Installing…", "Đang cài…"));
+        d.Add("Upd_Failed", ("The download didn't work. Try again later, or get it from the GitHub page.", "Tải không được. Thử lại sau, hoặc tải ở trang GitHub."));
         d.Add("Face_Hide", ("Hide the face", "Ẩn cái mặt"));
         d.Add("Face_Settings", ("Face settings…", "Cài đặt cái mặt…"));
         d.Add("Opt_Face_BesidePlayer", ("Beside the player", "Cạnh trình phát"));

@@ -25,7 +25,7 @@ public sealed class LyricsService
     static readonly TimeSpan MissTtl = TimeSpan.FromDays(3);
     static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
-    sealed class LrclibTrack
+    internal sealed class LrclibTrack
     {
         public long Id { get; set; }
         public string? TrackName { get; set; }
@@ -105,6 +105,55 @@ public sealed class LyricsService
 
         var plainPath = Path.ChangeExtension(path, ".txt");
         if (!string.IsNullOrWhiteSpace(found.PlainLyrics)) Save(plainPath, found.PlainLyrics);
+        return new LyricsResult(LyricsStatus.PlainOnly, null, "LRCLIB", plainPath);
+    }
+
+    /// <summary>
+    /// Songs LRCLIB has for words typed by hand (the lyrics panel's search), the ones with synced
+    /// lyrics first, then the closest in length to <paramref name="duration"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<LyricsCandidate>> SearchAsync(string text, TimeSpan duration, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return [];
+        var found = await GetAsync<List<LrclibTrack>>("api/search" + Query(("q", text.Trim())), ct) ?? [];
+        double seconds = duration.TotalSeconds;
+        return found
+            .Where(t => t.Instrumental || !string.IsNullOrWhiteSpace(t.SyncedLyrics) || !string.IsNullOrWhiteSpace(t.PlainLyrics))
+            .OrderByDescending(t => !string.IsNullOrWhiteSpace(t.SyncedLyrics))
+            .ThenBy(t => seconds > 0 && t.Duration is double d ? Math.Abs(d - seconds) : 0)
+            .Take(30)
+            .Select(t => new LyricsCandidate(t.TrackName ?? "", t.ArtistName ?? "", t.AlbumName ?? "",
+                TimeSpan.FromSeconds(t.Duration ?? 0), !string.IsNullOrWhiteSpace(t.SyncedLyrics), t.Instrumental) { Track = t })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Makes a hand-picked search result the lyrics of the song playing: saved as its .lrc file,
+    /// so it is used from now on, replacing whatever was found before.
+    /// </summary>
+    public LyricsResult Use(LyricsCandidate pick, TrackQuery q)
+    {
+        Directory.CreateDirectory(Folder);
+        var (artist, title) = TitleCleaner.Clean(q.Artist, q.Title);
+        var path = Path.Combine(Folder, FileName(artist, title) + ".lrc");
+        var plainPath = Path.ChangeExtension(path, ".txt");
+        var t = pick.Track;
+        ForgetMiss(MissKey(artist, title));
+        if (t.Instrumental)
+        {
+            Save(path, Header(t, artist, title) + "[instrumental:true]\n");
+            return new LyricsResult(LyricsStatus.Instrumental, null, "LRCLIB", path);
+        }
+        if (!string.IsNullOrWhiteSpace(t.SyncedLyrics))
+        {
+            var text = Header(t, artist, title) + t.SyncedLyrics.Replace("\r\n", "\n");
+            Save(path, text);
+            try { File.Delete(plainPath); } catch (Exception) { }
+            return new LyricsResult(LyricsStatus.Synced, LrcParser.Parse(text), "LRCLIB", path);
+        }
+        // Words only: drop a synced file that was the wrong song, or it would win next time.
+        try { File.Delete(path); } catch (Exception) { }
+        Save(plainPath, t.PlainLyrics ?? "");
         return new LyricsResult(LyricsStatus.PlainOnly, null, "LRCLIB", plainPath);
     }
 
@@ -312,12 +361,18 @@ public sealed class LyricsService
     {
         int duration = (int)Math.Round(q.Duration.TotalSeconds);
         var candidates = new List<LrclibTrack>();
+        var variants = TitleCleaner.Variants(q.Artist, q.Title);
+        LrclibTrack? Best() => Pick(candidates, variants, duration);
+        static bool Good(LrclibTrack? t) => t != null && !string.IsNullOrWhiteSpace(t.SyncedLyrics);
 
-        // 1) Exact signature lookup with what the player reported.
-        var exact = await GetAsync<LrclibTrack>("api/get" + Query(
-            ("track_name", q.Title), ("artist_name", q.Artist), ("album_name", q.Album),
-            ("duration", duration > 0 ? duration.ToString(CultureInfo.InvariantCulture) : null)), ct);
-        if (exact != null) candidates.Add(exact);
+        // 1) Exact signature lookup with what the player reported (it needs an artist).
+        if (q.Artist.Trim().Length > 0)
+        {
+            var exact = await GetAsync<LrclibTrack>("api/get" + Query(
+                ("track_name", q.Title), ("artist_name", q.Artist), ("album_name", q.Album),
+                ("duration", duration > 0 ? duration.ToString(CultureInfo.InvariantCulture) : null)), ct);
+            if (exact != null) candidates.Add(exact);
+        }
 
         // 2) Same with the cleaned-up names.
         if ((title != q.Title || artist != q.Artist) && artist.Length > 0)
@@ -327,32 +382,57 @@ public sealed class LyricsService
                 ("duration", duration > 0 ? duration.ToString(CultureInfo.InvariantCulture) : null)), ct);
             if (cleaned != null) candidates.Add(cleaned);
         }
-
-        var best = Pick(candidates, artist, title, duration);
-        if (best != null && !string.IsNullOrWhiteSpace(best.SyncedLyrics)) return best;
+        if (Good(Best())) return Best();
 
         // 3) Search by fields, then by free text.
         var byFields = await GetAsync<List<LrclibTrack>>("api/search" + Query(
             ("track_name", title), ("artist_name", artist.Length > 0 ? TitleCleaner.FirstArtist(artist) : null)), ct);
         if (byFields != null) candidates.AddRange(byFields);
-        best = Pick(candidates, artist, title, duration);
-        if (best != null && !string.IsNullOrWhiteSpace(best.SyncedLyrics)) return best;
+        if (Good(Best())) return Best();
 
         var byText = await GetAsync<List<LrclibTrack>>("api/search" + Query(("q", $"{artist} {title}".Trim())), ct);
         if (byText != null) candidates.AddRange(byText);
-        return Pick(candidates, artist, title, duration);
+        if (Good(Best())) return Best();
+
+        // 4) Shorter forms of a long YouTube title, and the title without the channel's name: LRCLIB
+        //    finds nothing for "Song (prod. X) | Album Y", but finds "Song". A few tries at most.
+        //    LRCLIB being busy halfway through keeps what was already found.
+        foreach (var (a, t) in variants.Skip(1).Take(4))
+        {
+            try
+            {
+                var more = await GetAsync<List<LrclibTrack>>("api/search" + Query(("q", $"{a} {t}".Trim())), ct);
+                if (more != null) candidates.AddRange(more);
+            }
+            catch (HttpRequestException) when (candidates.Count > 0)
+            {
+                break;
+            }
+            if (Good(Best())) break;
+        }
+        return Best();
     }
 
-    static LrclibTrack? Pick(List<LrclibTrack> candidates, string artist, string title, int duration)
+    /// <summary>
+    /// Scores what LRCLIB returned against every way of naming the song and keeps the best: a
+    /// close name, the right artist, synced lyrics, a matching length.
+    /// </summary>
+    static LrclibTrack? Pick(List<LrclibTrack> candidates, IReadOnlyList<(string Artist, string Title)> variants, int duration)
     {
         LrclibTrack? best = null;
         double bestScore = double.MinValue;
         foreach (var c in candidates)
         {
-            double titleSim = TitleCleaner.Similarity(c.TrackName ?? "", title);
+            double titleSim = 0, artistSim = 0;
+            foreach (var (artist, title) in variants)
+            {
+                double sim = TitleCleaner.Similarity(c.TrackName ?? "", title);
+                if (sim <= titleSim) continue;
+                titleSim = sim;
+                artistSim = artist.Length > 0 ? TitleCleaner.Similarity(c.ArtistName ?? "", artist) : 0.5;
+            }
             if (titleSim < 0.45) continue;
-            double score = titleSim * 40;
-            if (artist.Length > 0) score += TitleCleaner.Similarity(c.ArtistName ?? "", artist) * 30;
+            double score = titleSim * 40 + artistSim * 30;
 
             if (!string.IsNullOrWhiteSpace(c.SyncedLyrics)) score += 100;
             else if (c.Instrumental) score += 60;
@@ -383,14 +463,16 @@ public sealed class LyricsService
             try
             {
                 using var response = await Client().GetAsync(url, ct);
-                if (response.StatusCode == HttpStatusCode.NotFound) return null;
+                // Not found, or a query LRCLIB won't take (a missing field): nothing there.
+                if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) return null;
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync(ct);
                 return JsonSerializer.Deserialize<T>(json, Json);
             }
-            catch (HttpRequestException) when (attempt == 0)
+            catch (HttpRequestException) when (attempt < 2)
             {
-                await Task.Delay(600, ct);
+                // LRCLIB answers "busy" (503) now and then: a little patience usually gets through.
+                await Task.Delay(700 * (attempt + 1), ct);
             }
         }
     }

@@ -314,7 +314,11 @@ abstract class FaceSet : FacePainter
         double t = f.Time;
         var ink = f.Ink;
         if ((x & FaceExtras.Tears) != 0) Tears(dc, t);
+        if ((x & FaceExtras.Steam) != 0) Steam(dc, ink, t);
         if ((x & FaceExtras.Sweat) != 0) Sweat(dc, t);
+        if ((x & FaceExtras.Water) != 0) WaterGlass(dc, ink, t);
+        if ((x & FaceExtras.NoSignal) != 0) NoSignal(dc, ink, t);
+        if ((x & FaceExtras.Bolt) != 0) Bolt(dc, t);
         if ((x & FaceExtras.Sparkle) != 0) Sparkles(dc, ink, t);
         if ((x & FaceExtras.Hearts) != 0) Hearts(dc, t);
         if ((x & FaceExtras.Zzz) != 0) Zzz(dc, ink, t);
@@ -471,6 +475,122 @@ abstract class FaceSet : FacePainter
 
         double Wobble(double y) => 0.9 * Math.Sin(y * 0.33 - t * 5);
     }
+
+    static readonly Brush BoltYellow = Paints.Solid(0xFFD23F);
+    static readonly Pen BoltEdge = Paints.MakePen(Paints.Rgb(0x15171E), 1.1);
+    static readonly Pen BoltSpark = Paints.MakePen(Paints.Rgb(0xFFB800), 1.2);
+    static readonly Geometry BoltShape = Parse("M1.6,-7 L-4,0.9 L-0.5,0.9 L-1.8,7 L4,-1.3 L0.5,-1.3 Z");
+    static readonly Geometry BoltSparks = Parse("M-5.6,-4.2 L-7.8,-5.4 M5.8,2.6 L8,3.6 M4.6,-6.4 L5.8,-8.4 M-4.6,4.4 L-6,6.2");
+    static readonly Pen SlashPen = Paints.MakePen(SignRed, 2.3);
+    static readonly Geometry[] WifiArcs = { WifiArc(3.4), WifiArc(6.5), WifiArc(9.6) };
+    static readonly Geometry WifiSlash = Parse("M-6.4,-10.2 L6.4,1.6");
+    static readonly Geometry GlassShape = Parse("M-4.4,-5.6 L4.4,-5.6 L3.3,5.3 Q3.2,6.4 2.2,6.4 L-2.2,6.4 Q-3.2,6.4 -3.3,5.3 Z");
+    static readonly Geometry GlassShine = Parse("M-2.9,-3.6 L-2.4,3.4");
+    static readonly Brush WaterBlue = Paints.Solid(0x4FAEF0, 0.92);
+    static readonly Pen ShinePen = Paints.MakePen(Paints.Rgb(0xFFFFFF, 0.8), 0.9);
+    static readonly Color SteamWhite = Paints.Rgb(0xF4F6FA);
+
+    static void Bolt(DrawingContext dc, double t)
+    {
+        // Bobs gently, and every so often zaps: a jolt, a flicker of sparks.
+        double zap = Math.Pow(Math.Max(0, Math.Sin(t * Math.PI * 2 / 1.6)), 10);
+        dc.PushTransform(Place(90 + 0.8 * zap * Math.Sin(t * 70), 7 + 1.2 * Math.Sin(t * 2.6), 1.35 * (1 + 0.16 * zap), 12 + 5 * zap));
+        dc.DrawGeometry(BoltYellow, BoltEdge, BoltShape);
+        if (zap > 0.2) dc.DrawGeometry(null, Paints.Fade(BoltSpark, zap), BoltSparks);
+        dc.Pop();
+    }
+
+    static void NoSignal(DrawingContext dc, Color ink, double t)
+    {
+        // The arcs light up from the dot outward, looking for a network; the red slash says there is none.
+        dc.PushTransform(Place(89, 11 + Math.Sin(t * 2.2), 1.3, 0));
+        double p = Frac(t / 1.8);
+        dc.DrawEllipse(Paints.Fill(ink), null, new Point(0, 0), 1.4, 1.4);
+        for (int i = 0; i < WifiArcs.Length; i++)
+        {
+            double lit = Math.Max(0, 1 - Math.Abs(p * 4.5 - 1 - i));
+            dc.DrawGeometry(null, Paints.Stroke(ink, 1.9, 0.3 + 0.7 * lit), WifiArcs[i]);
+        }
+        dc.DrawGeometry(null, SlashPen, WifiSlash);
+        dc.Pop();
+    }
+
+    static void WaterGlass(DrawingContext dc, Color ink, double t)
+    {
+        // A glass that bobs and sways a little, the water sloshing, a bubble rising now and then.
+        dc.PushTransform(Place(91, 8 + 1.2 * Math.Sin(t * 2.4), 1.4, 5 * Math.Sin(t * 1.7)));
+        dc.DrawGeometry(Paints.Fill(ink, 0.14), null, GlassShape);
+        var water = new StreamGeometry();
+        using (var g = water.Open())
+        {
+            g.BeginFigure(new Point(-5, 7), true, true);
+            for (int i = 0; i <= 8; i++)
+            {
+                double x = -5 + i * 1.25;
+                g.LineTo(new Point(x, -0.8 + 0.55 * Math.Sin(x * 0.9 + t * 4.2)), true, true);
+            }
+            g.LineTo(new Point(5, 7), true, true);
+        }
+        water.Freeze();
+        dc.PushClip(GlassShape);
+        dc.DrawGeometry(WaterBlue, null, water);
+        double q = Frac(t / 1.3);
+        dc.DrawEllipse(Paints.Fill(Colors.White, 0.85 * (1 - q)), null, new Point(0.9 + 0.7 * Math.Sin(q * 7), 5 - q * 5.2), 0.65, 0.65);
+        dc.Pop();
+        dc.DrawGeometry(null, ShinePen, GlassShine);
+        dc.DrawGeometry(null, Paints.Stroke(ink, 1.2), GlassShape);
+        dc.Pop();
+    }
+
+    static void Steam(DrawingContext dc, Color ink, double t)
+    {
+        // Puffs rise off both sides of the top of the head, swelling and drifting outward as they fade.
+        for (int side = 0; side < 2; side++)
+        {
+            double dir = side == 0 ? -1 : 1;
+            for (int k = 0; k < 2; k++)
+            {
+                // Puffs swell in and shrink away rather than fade, so the rim stays hidden where the lobes overlap.
+                double p = Frac(t / 1.6 + k * 0.5 + side * 0.25);
+                double size = (3 + 3.4 * p) * Smooth(Ramp(p, 0, 0.14)) * (1 - Smooth(Ramp(p, 0.62, 1)));
+                if (size < 0.4) continue;
+                var c = new Point(49 + dir * (20 + 10 * p) + 0.8 * Math.Sin(p * 6 + side), 9 - 13 * p);
+                // White, rimmed in ink: the rim goes down first and the fill covers its inner arcs.
+                var puff = Puff(c, size);
+                dc.DrawGeometry(null, Paints.Stroke(ink, 1.5, 0.6), puff);
+                dc.DrawGeometry(Paints.Fill(SteamWhite), null, puff);
+            }
+        }
+    }
+
+    /// <summary>A puff of steam: three round lobes as one shape, filled once so the overlaps don't show.</summary>
+    static StreamGeometry Puff(Point c, double r)
+    {
+        var geo = new StreamGeometry { FillRule = FillRule.Nonzero };
+        using (var g = geo.Open())
+        {
+            Circle(g, new Point(c.X, c.Y - 0.2 * r), 0.62 * r);
+            Circle(g, new Point(c.X - 0.55 * r, c.Y + 0.15 * r), 0.45 * r);
+            Circle(g, new Point(c.X + 0.55 * r, c.Y + 0.18 * r), 0.42 * r);
+        }
+        geo.Freeze();
+        return geo;
+
+        static void Circle(StreamGeometryContext g, Point c, double r)
+        {
+            g.BeginFigure(new Point(c.X - r, c.Y), true, true);
+            g.ArcTo(new Point(c.X + r, c.Y), new Size(r, r), 0, false, SweepDirection.Clockwise, true, true);
+            g.ArcTo(new Point(c.X - r, c.Y), new Size(r, r), 0, false, SweepDirection.Clockwise, true, true);
+        }
+    }
+
+    /// <summary>One Wi-Fi arc around the dot at the origin, a quarter turn wide, opening upward.</summary>
+    static Geometry WifiArc(double r) => Build(g =>
+    {
+        double d = r * Math.Sqrt(0.5);
+        g.BeginFigure(new Point(-d, -d), false, false);
+        g.ArcTo(new Point(d, -d), new Size(r, r), 0, false, SweepDirection.Clockwise, true, true);
+    });
 
     // ------------------------------------------------------------------ helpers
 

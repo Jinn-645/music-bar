@@ -17,10 +17,19 @@ public static partial class Strings
         var d = new Dictionary<string, (string En, string Vi)>(StringComparer.Ordinal);
         AddApp(d);
         AddSettings(d);
+        AddLyrics(d);
+        AddFace(d);
+        AddRecap(d);
         return d;
     }
 
     static partial void AddApp(Dictionary<string, (string En, string Vi)> d);
 
     static partial void AddSettings(Dictionary<string, (string En, string Vi)> d);
+
+    static partial void AddLyrics(Dictionary<string, (string En, string Vi)> d);
+
+    static partial void AddFace(Dictionary<string, (string En, string Vi)> d);
+
+    static partial void AddRecap(Dictionary<string, (string En, string Vi)> d);
 }

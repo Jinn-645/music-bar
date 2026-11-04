@@ -37,6 +37,22 @@ internal static class Native
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     public const int SW_RESTORE = 9;
 
+    public const int SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77, SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
+
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int index);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SystemParametersInfoW")]
+    static extern bool SystemParametersInfo(uint action, uint param, StringBuilder value, uint winIni);
+
+    /// <summary>The wallpaper file Windows reports (empty for a plain color).</summary>
+    public static string SystemParametersWallpaper()
+    {
+        const uint SPI_GETDESKWALLPAPER = 0x0073;
+        var path = new StringBuilder(520);
+        return SystemParametersInfo(SPI_GETDESKWALLPAPER, (uint)path.Capacity, path, 0) ? path.ToString() : "";
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {

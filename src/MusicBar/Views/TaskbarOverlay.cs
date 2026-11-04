@@ -25,7 +25,7 @@ namespace MusicBar.Views;
 /// cover, transport buttons and expandable lyrics in the taskbar's empty
 /// area, and a song card that pops up from the cover.
 /// </summary>
-public sealed class TaskbarOverlay : IDisposable
+public sealed class TaskbarOverlay : IDisposable, ILyricsHost
 {
     const uint KeepPlace = Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE;
 
@@ -40,6 +40,8 @@ public sealed class TaskbarOverlay : IDisposable
     readonly LyricsBandWindow _band;
     readonly Face.FaceWindow _face;
     bool _faceShown;
+    LyricsPanelWindow? _lyricsPanel;
+    BubbleWindow? _bubble;
     readonly SolidColorBrush _accentBrush = new(ColorUtil.Brand);
     readonly SolidColorBrush _playGlyphBrush = new(Colors.White);
     readonly DispatcherTimer _watch = new() { Interval = TimeSpan.FromMilliseconds(500) };
@@ -112,6 +114,14 @@ public sealed class TaskbarOverlay : IDisposable
         _widget.InfoRequested += ShowInfo;
         _widget.InfoDismissed += _popup.Dismiss;
         _widget.ExpandToggled += () => _s.LyricsExpanded = !_s.LyricsExpanded;
+        _widget.LyricsClicked += ShowLyricsPanel;
+        _widget.LyricsWheel += delta =>
+        {
+            if (_lyricsResult?.Lyrics == null) return;
+            NudgeOffset(delta > 0 ? 250 : -250);
+            int ms = (int)_lyricsResult.Lyrics.Offset.TotalMilliseconds;
+            Say(ms == 0 ? Loc.T("LyrP_InTime") : Loc.T("LyrP_Offset", (ms / 1000.0).ToString("+0.00;-0.00")), "", 1.6);
+        };
 
         if (monitorDevice == null)
         {
@@ -135,6 +145,7 @@ public sealed class TaskbarOverlay : IDisposable
         _media.ThumbnailChanged += OnMediaThumbnailChanged;
         _watch.Tick += (_, _) => Watch();
         _frameTimer.Tick += OnFrame;
+        _backdrop.Changed += ApplyAppearance;
     }
 
     void OnMediaTrackChanged(object? sender, EventArgs e) => OnTrackChanged();
@@ -266,6 +277,72 @@ public sealed class TaskbarOverlay : IDisposable
 
     public void PreviewLyrics() => ActiveLyrics.Preview();
 
+    // ------------------------------------------------------------------ the lyrics panel
+
+    MediaService ILyricsHost.Media => _media;
+
+    LyricsService ILyricsHost.LyricsSource => _lyricsService;
+
+    LyricsStatus ILyricsHost.LyricsState => _lyricsStatus;
+
+    LyricsResult? ILyricsHost.Lyrics => _lyricsResult;
+
+    TimeSpan ILyricsHost.LyricsLead => TimeSpan.FromMilliseconds(_s.LyricsOffsetMs) + (_lyricsResult?.Lyrics?.Offset ?? TimeSpan.Zero);
+
+    TrackQuery ILyricsHost.CurrentQuery() => new(_media.Title, _media.Artist, _media.Album, _media.Duration, _media.AppId);
+
+    void ILyricsHost.NudgeLyrics(int ms) => NudgeOffset(ms);
+
+    void ILyricsHost.UseLyrics(LyricsResult result)
+    {
+        _lyricsCts?.Cancel();
+        _lyricsResult = result;
+        _lyricsStatus = result.Status;
+        if (result.Status == LyricsStatus.Instrumental) ShowLyricsMessage(_media.Title, Loc.T("Msg_Instrumental"));
+        else if (result.Lyrics == null) ShowTrackMessage();
+        PresentLyrics();
+    }
+
+    public event Action? LyricsChanged;
+
+    /// <summary>The whole song's lyrics in a card beside the taskbar, near the pointer.</summary>
+    public void ShowLyricsPanel()
+    {
+        if (_tracker.Monitor == null) return;
+        _popup.Dismiss();
+        if (_lyricsPanel == null)
+        {
+            _lyricsPanel = new LyricsPanelWindow(this, _s);
+            _lyricsPanel.SetAccent(_currentPrimary);
+        }
+        var at = Native.GetCursorPos(out var p) ? new Point(p.X, p.Y) : _widget.CoverCenterOnScreen();
+        _lyricsPanel.ShowAt(at, _tracker.Edge, _tracker.Rect, _tracker.Monitor.Bounds);
+    }
+
+    /// <summary>A short note in a bubble beside the taskbar, by the pointer.</summary>
+    void Say(string text, string? glyph, double seconds)
+    {
+        if (_tracker.Monitor == null || !Native.GetCursorPos(out var p)) return;
+        _bubble ??= new BubbleWindow();
+        _bubble.Say(text, glyph, ColorUtil.ForDarkSurface(_currentPrimary), new Point(p.X, p.Y), _tracker.Edge, _tracker.Rect, _tracker.Monitor.Bounds, seconds);
+    }
+
+    /// <summary>
+    /// Puts the song's synced lyrics on the bar, romanized as the settings ask. Romanizing a whole
+    /// song takes a moment the first time, so it happens off the UI thread.
+    /// </summary>
+    async void PresentLyrics()
+    {
+        var result = _lyricsResult;
+        LyricsChanged?.Invoke();
+        if (result?.Status != LyricsStatus.Synced || result.Lyrics is not { } lyrics) return;
+        var mode = _s.Romanization;
+        bool vertical = Vertical;
+        var shown = mode == Romanization.Off ? lyrics : await Task.Run(() => LyricRomanization.ForBar(lyrics, mode, vertical));
+        if (!ReferenceEquals(result, _lyricsResult)) return;
+        ShowSyncedLyrics(shown);
+    }
+
     /// <summary>The presenter currently on screen: the free-space band, or the panel beside the cover.</summary>
     ILyricsView ActiveLyrics => _usingBand ? _band.LyricsView : _widget.LyricsView;
 
@@ -291,6 +368,8 @@ public sealed class TaskbarOverlay : IDisposable
         _popup.Close();
         _band.Close();
         _face.Close();
+        _lyricsPanel?.Close();
+        _bubble?.Close();
     }
 
     // ------------------------------------------------------------------ placement
@@ -326,6 +405,7 @@ public sealed class TaskbarOverlay : IDisposable
                 // The other lyrics display takes over: give it what was on screen.
                 Log.Info($"Taskbar docked {edge}");
                 Restage();
+                if (_s.Romanization == Romanization.Below) PresentLyrics();
             }
         }
 
@@ -384,9 +464,10 @@ public sealed class TaskbarOverlay : IDisposable
         }
 
         var faceRect = faceOn ? FaceRect(rc, scale, widgetRect, anchorEnd, faceLength, faceGap) : null;
-        PlaceFace(faceRect);
-
         _bandRect = _playerOn ? BandRect(rc, scale, widgetRect, faceRect) : null;
+        // It may stroll in its own stretch of empty taskbar, never over the player or the lyrics.
+        PlaceFace(faceRect, widgetRect, _bandRect);
+
         UpdateLyricsSurface(animate: true);
         SetRendering(true);
     }
@@ -406,9 +487,10 @@ public sealed class TaskbarOverlay : IDisposable
         SetRendering(false);
     }
 
-    void PlaceFace(Native.RECT? rect)
+    /// <param name="taken">What else is on the taskbar: the face may wander up to it, not over it.</param>
+    void PlaceFace(Native.RECT? rect, params Native.RECT?[] taken)
     {
-        if (rect is not { } r)
+        if (rect is not { } r || _tracker.Monitor == null)
         {
             if (_faceShown) _face.Hide();
             _faceShown = false;
@@ -421,7 +503,16 @@ public sealed class TaskbarOverlay : IDisposable
             _face.Show();
             _faceShown = true;
         }
-        Native.SetWindowPos(_face.Hwnd, Native.HWND_TOPMOST, r.Left, r.Top, r.Width, r.Height, Native.SWP_NOACTIVATE);
+        var face = AlongBar(r);
+        var (roamStart, roamEnd) = (face.Start, face.End);
+        int margin = (int)Math.Round(6 * _tracker.Scale);
+        foreach (var p in FreePieces(taken))
+        {
+            if (p.Start > face.Start + 2 || p.End < face.End - 2) continue;
+            (roamStart, roamEnd) = (Math.Min(face.Start, p.Start + margin), Math.Max(face.End, p.End - margin));
+            break;
+        }
+        _face.Place(r, roamStart, roamEnd, _tracker.Edge, _tracker.Rect, _tracker.Monitor.Bounds);
     }
 
     /// <summary>The face's length along the taskbar in physical pixels: its box (116 x 88 design units) across the taskbar's thickness.</summary>
@@ -832,8 +923,16 @@ public sealed class TaskbarOverlay : IDisposable
                     LoadLyrics(force: false);
                 }
                 break;
+            case nameof(AppSettings.Romanization):
+                ApplyAppearance();
+                PresentLyrics();
+                break;
             case nameof(AppSettings.PinnedAppId) or nameof(AppSettings.StartWithWindows)
-                or nameof(AppSettings.ProxyUrl) or nameof(AppSettings.LyricsOffsetMs):
+                or nameof(AppSettings.ProxyUrl) or nameof(AppSettings.LyricsOffsetMs)
+                or nameof(AppSettings.LyricsPanelRomanized) or nameof(AppSettings.KeepListeningStats)
+                or nameof(AppSettings.RecapDoneYear) or nameof(AppSettings.RecapAskedOn)
+                or nameof(AppSettings.CheckForUpdates) or nameof(AppSettings.SkippedVersion)
+                or nameof(AppSettings.FocusMinutes) or nameof(AppSettings.BreakMinutes):
                 break;
             default:
                 ApplyAppearance();
@@ -846,26 +945,58 @@ public sealed class TaskbarOverlay : IDisposable
     DateTime _themeCheckedAt = DateTime.Now;
 
     /// <summary>The background actually painted: Auto becomes Dark or Light with Windows' taskbar mode.</summary>
-    BarBackground EffectiveBackground => _s.Background == BarBackground.Auto
-        ? _windowsLight ? BarBackground.Light : BarBackground.Dark
-        : _s.Background;
-
-    /// <summary>
-    /// Text and lines drawn straight on the taskbar go dark: on a light background, or on a see-through
-    /// taskbar while Windows is in light mode (its own icons are black then).
-    /// </summary>
-    bool LightBar => EffectiveBackground switch
+    BarBackground EffectiveBackground => _s.Background switch
     {
-        BarBackground.Light or BarBackground.LightTinted => true,
-        BarBackground.Transparent => _windowsLight,
-        _ => false,
+        BarBackground.Auto => _windowsLight ? BarBackground.Light : BarBackground.Dark,
+        BarBackground.AutoTinted => _windowsLight ? BarBackground.LightTinted : BarBackground.Tinted,
+        _ => _s.Background,
     };
 
-    /// <summary>Picks up a switch between Windows' light and dark mode.</summary>
+    /// <summary>
+    /// The wallpaper shows through behind the bar: the taskbar is see-through, the layer is under it,
+    /// and the bar's own background is clear or faint.
+    /// </summary>
+    bool WallpaperShows => !IsOverMode && (OwnsTransparency || TranslucentTaskbarDetected)
+        && (EffectiveBackground == BarBackground.Transparent || _s.BackgroundOpacity < 0.6);
+
+    /// <summary>
+    /// Text and lines drawn straight on the taskbar go dark: on a light background, or where a light
+    /// wallpaper shows through a see-through taskbar (a faint background mixed in), or, until the
+    /// wallpaper is known, on a clear taskbar while Windows is in light mode.
+    /// </summary>
+    bool LightBar
+    {
+        get
+        {
+            var background = EffectiveBackground;
+            bool lightBase = background is BarBackground.Light or BarBackground.LightTinted;
+            if (WallpaperShows && _backdrop.Lightness is double behind)
+            {
+                // What the eye sees: the bar's own color over the picture, as solid as its opacity.
+                double cover = background == BarBackground.Transparent ? 0 : _s.BackgroundOpacity;
+                double seen = (lightBase ? 96 : 4) * cover + behind * (1 - cover);
+                // Some give either way, so a moving wallpaper near the middle doesn't flip the text back and forth.
+                _wallpaperLight = _wallpaperLight ? seen > 52 : seen > 62;
+                return _wallpaperLight;
+            }
+            return background == BarBackground.Transparent ? _windowsLight : lightBase;
+        }
+    }
+
+    readonly WallpaperTone _backdrop = new();
+    DateTime _backdropCheckedAt = DateTime.MinValue;
+    bool _wallpaperLight;
+
+    /// <summary>Picks up a switch between Windows' light and dark mode, and a new wallpaper behind a see-through taskbar.</summary>
     void CheckTheme()
     {
         if (DateTime.Now - _themeCheckedAt < TimeSpan.FromSeconds(2)) return;
         _themeCheckedAt = DateTime.Now;
+        if (WallpaperShows && _tracker.Monitor != null && DateTime.Now - _backdropCheckedAt > TimeSpan.FromSeconds(8))
+        {
+            _backdropCheckedAt = DateTime.Now;
+            _backdrop.Check(_tracker.Rect, _tracker.Monitor.Bounds);
+        }
         bool light = ColorUtil.WindowsTaskbarIsLight();
         if (light == _windowsLight) return;
         _windowsLight = light;
@@ -943,6 +1074,7 @@ public sealed class TaskbarOverlay : IDisposable
         _controlCenter?.SetAccent(primary);
         _band.SetAccent(primary);
         _face.SetAccent(primary);
+        _lyricsPanel?.SetAccent(primary);
     }
 
     // ------------------------------------------------------------------ media state
@@ -994,6 +1126,7 @@ public sealed class TaskbarOverlay : IDisposable
         _widget.SetArt(null);
         UpdateBadge();
         UpdateAccent(animate: true);
+        LyricsChanged?.Invoke();
     }
 
     void OnTrackChanged()
@@ -1036,6 +1169,7 @@ public sealed class TaskbarOverlay : IDisposable
         if (!_s.LyricsEnabled || !_media.HasSession || _media.Title.Length == 0) return;
 
         _lyricsStatus = LyricsStatus.Loading;
+        LyricsChanged?.Invoke();
         if (force) ShowTrackMessage();
         try
         {
@@ -1047,10 +1181,9 @@ public sealed class TaskbarOverlay : IDisposable
 
             _lyricsResult = result;
             _lyricsStatus = result.Status;
-            if (result.Status == LyricsStatus.Synced && result.Lyrics != null)
-                ShowSyncedLyrics(result.Lyrics);
-            else if (result.Status == LyricsStatus.Instrumental)
+            if (result.Status == LyricsStatus.Instrumental)
                 ShowLyricsMessage(_media.Title, Loc.T("Msg_Instrumental"));
+            PresentLyrics();
             Log.Info($"Lyrics for '{_media.Artist} - {_media.Title}': {result.Status} ({result.Source})");
 
             // Network trouble or LRCLIB briefly down: try again while the same song keeps playing.
@@ -1212,6 +1345,9 @@ public sealed class TaskbarOverlay : IDisposable
         lyrics.Items.Add(new Separator());
         var reload = new MenuItem { Header = Loc.T("Menu_Reload"), Icon = Glyph(""), IsEnabled = _media.HasSession && !_media.IsDemo };
         reload.Click += (_, _) => LoadLyrics(force: true);
+        var panel = new MenuItem { Header = Loc.T("Menu_LyricsPanel"), Icon = Glyph(""), IsEnabled = _media.HasSession };
+        panel.Click += (_, _) => ShowLyricsPanel();
+        lyrics.Items.Insert(2, panel);
         lyrics.Items.Add(reload);
 
         bool synced = _lyricsResult?.Lyrics != null;
@@ -1276,6 +1412,9 @@ public sealed class TaskbarOverlay : IDisposable
         menu.Items.Add(new Separator());
         var settings = new MenuItem { Header = Loc.T("Menu_Settings"), Icon = Glyph("") };
         settings.Click += (_, _) => App.Instance.ShowSettings();
+        var recap = new MenuItem { Header = Loc.T("Menu_Recap"), Icon = Glyph("") };
+        recap.Click += (_, _) => App.Instance.ShowRecap();
+        menu.Items.Add(recap);
         menu.Items.Add(settings);
         var exit = new MenuItem { Header = Loc.T("Menu_Exit"), Icon = Glyph("") };
         exit.Click += (_, _) => App.Instance.ExitApp();

@@ -61,8 +61,11 @@ public partial class SettingsWindow : Window
         _media.PropertyChanged += OnMediaChanged;
         _media.ThumbnailChanged += OnThumbnailChanged;
         _s.PropertyChanged += OnSettingChanged;
+        ShowFocusState(FocusPhase.Off, FocusTimer.Current.Phase);
+        FocusTimer.Current.Changed += ShowFocusState;
         Closed += (_, _) =>
         {
+            FocusTimer.Current.Changed -= ShowFocusState;
             _media.PropertyChanged -= OnMediaChanged;
             _media.ThumbnailChanged -= OnThumbnailChanged;
             _s.PropertyChanged -= OnSettingChanged;
@@ -371,7 +374,14 @@ public partial class SettingsWindow : Window
         if (IsVisible && PageFace.Visibility == Visibility.Visible)
         {
             var senses = new Face.FaceSenses(DateTime.Now, true, false, -1, TimeSpan.Zero, null, false);
-            foreach (var (_, _, preview) in _faceTiles) preview.Step(senses);
+            // Dressed as on the taskbar, so a new hat shows at once.
+            var outfit = Face.FaceWindow.OutfitFor(_s, DateTime.Now);
+            foreach (var (_, _, preview) in _faceTiles)
+            {
+                preview.Outfit = outfit;
+                preview.Brain.HoldsMic = _s.FaceHoldsMic;
+                preview.Step(senses);
+            }
         }
         if (!IsVisible || PageProgress.Visibility != Visibility.Visible) return;
         double t = _previewClock.Elapsed.TotalSeconds;
@@ -505,6 +515,30 @@ public partial class SettingsWindow : Window
         RefreshLyricsInfo();
         Log.Info($"Removed {removed} downloaded lyric files");
     }
+
+    async void CheckNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app) return;
+        CheckNowButton.IsEnabled = false;
+        UpdateCard.Description = Loc.T("Set_CheckNow_Checking");
+        var release = await app.CheckForUpdatesAsync(manual: true);
+        CheckNowButton.IsEnabled = true;
+        UpdateCard.Description = release == null
+            ? Loc.T("Set_CheckNow_None", UpdateService.Current.ToString(3))
+            : Loc.T("Set_CheckNow_Found", release.Version.ToString(3));
+    }
+
+    void Recap_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowRecap();
+
+    void Focus_Click(object sender, RoutedEventArgs e)
+    {
+        var timer = FocusTimer.Current;
+        if (timer.Phase == FocusPhase.Off) timer.Start(_s);
+        else timer.Stop();
+    }
+
+    void ShowFocusState(FocusPhase from, FocusPhase to)
+        => FocusButton.Content = Loc.T(to == FocusPhase.Off ? "Set_FocusStartButton" : "Set_FocusStopButton");
 
     void OpenDataFolder_Click(object sender, RoutedEventArgs e) => Open(AppPaths.DataDir);
 

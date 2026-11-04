@@ -87,6 +87,12 @@ public partial class WidgetWindow : Window
 
     public event Action? MenuRequested;
 
+    /// <summary>The lyrics beside the cover were clicked.</summary>
+    public event Action? LyricsClicked;
+
+    /// <summary>The scroll wheel turned over the lyrics (the wheel's delta, 120 a notch).</summary>
+    public event Action<int>? LyricsWheel;
+
     /// <summary>The pointer rested on the cover long enough to show the song card.</summary>
     public event Action? InfoRequested;
 
@@ -140,7 +146,9 @@ public partial class WidgetWindow : Window
         ControlsShell.Visibility = s.ShowControls ? Visibility.Visible : Visibility.Collapsed;
 
         // Stacked words have room for the next line below them; a horizontal pill needs the height.
-        bool twoLine = s.ShowNextLine && (vertical || h >= 40);
+        // Romanization under each line takes the second row even when the next line is not wanted.
+        bool twoLine = (s.ShowNextLine || s.Romanization == Romanization.Below) && (vertical || h >= 40);
+        LineLyrics.ShowsNext = s.ShowNextLine;
         double main = (vertical ? Math.Clamp(h * 0.3, 11, 14) : twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.42, 12, 15)) * s.LyricScale;
         double sub = (vertical ? 11 : Math.Clamp(h * 0.22, 10, 12)) * s.LyricScale;
         // Stacked words read top down, so "left" (where reading starts) is their top.
@@ -518,6 +526,19 @@ public partial class WidgetWindow : Window
     {
         CancelInfo();
         ExpandToggled?.Invoke();
+    }
+
+    void Lyrics_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        CancelInfo();
+        LyricsClicked?.Invoke();
+        e.Handled = true;
+    }
+
+    void Lyrics_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        LyricsWheel?.Invoke(e.Delta);
+        e.Handled = true;
     }
 
     void Play_Click(object sender, RoutedEventArgs e) => _ = _media.PlayPauseAsync();

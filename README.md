@@ -2,8 +2,8 @@
 
 Thanh taskbar nằm im ba mươi năm rồi. Cho nó hát đi.
 
-**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.3.0-Setup.exe)
-hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.3.0-portable.zip)
+**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.4.0-Setup.exe)
+hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.4.0-portable.zip)
 (Windows 10 2004 trở lên hoặc Windows 11, 64-bit, không cần cài .NET).
 
 - [x] **04/11** Bản 1.0 lên GitHub: 14 bộ áo cho thanh tiến trình, karaoke đủ dấu, taskbar
@@ -21,6 +21,11 @@ hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/dow
 - [x] **04/11** Bản 1.3: cái mặt trong video giới thiệu dọn lên ở hẳn trên taskbar (8 kiểu mặt,
   nhún theo nhạc, ngủ gật về đêm, bấm, xoa, cuộn chuột là nó phản ứng), nền taskbar sáng cho
   Windows chế độ sáng, Control Center không còn tràn khỏi màn hình khi nhiều thông báo.
+- [x] **04/11** Bản 1.4: app tự báo khi có bản mới (từ giờ khỏi lên GitHub tải tay), bảng lời
+  cả bài (bấm dòng nào phát từ dòng đó, tìm lyrics khác khi sai bài), phiên âm bài Hàn / Nhật /
+  Trung, tìm lyrics cho title YouTube dài ngoằng tốt hơn hẳn, tổng kết năm âm nhạc kiểu Wrapped,
+  và cái mặt được trả lại cái mic, thêm mũ kính, đổi mũ theo mùa lễ, hẹn giờ Pomodoro, biết đi
+  dạo và để ý cái máy. Xóa tất cả thông báo giờ xóa thật.
 
 ![Thanh taskbar ngủ gật, tiếng cào đĩa, icon MusicBar rơi xuống và đèn sân khấu bật sáng](docs/wake-up.gif)
 
@@ -45,16 +50,24 @@ Media Player, Apple Music… Không có nhạc thì nó lặn mất, taskbar v�
   màn cho trình phát với lời bài hát (Cài đặt → Chung → Màn hình).
 - **Tối giản nếu thích:** ẩn trình phát mà giữ lời (lời tự dời vào khoảng trống lớn nhất), hoặc
   ẩn cả hai, chỉ để thanh tiến trình chạy (Cài đặt → Trình phát).
-- **Một cái mặt sống trên taskbar** (chi tiết ở dưới): nhún theo nhạc, ngủ gật về đêm, cười khi
-  bị chọc, giận khi bị chọc hoài.
-- **Nền sáng hay tối:** mặc định theo chế độ sáng / tối của Windows. Nền sáng thì lời bài hát,
-  nút và cái mặt chuyển sang màu tối cho icon đen của Windows vẫn rõ.
+- **Một cái mặt sống trên taskbar** (chi tiết ở dưới): cầm mic hát theo nhạc, ngủ gật về đêm,
+  cười khi bị chọc, giận khi bị chọc hoài, đội mũ Noel khi tới Noel, canh giờ Pomodoro cho bạn.
+- **Tổng kết năm âm nhạc** (chi tiết ở dưới): top bài, nghệ sĩ ruột, giờ vàng, bạn là kiểu người
+  nghe nào, gói vào một tấm ảnh để khoe.
+- **Tự báo bản mới:** mở app (hay mở máy) là nó xem GitHub có bản mới chưa, có thì hỏi một câu ở
+  góc màn hình.
+- **Nền sáng hay tối:** mặc định theo chế độ sáng / tối của Windows, đổi theo ngay khi Windows
+  đổi; thích pha màu bài hát thì chọn *Theo Windows, pha màu bài hát*. Nền sáng thì lời bài hát,
+  nút và cái mặt chuyển sang màu tối cho icon đen của Windows vẫn rõ. Taskbar trong suốt (hoặc
+  nền rất mờ) thì MusicBar nhìn hình nền ngay sau taskbar: sáng thì chữ tối, tối thì chữ trắng,
+  cả với hình nền động của Wallpaper Engine.
 - **Nhảy theo nhạc thật.** Các kiểu động nghe chính âm thanh đang ra loa (WASAPI loopback),
   xử lý ngay trong máy, không gửi đi đâu. Tắt đi thì chúng nhún theo nhịp giả lập.
 - **Lời bài hát đồng bộ** từ [LRCLIB](https://lrclib.net), tô màu karaoke từng chữ, 8 hiệu ứng
   đổi dòng (cuộn, mờ, quét, phóng, nảy từng chữ, gõ chữ, băng chạy…). Lời tự tìm khoảng
   trống lớn nhất trên taskbar, hoặc trượt ra cạnh ảnh bìa. Lời đã tải lưu thành `.lrc`, lần
-  sau khỏi cần mạng. Lệch thì chỉnh sớm / trễ 0,25 giây cho từng bài.
+  sau khỏi cần mạng. Lệch thì lăn chuột trên lời để chỉnh sớm / trễ 0,25 giây cho từng bài.
+  Bấm vào lời là ra bảng lời cả bài (chi tiết ở dưới).
 - **Kiểu chữ tự chọn:** cỡ, màu, độ đậm, viền (nhỏ là viền sắc, lớn là quầng mềm), và 10
   phông miễn phí đủ dấu tiếng Việt: Be Vietnam Pro, Lexend, Montserrat, Quicksand, Nunito,
   Comfortaa, Playfair Display, Lora, Dancing Script, Pacifico.
@@ -103,12 +116,18 @@ Kiểu động vẽ 30 khung / giây khi đang phát (các kiểu trôi chậm 2
 
 ## Cài
 
-- **Bản cài đặt** (`MusicBar-1.2.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
+- **Bản cài đặt** (`MusicBar-1.4.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
   `%LOCALAPPDATA%\Programs\MusicBar`, không hỏi quyền admin, có mục trong Start và gỡ được
   trong Cài đặt → Ứng dụng. Cài đè hay gỡ đi thì MusicBar được báo thoát trước, để trả taskbar
   và khay về đúng như Windows sắp xếp.
-- **Bản portable** (`MusicBar-1.2.0-portable.zip`): giải nén ra đâu cũng được, chạy
+- **Bản portable** (`MusicBar-1.4.0-portable.zip`): giải nén ra đâu cũng được, chạy
   `MusicBar.exe`.
+
+**Cập nhật:** từ bản 1.4, MusicBar tự xem GitHub mỗi lần chạy (và mỗi ngày một lần khi đang
+chạy). Có bản mới thì một thẻ hiện ở góc trên khay: *Cập nhật* là tải về, kiểm tra mã SHA-256,
+cài êm rồi tự mở lại; *Để lần sau* thì lần sau hỏi tiếp; tick *Bỏ qua phiên bản này* là im luôn
+tới bản sau nữa. Bản portable thì nút đó mở trang tải. Tắt được ở **Cài đặt → Giới thiệu**.
+Đang dùng bản 1.3 trở về trước thì tải tay bản 1.4 một lần, từ đó về sau nó tự báo.
 
 Lên từ bản 1.1 trở về trước thì khởi động lại Explorer (hoặc đăng xuất rồi vào lại) một lần,
 để module làm trong suốt taskbar bản mới thay bản cũ. Chưa làm thì MusicBar vẫn chạy, chỉ là
@@ -127,6 +146,7 @@ Dòng lệnh, nếu bạn thích:
 ```powershell
 MusicBar.exe --demo       # bài hát mẫu có sẵn lời, không cần trình phát nào
 MusicBar.exe --settings   # mở cài đặt (cả khi app đang chạy)
+MusicBar.exe --recap      # hiện ngay banner tổng kết năm, không đợi tới 24/12
 MusicBar.exe --exit       # thoát, trả taskbar về như cũ
 ```
 
@@ -188,8 +208,20 @@ Anh em xem video giới thiệu thích cái mặt quá, nên giờ nó ở hẳn
 - **Trêu được:** bấm là cười, bấm liên tục thì bực rồi nổi cáu rồi dỗi quay đi; giữ chuột rê qua
   lại (hoặc rê con trỏ qua lại trên nó) là cười chảy nước mắt rồi thả tim; bấm đúp mắt sao; cuộn
   chuột là chóng mặt; đang ngủ mà chọc là giật mình.
-- Chuột phải lên nó để đổi kiểu hay ẩn đi. Không có nhạc mà MusicBar ẩn thì mặt vẫn ở lại ngủ gật
-  (tắt được).
+- **Cái mic trả lại rồi:** có nhạc là cái mic trong video giới thiệu bật ra, nó cầm hát theo,
+  tạm dừng là cất đi.
+- **Mũ, kính, tai nghe:** mũ lưỡi trai (màu theo bài hát), mũ len, vương miện, kính tròn, kính
+  râm, kính pixel "deal with it", tai nghe. Tới mùa lễ thì tự đổi mũ: hoa mai dịp Tết, tai thỏ
+  Trung thu (tính theo âm lịch), mũ phù thủy Halloween, mũ Noel.
+- **Hẹn giờ tập trung (Pomodoro):** chuột phải lên mặt → *Bắt đầu tập trung*. Nó nhíu mày làm
+  việc cùng bạn, có đồng hồ nhỏ bên cạnh; hết giờ thì nói qua bong bóng nhắc đứng dậy vươn vai,
+  uống nước. Cứ 4 hiệp được nghỉ dài. Đổi số phút ở **Cài đặt → Cái mặt**.
+- **Để ý cái máy:** CPU chạy hết công suất thì đổ mồ hôi bốc khói, rớt mạng thì hoảng, có mạng
+  lại thì mừng, cắm sạc thì sướng, pin yếu thì uể oải.
+- **Đi dạo:** rảnh không có nhạc thì thỉnh thoảng nó đi dọc khoảng taskbar trống, ngó quanh rồi
+  về chỗ cũ. Không bao giờ đi đè lên trình phát hay lời bài hát.
+- Chuột phải lên nó để đổi kiểu, đội mũ, hẹn giờ hay ẩn đi. Không có nhạc mà MusicBar ẩn thì mặt
+  vẫn ở lại ngủ gật (tắt được).
 
 ## Lời bài hát
 
@@ -197,9 +229,35 @@ Anh em xem video giới thiệu thích cái mặt quá, nên giờ nó ở hẳn
 
 Tìm theo thứ tự: file `.lrc` trong thư mục lời (`%LOCALAPPDATA%\MusicBar\Lyrics`, tên
 `Ca sĩ - Tên bài.lrc`, tự thả file của mình vào cũng được), rồi tới LRCLIB theo tên bài, ca sĩ,
-album và thời lượng. Tiêu đề kiểu YouTube được dọn bớt ("Official MV", "(Lyrics)", "feat.")
-trước khi tìm. Bài không có lời được nhớ 3 ngày để khỏi hỏi lại. Mạng cần proxy thì điền ở
-**Cài đặt → Lời bài hát → Proxy**.
+album và thời lượng. Bài không có lời được nhớ 3 ngày để khỏi hỏi lại. Mạng cần proxy thì điền
+ở **Cài đặt → Lời bài hát → Proxy**.
+
+- **Title YouTube dài cỡ nào cũng dọn được:** kiểu "HIEUTHUHAI - Không Thể Say (prod. by
+  Kewtiie) | Album 'Ai Cũng Phải Bắt Đầu Từ Đâu Đó'" được tách theo dấu `-` và `|`, bỏ phần
+  Album, OST, prod., Official MV, Lyrics Video, số track, hashtag, nhận ra đoạn nào là tên kênh,
+  còn lại "Không Thể Say". LRCLIB vẫn không ra thì MusicBar tự thử tiếp tên ngắn dần, và tên
+  bài không kèm ca sĩ (kênh của hãng đĩa thường không phải tên ca sĩ).
+- **Bảng lời cả bài:** bấm vào lời cạnh ảnh bìa (hoặc chuột phải → Lời bài hát → Lời cả bài).
+  Dòng đang hát sáng lên và luôn nằm giữa; bấm dòng nào là phát từ dòng đó; có nút chỉnh sớm /
+  trễ, và nút *Tìm lyrics khác* khi bị ra sai bài: gõ tên, chọn kết quả đúng (có dấu ✓ khi dài
+  bằng bài đang phát), MusicBar nhớ lựa chọn đó cho lần sau.
+- **Phiên âm Hàn, Nhật, Trung:** hiện dưới mỗi dòng hoặc thay luôn lời gốc (**Cài đặt → Lời bài
+  hát → Phiên âm**), và có trong bảng lời cả bài. Tiếng Hàn theo cách phiên âm chuẩn (có nối âm),
+  tiếng Trung ra pinyin có dấu thanh, tiếng Nhật ra romaji. Kanji tiếng Nhật thì Windows chỉ
+  đọc được khi máy có cài tiếng Nhật; không có thì kana vẫn ra romaji, kanji giữ nguyên.
+
+## Tổng kết năm
+
+MusicBar đếm những gì bạn nghe: bài, nghệ sĩ, số phút, ngày, giờ và app, lưu trong một file nhỏ
+mỗi năm ở `%LOCALAPPDATA%\MusicBar\Stats`. Không gửi đi đâu, tắt được ở **Cài đặt → Giới thiệu**.
+Một bài tính là một lượt sau nửa phút nghe, nghe lặp lại thì tính thêm lượt.
+
+Từ 24/12 tới 7/1, một banner ở góc màn hình mời bạn xem tổng kết năm (một ngày hỏi tối đa một
+lần, tick *Không nhắc lại năm nay* là thôi). Ngoài mùa đó thì xem lúc nào cũng được: chuột phải
+→ *Tổng kết năm âm nhạc*. Tấm card gồm tổng số giờ, top 5 bài, nghệ sĩ ruột, ngày nghe nhiều
+nhất, giờ vàng, chuỗi ngày nghe liên tiếp, app hay dùng, và bạn là kiểu nào: Cú đêm, Chim sớm,
+Dân văn phòng chill, Fan cứng nghe lặp, Thợ săn nhạc mới hay Người nghe đa năng. *Lưu ảnh* ra
+PNG 1080 × 1350 (đúng khổ ảnh dọc của Facebook), *Copy ảnh* để dán thẳng vào bài đăng.
 
 ## Build
 
@@ -209,7 +267,7 @@ C++") cho module taskbar Windows 11.
 ```powershell
 dotnet build src/MusicBar/MusicBar.csproj
 dotnet run --project src/MusicBar -- --demo
-.\installer\build.ps1 -Version 1.3.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
+.\installer\build.ps1 -Version 1.4.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
 ```
 
 ## Bên trong
@@ -220,6 +278,11 @@ src/MusicBar/
   Models/AppSettings.cs         mọi tùy chọn (%LOCALAPPDATA%\MusicBar\settings.json)
   Services/MediaService.cs      theo dõi session, nội suy vị trí phát, điều khiển
   Services/LyricsService.cs     cache .lrc + LRCLIB;  LrcParser.cs đọc LRC
+  Services/TitleCleaner.cs      dọn title YouTube, các cách gọi tên bài để thử dần
+  Services/Romanizer.cs         phiên âm Hàn / Nhật / Trung (pinyin từ dữ liệu Unihan)
+  Services/ListeningStats.cs    đếm giờ nghe cho tổng kết năm;  YearRecap.cs tính tổng kết
+  Services/UpdateService.cs     xem bản mới trên GitHub, tải, kiểm tra SHA-256, cài êm
+  Services/FocusTimer.cs        hẹn giờ Pomodoro;  SystemSense.cs CPU, mạng, pin cho cái mặt
   Services/AudioOutputs.cs      thiết bị phát, âm lượng, đổi loa mặc định
   Services/NotificationFeed.cs  đọc / bỏ thông báo của Windows
   Services/WifiNetworks.cs      quét, kết nối, quên mạng Wi-Fi (wlanapi)
@@ -231,7 +294,10 @@ src/MusicBar/
   Views/LyricsPresenter.cs      lời bài hát và các hiệu ứng;  WordStackPresenter.cs cho taskbar dọc
   Views/TaskbarOverlay.cs       điều phối: xếp lớp, màu, lời, menu
   Views/TaskbarOverlays.cs      một overlay cho mỗi taskbar được chọn
-  Views/Face/                   cái mặt: FaceBrain (tâm trạng), FaceRig (chuyển động), FacePainters (8 kiểu)
+  Views/LyricsPanelWindow       bảng lời cả bài, tìm lyrics bằng tay
+  Views/RecapWindow             card tổng kết năm;  RecapBannerWindow banner cuối năm
+  Views/Face/                   cái mặt: FaceBrain (tâm trạng), FaceRig (chuyển động), FacePainters (8 kiểu),
+                                FaceProps (mũ, kính, mic), FaceSeasons (mũ theo mùa lễ, âm lịch)
 src/MusicBar.TaskbarTap/        module C++ chạy trong Explorer (build bằng MSVC cùng app)
 installer/                      Inno Setup + build.ps1
 promo/                          video giới thiệu (HyperFrames)
@@ -268,6 +334,12 @@ từ ElevenLabs. Muốn dựng lại: vào `promo/`, `npx hyperframes preview`.
   giải mã). Gặp trường lạ là MusicBar không ghi.
 - Click lên taskbar thì Windows kéo taskbar lên trên cùng. MusicBar đặt lại thứ tự ngay, và
   kiểm tra lại mỗi 250 ms.
+- Phiên âm tiếng Trung đọc mỗi chữ một âm cố định, nên chữ đa âm (长, 地, 得, 行…) có lúc đọc
+  sai. Kanji tiếng Nhật cần Windows có cài tiếng Nhật (máy làm app không có, nên phần này mới
+  thử bằng dữ liệu giả).
+- Phần phản ứng với pin chưa thử trên laptop thật (máy thử là máy bàn). Banner tổng kết năm thử
+  bằng `--recap`, chưa có ai chờ tới 24/12 thật.
+- Cập nhật tự động chỉ chạy từ bản 1.4 trở đi: bản cũ hơn không biết đường hỏi GitHub.
 
 ## Cảm ơn
 
@@ -280,7 +352,8 @@ Phông chữ từ [Google Fonts](https://fonts.google.com). Installer dựng b�
 ## License
 
 [MIT](LICENSE). Các phông chữ đi kèm dùng giấy phép SIL Open Font License; bản giấy phép nằm
-trong `Assets/Fonts/licenses` cạnh app.
+trong `Assets/Fonts/licenses` cạnh app. Bảng pinyin lấy từ cơ sở dữ liệu Unihan của Unicode,
+giấy phép Unicode nằm trong `Assets/Data/licenses`.
 
 ## English, briefly
 
@@ -299,9 +372,19 @@ fully usable) and adds:
 - taskbars on any edge (a vertical taskbar gets one word of the lyrics per line), several
   screens with separate choices for the bar and the player, four progress directions, and a
   minimal mode with just the bar (and the lyrics, if you like);
-- a little face from the promo film living on the taskbar, in eight looks: it dances to the
-  music, gets sleepy at night, and giggles, sulks, laughs or gets dizzy when you click, rub or
-  scroll over it;
+- a little face from the promo film living on the taskbar, in eight looks: it sings into its
+  mic, gets sleepy at night, and giggles, sulks, laughs or gets dizzy when you click, rub or
+  scroll over it; it wears hats and glasses (seasonal ones for Tết, Mid-Autumn, Halloween and
+  Christmas), keeps a pomodoro focus timer, sweats when the CPU is busy, panics when the network
+  drops, and goes for a stroll along the empty taskbar;
+- a lyrics panel with the whole song (click a line to play from it, fix the timing, search
+  LRCLIB by hand), romanization of Korean, Japanese and Chinese lyrics, and much better matching
+  of long YouTube titles;
+- a year-in-music recap card (top songs and artists, golden hour, streaks, what kind of
+  listener you are) to save or copy as a 1080 × 1350 picture, offered from Christmas Eve to
+  January 7, counted on your computer only;
+- update notices: from 1.4 on, MusicBar checks GitHub at start and daily, and installs a new
+  release quietly after checking its SHA-256;
 - light and dark backgrounds, following Windows' mode by default.
 
 It follows any app that talks to Windows Media Session (Spotify, browsers, Media Player…).

@@ -15,7 +15,7 @@ public enum LyricsPlacement { LargestGap, BesideCover }
 /// The taskbar background MusicBar paints. Auto follows the Windows taskbar's light or dark mode, so the
 /// taskbar's own icons (black in light mode) stay readable.
 /// </summary>
-public enum BarBackground { Dark, Tinted, Transparent, Light, LightTinted, Auto }
+public enum BarBackground { Dark, Tinted, Transparent, Light, LightTinted, Auto, AutoTinted }
 
 public enum AccentSource { AlbumArt, App, SystemAccent, Custom }
 
@@ -49,6 +49,9 @@ public enum ControlStyle { Glow, Minimal, Capsule, Ring, Vinyl, Keys, Bubbles }
 public enum LyricEffect { SlideUp, Fade, Swipe, Zoom, Words, Typewriter, Ticker, None }
 
 public enum LyricsAlign { Center, Left }
+
+/// <summary>Korean, Japanese and Chinese lyrics in Latin letters on the bar: not at all, under each line, or instead of it.</summary>
+public enum Romanization { Off, Below, Replace }
 
 /// <summary>
 /// Every user-tweakable option. Bound directly by the settings window and
@@ -100,6 +103,26 @@ public sealed class AppSettings : ObservableObject
 
     bool _startWithWindows;
     public bool StartWithWindows { get => _startWithWindows; set => Set(ref _startWithWindows, value); }
+
+    /// <summary>Look for a newer MusicBar on GitHub when it starts (and once a day while it runs).</summary>
+    bool _checkForUpdates = true;
+    public bool CheckForUpdates { get => _checkForUpdates; set => Set(ref _checkForUpdates, value); }
+
+    /// <summary>A release the user chose to skip ("v1.4.0"); newer ones are offered again.</summary>
+    string _skippedVersion = "";
+    public string SkippedVersion { get => _skippedVersion; set => Set(ref _skippedVersion, value ?? ""); }
+
+    /// <summary>Count what is listened to (on this computer only), for the year in music.</summary>
+    bool _keepListeningStats = true;
+    public bool KeepListeningStats { get => _keepListeningStats; set => Set(ref _keepListeningStats, value); }
+
+    /// <summary>The year whose recap the user has seen or turned down; its end-of-year banner stays away.</summary>
+    int _recapDoneYear;
+    public int RecapDoneYear { get => _recapDoneYear; set => Set(ref _recapDoneYear, value); }
+
+    /// <summary>The day the banner last asked ("2026-12-24"): it asks at most once a day.</summary>
+    string _recapAskedOn = "";
+    public string RecapAskedOn { get => _recapAskedOn; set => Set(ref _recapAskedOn, value ?? ""); }
 
     string _pinnedAppId = "";
     public string PinnedAppId { get => _pinnedAppId; set => Set(ref _pinnedAppId, value ?? ""); }
@@ -202,6 +225,37 @@ public sealed class AppSettings : ObservableObject
     bool _faceStaysWhenIdle = true;
     public bool FaceStaysWhenIdle { get => _faceStaysWhenIdle; set => Set(ref _faceStaysWhenIdle, value); }
 
+    Views.Face.FaceHat _faceHat = Views.Face.FaceHat.None;
+    public Views.Face.FaceHat FaceHat { get => _faceHat; set => Set(ref _faceHat, value); }
+
+    Views.Face.FaceGlasses _faceGlasses = Views.Face.FaceGlasses.None;
+    public Views.Face.FaceGlasses FaceGlasses { get => _faceGlasses; set => Set(ref _faceGlasses, value); }
+
+    bool _faceHeadphones;
+    public bool FaceHeadphones { get => _faceHeadphones; set => Set(ref _faceHeadphones, value); }
+
+    /// <summary>A Santa hat at Christmas, apricot blossom at Tết, rabbit ears at Mid-Autumn, a witch hat at Halloween.</summary>
+    bool _faceSeasonal = true;
+    public bool FaceSeasonal { get => _faceSeasonal; set => Set(ref _faceSeasonal, value); }
+
+    /// <summary>Holds a microphone while the music plays.</summary>
+    bool _faceHoldsMic = true;
+    public bool FaceHoldsMic { get => _faceHoldsMic; set => Set(ref _faceHoldsMic, value); }
+
+    /// <summary>Notices the computer: a busy processor, the network dropping, the charger.</summary>
+    bool _faceReactsToSystem = true;
+    public bool FaceReactsToSystem { get => _faceReactsToSystem; set => Set(ref _faceReactsToSystem, value); }
+
+    /// <summary>Wanders along the empty taskbar now and then when nothing is going on.</summary>
+    bool _faceStrolls = true;
+    public bool FaceStrolls { get => _faceStrolls; set => Set(ref _faceStrolls, value); }
+
+    int _focusMinutes = 25;
+    public int FocusMinutes { get => _focusMinutes; set => Set(ref _focusMinutes, Math.Clamp(value, 5, 90)); }
+
+    int _breakMinutes = 5;
+    public int BreakMinutes { get => _breakMinutes; set => Set(ref _breakMinutes, Math.Clamp(value, 1, 30)); }
+
     // ---------- Lyrics ----------
     bool _lyricsEnabled = true;
     public bool LyricsEnabled { get => _lyricsEnabled; set => Set(ref _lyricsEnabled, value); }
@@ -247,6 +301,13 @@ public sealed class AppSettings : ObservableObject
 
     int _lyricsOffsetMs;
     public int LyricsOffsetMs { get => _lyricsOffsetMs; set => Set(ref _lyricsOffsetMs, Math.Clamp(value, -5000, 5000)); }
+
+    Romanization _romanization = Romanization.Off;
+    public Romanization Romanization { get => _romanization; set => Set(ref _romanization, value); }
+
+    /// <summary>The lyrics panel shows the romanization under each line.</summary>
+    bool _lyricsPanelRomanized = true;
+    public bool LyricsPanelRomanized { get => _lyricsPanelRomanized; set => Set(ref _lyricsPanelRomanized, value); }
 
     bool _fetchOnline = true;
     public bool FetchOnline { get => _fetchOnline; set => Set(ref _fetchOnline, value); }

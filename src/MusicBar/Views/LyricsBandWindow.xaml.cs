@@ -59,7 +59,9 @@ public partial class LyricsBandWindow : Window
         Root.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke, lightBar);
         double h = thickness;
         // Stacked words have room for the next line below them; a horizontal strip needs the height.
-        bool twoLine = s.ShowNextLine && (vertical || h >= 40);
+        // Romanization under each line takes the second row even when the next line is not wanted.
+        bool twoLine = (s.ShowNextLine || s.Romanization == Romanization.Below) && (vertical || h >= 40);
+        LineLyrics.ShowsNext = s.ShowNextLine;
         double main = (vertical ? Math.Clamp(h * 0.3, 11, 14) : twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.45, 12, 16)) * s.LyricScale;
         double sub = (vertical ? 11 : Math.Clamp(h * 0.22, 10, 12)) * s.LyricScale;
         LyricsView.Configure(s.LyricEffect, s.Karaoke, twoLine, FontFamily,

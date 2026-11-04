@@ -490,6 +490,50 @@
                         <v:SettingCard Glyph="&#xE962;" Header="{l:Tr Set_FacePointer}" Description="{l:Tr Set_FacePointer_Desc}">
                             <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceWatchesPointer}" />
                         </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE7F4;" Header="{l:Tr Set_FaceSystem}" Description="{l:Tr Set_FaceSystem_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceReactsToSystem}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE805;" Header="{l:Tr Set_FaceStroll}" Description="{l:Tr Set_FaceStroll_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceStrolls}" />
+                        </v:SettingCard>
+
+                        <TextBlock Text="{l:Tr Set_Face_GroupWear}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE7BE;" Header="{l:Tr Set_FaceHat}" Description="{l:Tr Set_FaceHat_Desc}">
+                            <ComboBox MinWidth="200" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      ItemsSource="{x:Static v:SettingsOptions.FaceHats}" SelectedValue="{Binding FaceHat}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE7B3;" Header="{l:Tr Set_FaceGlasses}">
+                            <ComboBox MinWidth="200" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      ItemsSource="{x:Static v:SettingsOptions.FaceGlasses}" SelectedValue="{Binding FaceGlasses}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE7F6;" Header="{l:Tr Set_FaceHeadphones}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceHeadphones}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE720;" Header="{l:Tr Set_FaceMic}" Description="{l:Tr Set_FaceMic_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceHoldsMic}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE787;" Header="{l:Tr Set_FaceSeasonal}" Description="{l:Tr Set_FaceSeasonal_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FaceSeasonal}" />
+                        </v:SettingCard>
+
+                        <TextBlock Text="{l:Tr Set_Face_GroupFocus}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE916;" Header="{l:Tr Set_FocusMinutes}" Description="{l:Tr Set_FocusMinutes_Desc}">
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Width="220" Minimum="5" Maximum="90" SmallChange="5" LargeChange="5" TickFrequency="5" IsSnapToTickEnabled="True"
+                                        Value="{Binding FocusMinutes}" VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Value}" Text="{Binding FocusMinutes, StringFormat={}{0} min}" />
+                            </StackPanel>
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE76E;" Header="{l:Tr Set_BreakMinutes}" Description="{l:Tr Set_BreakMinutes_Desc}">
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Width="220" Minimum="1" Maximum="30" SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                        Value="{Binding BreakMinutes}" VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Value}" Text="{Binding BreakMinutes, StringFormat={}{0} min}" />
+                            </StackPanel>
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_FocusStart}" Description="{l:Tr Set_FocusStart_Desc}">
+                            <Button x:Name="FocusButton" Padding="14,5" Click="Focus_Click" />
+                        </v:SettingCard>
 
                         <TextBlock Text="{l:Tr Set_Face_GroupPlay}" Style="{StaticResource Group}" />
                         <v:SettingCard Glyph="&#xE815;" Header="{l:Tr Set_Face_Poke}" Description="{l:Tr Set_Face_Poke_Desc}" />
@@ -609,6 +653,11 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding LyricsOffsetMs, StringFormat={}{0:+0;-0;0} ms}" />
                         </StackPanel>
                     </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8C1;" Header="{l:Tr Set_Romanization}" Description="{l:Tr Set_Romanization_Desc}">
+                        <ComboBox MinWidth="200" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.Romanizations}" SelectedValue="{Binding Romanization}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8BC;" Header="{l:Tr Set_LyricsPanel}" Description="{l:Tr Set_LyricsPanel_Desc}" />
 
                     <TextBlock Text="{l:Tr Set_Lyr_GroupText}" Style="{StaticResource Group}" />
                     <v:SettingCard Glyph="&#xE8D2;" Header="{l:Tr Set_Font}"
@@ -756,6 +805,22 @@
                     <v:SettingCard Glyph="&#xE712;" Header="{l:Tr Set_Tip_RightClick}"
                                    Description="{l:Tr Set_Tip_RightClick_Desc}" />
                     <v:SettingCard Glyph="&#xE8A7;" Header="{l:Tr Set_Tip_ClickCover}" Description="{l:Tr Set_Tip_ClickCover_Desc}" />
+
+                    <TextBlock Text="{l:Tr Set_About_GroupUpdates}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE895;" Header="{l:Tr Set_CheckUpdates}" Description="{l:Tr Set_CheckUpdates_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding CheckForUpdates}" />
+                    </v:SettingCard>
+                    <v:SettingCard x:Name="UpdateCard" Glyph="&#xE72C;" Header="{l:Tr Set_CheckNow}">
+                        <Button x:Name="CheckNowButton" Content="{l:Tr Set_CheckNowButton}" Padding="14,5" Click="CheckNow_Click" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="{l:Tr Set_About_GroupRecap}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE9D2;" Header="{l:Tr Set_KeepStats}" Description="{l:Tr Set_KeepStats_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding KeepListeningStats}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE734;" Header="{l:Tr Set_Recap}" Description="{l:Tr Set_Recap_Desc}">
+                        <Button Content="{l:Tr Set_RecapButton}" Padding="14,5" Click="Recap_Click" />
+                    </v:SettingCard>
 
                     <TextBlock Text="{l:Tr Set_About_GroupData}" Style="{StaticResource Group}" />
                     <v:SettingCard Glyph="&#xE8B7;" Header="{l:Tr Set_DataFolder}" Description="{l:Tr Set_DataFolder_Desc}">

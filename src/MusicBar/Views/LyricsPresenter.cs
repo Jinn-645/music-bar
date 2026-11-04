@@ -124,6 +124,9 @@ public sealed class LyricsPresenter : Grid, ILyricsView
 
     public bool HasLyrics => _lyrics != null;
 
+    /// <summary>The second row shows the next line (when the lyrics bring no line of their own for it, see <see cref="SyncedLyrics.HasSubs"/>).</summary>
+    public bool ShowsNext { get; set; } = true;
+
     /// <summary>
     /// Where lyric text is drawn right now, in this element's coordinates (the current
     /// line, the next one, and lines still animating out), or null when nothing shows.
@@ -401,9 +404,10 @@ public sealed class LyricsPresenter : Grid, ILyricsView
         if (_twoLine)
         {
             int ni = NextNonBlank(index + 1);
-            if (ni >= 0)
+            string? subText = _lyrics.HasSubs ? line.Sub : ni >= 0 && ShowsNext ? lines[ni].Text : null;
+            if (!string.IsNullOrEmpty(subText))
             {
-                var sub = MakeText(lines[ni].Text, _subSize, FontWeights.Normal);
+                var sub = MakeText(subText, _subSize, FontWeights.Normal);
                 sub.Foreground = SubBrush;
                 stack.Children.Add(new LineView(sub, _align) { Margin = new Thickness(0, 1, 0, 0) });
             }

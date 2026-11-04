@@ -29,6 +29,13 @@ public partial class App : Application
     TaskbarOverlays? _bars;
     SettingsWindow? _settingsWindow;
     TrayIcon? _tray;
+    UpdateService? _updates;
+    UpdateWindow? _updateWindow;
+    System.Windows.Threading.DispatcherTimer? _updateTimer;
+    ListeningStats? _stats;
+    RecapWindow? _recapWindow;
+    RecapBannerWindow? _recapBanner;
+    System.Windows.Threading.DispatcherTimer? _recapTimer;
 
     public static App Instance => (App)Current;
 
@@ -116,9 +123,108 @@ public partial class App : Application
 
         if (e.Args.Any(a => a.Equals("--demo", StringComparison.OrdinalIgnoreCase))) _media.StartDemo();
         else await _media.InitializeAsync();
+        _stats = new ListeningStats(settings, _media);
 
         if (_settings.IsFirstRun || e.Args.Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
             ShowSettings();
+        StartUpdateChecks(settings);
+        StartRecapChecks(settings, now: e.Args.Any(a => a.Equals("--recap", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// From Christmas Eve to the 7th of January, a banner offers the year's recap, at most once a
+    /// day, until it is opened or turned down for the year. <paramref name="now"/> (the --recap
+    /// switch) shows it straight away whatever the date.
+    /// </summary>
+    void StartRecapChecks(AppSettings settings, bool now)
+    {
+        void Check(bool forced)
+        {
+            if (_stats == null || _exiting || _recapBanner != null || _recapWindow != null) return;
+            var today = DateTime.Now;
+            int year = YearRecap.SeasonYear(today);
+            if (!forced && (!settings.KeepListeningStats || !YearRecap.InSeason(today) || settings.RecapDoneYear == year
+                || settings.RecapAskedOn == today.ToString("yyyy-MM-dd"))) return;
+            var recap = YearRecap.From(_stats.Year(year));
+            if (!forced && !recap.Worthwhile) return;
+            settings.RecapAskedOn = today.ToString("yyyy-MM-dd");
+            Log.Info($"Offering the {year} recap ({recap.Minutes:0} min)");
+            var accent = Overlay?.PreviewPalette()?.Primary ?? ColorUtil.Brand;
+            _recapBanner = new RecapBannerWindow(recap, settings, accent);
+            _recapBanner.OpenRequested += () => ShowRecap(year);
+            _recapBanner.Closed += (_, _) => _recapBanner = null;
+            _recapBanner.Show();
+        }
+
+        var first = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(now ? 3 : 40) };
+        first.Tick += (_, _) =>
+        {
+            first.Stop();
+            Check(now);
+        };
+        first.Start();
+        _recapTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromHours(1) };
+        _recapTimer.Tick += (_, _) => Check(false);
+        _recapTimer.Start();
+    }
+
+    /// <summary>The year in music (the season's year at the end of the year, this year otherwise).</summary>
+    public void ShowRecap(int? year = null)
+    {
+        if (_stats == null || _settings == null || _exiting) return;
+        if (_recapWindow != null)
+        {
+            _recapWindow.Activate();
+            return;
+        }
+        var today = DateTime.Now;
+        int y = year ?? (YearRecap.InSeason(today) ? YearRecap.SeasonYear(today) : today.Year);
+        _stats.Save();
+        var accent = Overlay?.PreviewPalette()?.Primary ?? ColorUtil.Brand;
+        _recapWindow = new RecapWindow(YearRecap.From(_stats.Year(y)), _settings.Current, accent);
+        _recapWindow.Closed += (_, _) => _recapWindow = null;
+        _recapWindow.Show();
+        _recapWindow.Activate();
+    }
+
+    /// <summary>A while after startup (starting with Windows, the network may still be waking up), then once a day.</summary>
+    void StartUpdateChecks(AppSettings settings)
+    {
+        _updates = new UpdateService(settings);
+        var first = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        first.Tick += (_, _) =>
+        {
+            first.Stop();
+            _ = CheckForUpdatesAsync(manual: false);
+        };
+        first.Start();
+        _updateTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromHours(24) };
+        _updateTimer.Tick += (_, _) => _ = CheckForUpdatesAsync(manual: false);
+        _updateTimer.Start();
+    }
+
+    /// <summary>
+    /// Looks for a newer release on GitHub and offers it, unless the user skipped that one; a check
+    /// by hand offers it anyway. Returns the newer release, or null when there is none.
+    /// </summary>
+    public async Task<ReleaseInfo?> CheckForUpdatesAsync(bool manual)
+    {
+        if (_updates == null || _settings == null || _exiting) return null;
+        var settings = _settings.Current;
+        if (!manual && !settings.CheckForUpdates) return null;
+        var release = await _updates.CheckAsync(CancellationToken.None);
+        if (release == null || _exiting) return release;
+        if (!manual && release.Tag == settings.SkippedVersion) return release;
+        if (_updateWindow != null)
+        {
+            _updateWindow.Activate();
+            return release;
+        }
+        var accent = Overlay?.PreviewPalette()?.Primary ?? ColorUtil.Brand;
+        _updateWindow = new UpdateWindow(_updates, release, settings, accent);
+        _updateWindow.Closed += (_, _) => _updateWindow = null;
+        _updateWindow.Show();
+        return release;
     }
 
     /// <param name="page">A page to open on (its place in the navigation list), or null to keep the one shown.</param>
@@ -167,6 +273,12 @@ public partial class App : Application
     {
         _exiting = true;
         _settings?.SaveNow();
+        _updateTimer?.Stop();
+        _updateWindow?.Close();
+        _recapTimer?.Stop();
+        _recapBanner?.Close();
+        _recapWindow?.Close();
+        _stats?.Dispose();
         _settingsWindow?.Close();
         _bars?.Dispose();
         _tray?.Dispose();
@@ -177,6 +289,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _stats?.Dispose();
         _tray?.Dispose();
         _settings?.SaveNow();
         if (_ownsMutex)

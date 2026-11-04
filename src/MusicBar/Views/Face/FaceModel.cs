@@ -74,6 +74,64 @@ public enum FaceExtras
     Exclaim = 128,
     /// <summary>Tears running down from the eyes: crying, or laughing to tears.</summary>
     Tears = 256,
+    /// <summary>A small lightning bolt: the laptop was plugged in.</summary>
+    Bolt = 512,
+    /// <summary>Wi-Fi arcs struck through: the network is gone.</summary>
+    NoSignal = 1024,
+    /// <summary>A glass of water: time to drink something.</summary>
+    Water = 2048,
+    /// <summary>Steam puffing off the top of the head: the computer is working hard.</summary>
+    Steam = 4096,
+}
+
+/// <summary>What the face wears on its head. One at a time; seasonal ones come and go by the date.</summary>
+public enum FaceHat
+{
+    None,
+    /// <summary>A baseball cap in the song's color.</summary>
+    Cap,
+    /// <summary>A knitted beanie with a pom-pom.</summary>
+    Beanie,
+    /// <summary>A small gold crown.</summary>
+    Crown,
+    /// <summary>Christmas: a Santa hat.</summary>
+    Santa,
+    /// <summary>Halloween: a pointed witch hat.</summary>
+    Witch,
+    /// <summary>Mid-Autumn: jade rabbit ears.</summary>
+    Bunny,
+    /// <summary>Lunar New Year: a sprig of yellow apricot blossom (hoa mai) tucked on the head.</summary>
+    Mai,
+}
+
+public enum FaceGlasses
+{
+    None,
+    /// <summary>Thin round frames.</summary>
+    Round,
+    /// <summary>Dark sunglasses.</summary>
+    Shades,
+    /// <summary>The pixelated "deal with it" shades.</summary>
+    Pixel,
+}
+
+/// <summary>What the face wears and holds, drawn over its set's own features.</summary>
+public readonly record struct FaceOutfit
+{
+    public FaceHat Hat { get; init; }
+
+    public FaceGlasses Glasses { get; init; }
+
+    public bool Headphones { get; init; }
+
+    /// <summary>How far the microphone has come in: 0 gone, 1 held. A spring drives it, so it overshoots a little.</summary>
+    public double Mic { get; init; }
+
+    /// <summary>The focus timer: how much of the current stretch is still to go (1 just started, 0 over), or null when none runs.</summary>
+    public double? Timer { get; init; }
+
+    /// <summary>The timer is counting down a break rather than focus time.</summary>
+    public bool TimerBreak { get; init; }
 }
 
 /// <summary>

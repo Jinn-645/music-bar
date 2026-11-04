@@ -14,7 +14,7 @@
     <RootNamespace>MusicBar</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\MusicBar.ico</ApplicationIcon>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <Product>MusicBar</Product>
     <Description>Full-width music bar with seekbar and synced lyrics</Description>
     <!-- WPF0001: Fluent ThemeMode is still flagged experimental.
@@ -27,6 +27,9 @@
     <!-- Free OFL fonts with Vietnamese support; their licenses ship next to the app. -->
     <Resource Include="Assets\Fonts\*.ttf" />
     <None Include="Assets\Fonts\licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Pinyin readings for the romanizer, from the Unicode Unihan database (kMandarin); its license ships too. -->
+    <EmbeddedResource Include="Assets\Data\pinyin.txt.gz" LogicalName="MusicBar.pinyin.txt.gz" />
+    <None Include="Assets\Data\licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The native module that clears the Windows 11 taskbar's XAML background from inside

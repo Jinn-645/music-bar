@@ -32,7 +32,12 @@ public sealed class FaceView : FrameworkElement
     int _wiggleDirection;
     double _wiggleDistance;
 
-    public FaceView(int seed = 0)
+    /// <summary>For XAML: a face with a seed of its own.</summary>
+    public FaceView() : this(Environment.TickCount)
+    {
+    }
+
+    public FaceView(int seed)
     {
         Brain = new FaceBrain(_rig, seed);
         Focusable = false;
@@ -45,6 +50,9 @@ public sealed class FaceView : FrameworkElement
 
     /// <summary>Lines drawn straight on the taskbar: near-white, or near-black on a light taskbar.</summary>
     public Color Ink { get; set; } = Color.FromRgb(0xFF, 0xFD, 0xF6);
+
+    /// <summary>Hat, glasses, headphones and the focus timer; the mic follows the brain (<see cref="FaceBrain.Singing"/>).</summary>
+    public FaceOutfit Outfit { get; set; }
 
     /// <summary>Clicks, rubs and the scroll wheel reach the brain (off for previews that only watch).</summary>
     public bool Touchable { get; set; } = true;
@@ -93,7 +101,10 @@ public sealed class FaceView : FrameworkElement
         m.Translate((w - 100 * unit) / 2, (h - 72 * unit) / 2);
         dc.PushTransform(new MatrixTransform(m));
         var frame = _rig.Frame(now, Accent, Ink, _level);
+        var outfit = Outfit with { Mic = _rig.MicAmount };
+        FaceProps.DrawBehind(dc, _style, frame, outfit);
         _painter.Draw(dc, frame);
+        FaceProps.DrawFront(dc, _style, frame, outfit);
         FacePainters.DrawExtras(dc, frame);
         dc.Pop();
     }

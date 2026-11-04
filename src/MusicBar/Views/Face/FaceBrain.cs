@@ -8,7 +8,14 @@ namespace MusicBar.Views.Face;
 /// <param name="Level">Music loudness 0 to 1, or -1 when there is no live audio to listen to.</param>
 /// <param name="Pointer">Where the mouse pointer is from the face's center, in face widths; null when it isn't watched or is far away.</param>
 public readonly record struct FaceSenses(
-    DateTime Clock, bool HasSession, bool Playing, double Level, TimeSpan UserIdle, Vector? Pointer, bool Hovered);
+    DateTime Clock, bool HasSession, bool Playing, double Level, TimeSpan UserIdle, Vector? Pointer, bool Hovered)
+{
+    /// <summary>The computer (processor, network, charger), when the face is allowed to notice it.</summary>
+    public Services.SystemState? System { get; init; }
+
+    /// <summary>The focus timer's phase.</summary>
+    public Services.FocusPhase Focus { get; init; }
+}
 
 /// <summary>
 /// Decides what the face does. A mood sets its resting expression from what is going on (music
@@ -58,6 +65,16 @@ public sealed class FaceBrain
     double _demoNext;
     int _demoStep;
 
+    // The computer.
+    bool? _online, _charging;
+    double _cpu, _hotSince = -1, _nextSteam;
+    bool _hot;
+    int _battery = -1;
+
+    // Strolling along the taskbar.
+    double _walk, _nextStroll = 60, _stepAt;
+    Services.FocusPhase _focus;
+
     public FaceBrain(FaceRig rig, int seed)
     {
         _rig = rig;
@@ -69,6 +86,42 @@ public sealed class FaceBrain
     public bool FollowsClock { get; set; } = true;
 
     public bool ReactsToMusic { get; set; } = true;
+
+    /// <summary>Picks up the microphone while it sings along, as in the promo film.</summary>
+    public bool HoldsMic { get; set; } = true;
+
+    /// <summary>Singing along to the music right now.</summary>
+    public bool Singing => _mood == Mood.Vibing;
+
+    /// <summary>
+    /// Bored enough for a stroll along the taskbar: nothing playing, nothing going on, nobody
+    /// touching it, and a while since the last one. The window does the walking.
+    /// </summary>
+    public bool WantsStroll(double now) => !Demo && now >= _nextStroll && _act == null && _walk == 0
+        && _mood is Mood.Idle or Mood.Bored or Mood.Waiting && _rub < 0.05 && _dizzy < 0.05 && _focus != Services.FocusPhase.Focus;
+
+    /// <summary>The window is carrying it along: -1 toward the start of the taskbar, 1 toward the end, 0 standing.</summary>
+    public void Walking(double now, double direction)
+    {
+        if (direction == 0 && _walk != 0) _nextStroll = now + 90 + _rng.NextDouble() * 150;
+        _walk = direction;
+    }
+
+    /// <summary>Its stroll was cut short (music, a poke): no new one for a good while.</summary>
+    public void StrollOver(double now) => _nextStroll = Math.Max(_nextStroll, now + 120);
+
+    /// <summary>The focus timer moved on: a determined look, a stretch and a drink, or back to work.</summary>
+    public void FocusChanged(double now, Services.FocusPhase from, Services.FocusPhase to)
+    {
+        _focus = to;
+        if (Demo) return;
+        if (_mood == Mood.Asleep) _mood = Mood.Idle;
+        switch (to)
+        {
+            case Services.FocusPhase.Focus: Play(from == Services.FocusPhase.Break ? Chime() : GetToWork(), now); break;
+            case Services.FocusPhase.Break: Play(Stretch(then: Drink), now); break;
+        }
+    }
 
     /// <summary>A preview (the settings page): runs through its expressions on its own, ignoring the world.</summary>
     public bool Demo { get; set; }
@@ -113,6 +166,8 @@ public sealed class FaceBrain
     /// <summary>Changes in the world: music starting or stopping, the user leaving or coming back, the clock.</summary>
     void Notice(double now, FaceSenses s)
     {
+        _focus = s.Focus;
+        NoticeComputer(now, s);
         bool playing = s.Playing && s.HasSession;
         if (playing && !_wasPlaying)
         {
@@ -182,6 +237,7 @@ public sealed class FaceBrain
         r.Pupil = 1;
         r.Blush = 0.12;
         r.Lean = 0;
+        r.Mic = HoldsMic && _mood == Mood.Vibing;
         double lid = 0.05 + sleepy * 0.42;
 
         // Eyes follow the pointer when it is near; otherwise they wander now and then.
@@ -227,6 +283,8 @@ public sealed class FaceBrain
                 break;
         }
         r.LidLeft = r.LidRight = Math.Clamp(lid, 0, 1);
+        RestBusy(now);
+        RestComputer(now);
     }
 
     /// <summary>0 awake to 1 dead tired, by the clock.</summary>
@@ -607,7 +665,9 @@ public sealed class FaceBrain
         Then = then,
     };
 
-    Act Stretch() => new()
+    Act Stretch() => Stretch(null);
+
+    Act Stretch(Func<Act?>? then) => new()
     {
         Name = "stretch", Length = 1.5, Priority = 1,
         Start = (now, _) => { _rig.Squash(2.2); _rig.Hop(0.8); },
@@ -617,7 +677,179 @@ public sealed class FaceBrain
             _rig.Mouth = MouthShape.Grin;
             _rig.Extras |= FaceExtras.Sparkle;
         },
+        Then = then,
     };
+
+    // ------------------------------------------------------------------ focus timer
+
+    /// <summary>A focus round begins: eyes narrowed, a confident grin, a little hop.</summary>
+    Act GetToWork() => new()
+    {
+        Name = "get to work", Length = 1.6, Priority = 2,
+        Start = (now, _) => { _rig.Hop(1.2); _rig.Squash(-1.2); },
+        Pose = (p, _) =>
+        {
+            _rig.LidLeft = _rig.LidRight = 0.3;
+            _rig.Brows = -0.5;
+            _rig.Mouth = MouthShape.Grin;
+            _rig.Extras |= FaceExtras.Sparkle;
+        },
+    };
+
+    /// <summary>On a break: a long, happy drink of water.</summary>
+    Act Drink() => new()
+    {
+        Name = "drink", Length = 3.2, Priority = 1,
+        Pose = (p, t) =>
+        {
+            _rig.Eyes = p < 0.75 ? EyeShape.Happy : EyeShape.Open;
+            _rig.Mouth = p < 0.75 ? MouthShape.O : MouthShape.Smile;
+            _rig.Open = 0.25 + 0.1 * Math.Sin(t * 9);
+            _rig.Lean = -6;
+            _rig.Blush = 0.4;
+            _rig.Extras |= FaceExtras.Water;
+        },
+    };
+
+    // ------------------------------------------------------------------ the computer
+
+    /// <summary>The network, the charger and the processor, as they change.</summary>
+    void NoticeComputer(double now, FaceSenses s)
+    {
+        if (s.System is not { } sys)
+        {
+            _online = _charging = null;
+            _hot = false;
+            _hotSince = -1;
+            return;
+        }
+        if (_online is { } wasOnline && sys.Online is { } online && online != wasOnline)
+            Play(online ? Reconnected() : Disconnected(), now);
+        _online = sys.Online;
+        if (_charging == false && sys.Charging == true) Play(Charged(), now);
+        _charging = sys.Charging;
+        _battery = sys.Battery;
+
+        // Busy for a while before it counts, and calm for a while before it's over.
+        _cpu = sys.Cpu;
+        if (_cpu >= 0.85) { if (_hotSince < 0) _hotSince = now; }
+        else if (_cpu < 0.6) _hotSince = -1;
+        bool hot = _hotSince >= 0 && now - _hotSince > 8;
+        if (hot && !_hot) Play(Overheat(), now);
+        _hot = hot;
+    }
+
+    Act Disconnected() => new()
+    {
+        Name = "offline", Length = 2.6, Priority = 2,
+        Start = (now, _) => { _rig.Hop(1.8); _rig.Shake(now, 0.5, 0.025); },
+        Pose = (p, _) =>
+        {
+            _rig.Eyes = p < 0.35 ? EyeShape.Wide : EyeShape.Teary;
+            _rig.Pupil = 0.7;
+            _rig.Brows = 0.8;
+            _rig.Mouth = p < 0.35 ? MouthShape.O : MouthShape.Wavy;
+            _rig.Open = 0.7;
+            _rig.Extras |= FaceExtras.NoSignal | (p < 0.35 ? FaceExtras.Exclaim : FaceExtras.Sweat);
+        },
+    };
+
+    Act Reconnected() => new()
+    {
+        Name = "online", Length = 1.4, Priority = 2,
+        Start = (now, _) => { _rig.Hop(2); _rig.Squash(-1.5); },
+        Pose = (p, _) =>
+        {
+            _rig.Eyes = EyeShape.Happy;
+            _rig.Mouth = MouthShape.Open;
+            _rig.Open = 0.6;
+            _rig.Extras |= FaceExtras.Sparkle;
+        },
+    };
+
+    Act Charged() => new()
+    {
+        Name = "charging", Length = 1.8, Priority = 2,
+        Start = (now, _) => { _rig.Hop(2.2); _rig.Shake(now, 0.3, 0.02); },
+        Pose = (p, _) =>
+        {
+            _rig.Eyes = EyeShape.Star;
+            _rig.Mouth = MouthShape.Open;
+            _rig.Open = 0.7;
+            _rig.Blush = 0.5;
+            _rig.Extras |= FaceExtras.Bolt;
+        },
+    };
+
+    Act Overheat() => new()
+    {
+        Name = "overheat", Length = 2.4, Priority = 2,
+        Start = (now, _) => _rig.Shake(now, 0.8, 0.02),
+        Pose = (p, _) =>
+        {
+            _rig.Eyes = EyeShape.Squeeze;
+            _rig.Mouth = MouthShape.Wavy;
+            _rig.Brows = 0.6;
+            _rig.Blush = 0.9;
+            _rig.Extras |= FaceExtras.Steam | FaceExtras.Sweat;
+        },
+    };
+
+    /// <summary>The computer's state on the resting face: worried while offline, panting while the processor is busy, droopy on a low battery.</summary>
+    void RestComputer(double now)
+    {
+        var r = _rig;
+        if (_online == false && _mood != Mood.Asleep)
+        {
+            r.Brows = Math.Max(r.Brows, 0.45);
+            if (now % 12 < 3) r.Extras |= FaceExtras.NoSignal;
+        }
+        if (_hot && _mood != Mood.Asleep)
+        {
+            r.Blush = Math.Max(r.Blush, 0.6);
+            r.Extras |= FaceExtras.Sweat;
+            if (now >= _nextSteam - 2.5) r.Extras |= FaceExtras.Steam;
+            if (now >= _nextSteam) _nextSteam = now + 7 + _rng.NextDouble() * 5;
+            if (_mood != Mood.Vibing)
+            {
+                r.Mouth = MouthShape.Tongue;
+                r.LidLeft = r.LidRight = Math.Max(r.LidLeft, 0.3);
+            }
+        }
+        if (_charging == false && _battery is >= 0 and <= 15 && _mood != Mood.Asleep)
+        {
+            r.LidLeft = r.LidRight = Math.Max(r.LidLeft, 0.45);
+            r.Brows = Math.Max(r.Brows, 0.3);
+            if (_mood != Mood.Vibing) r.Mouth = MouthShape.Flat;
+        }
+    }
+
+    /// <summary>The focus timer and strolling on the resting face.</summary>
+    void RestBusy(double now)
+    {
+        var r = _rig;
+        if (_focus == Services.FocusPhase.Focus && _mood is Mood.Idle or Mood.Bored)
+        {
+            // Concentrating: lids a little down, brows set, a straight mouth, eyes on the work.
+            r.LidLeft = r.LidRight = 0.22;
+            r.Brows = -0.25;
+            r.Mouth = MouthShape.Flat;
+            r.Look = new Vector(r.Look.X * 0.4, 0.45);
+        }
+        if (_walk == 0) return;
+        r.Lean = _walk * 7;
+        r.Look = new Vector(_walk * 0.9, 0.05);
+        r.Mouth = MouthShape.O;
+        r.Open = 0.18;
+        if (now % 6 < 3) r.Extras |= FaceExtras.Notes;
+        // A little hop for every step.
+        if (now >= _stepAt)
+        {
+            _stepAt = now + 0.34;
+            r.Hop(0.55);
+            r.Squash(-0.5);
+        }
+    }
 
     Act Smile() => new()
     {

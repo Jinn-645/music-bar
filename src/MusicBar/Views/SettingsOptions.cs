@@ -60,6 +60,7 @@ public static class SettingsOptions
     public static IReadOnlyList<Option> Backgrounds { get; } =
     [
         new(BarBackground.Auto, "Opt_Bg_Auto"),
+        new(BarBackground.AutoTinted, "Opt_Bg_AutoTinted"),
         new(BarBackground.Dark, "Opt_Bg_Dark"),
         new(BarBackground.Tinted, "Opt_Bg_Tinted"),
         new(BarBackground.Light, "Opt_Bg_Light"),
@@ -96,6 +97,33 @@ public static class SettingsOptions
         new(FacePlacement.Start, "Opt_Face_Start"),
         new(FacePlacement.BeforeIcons, "Opt_Face_BeforeIcons"),
         new(FacePlacement.AfterIcons, "Opt_Face_AfterIcons"),
+    ];
+
+    public static IReadOnlyList<Option> FaceHats { get; } =
+    [
+        new(Face.FaceHat.None, "Opt_Hat_None"),
+        new(Face.FaceHat.Cap, "Opt_Hat_Cap"),
+        new(Face.FaceHat.Beanie, "Opt_Hat_Beanie"),
+        new(Face.FaceHat.Crown, "Opt_Hat_Crown"),
+        new(Face.FaceHat.Santa, "Opt_Hat_Santa"),
+        new(Face.FaceHat.Witch, "Opt_Hat_Witch"),
+        new(Face.FaceHat.Bunny, "Opt_Hat_Bunny"),
+        new(Face.FaceHat.Mai, "Opt_Hat_Mai"),
+    ];
+
+    public static IReadOnlyList<Option> FaceGlasses { get; } =
+    [
+        new(Face.FaceGlasses.None, "Opt_Glasses_None"),
+        new(Face.FaceGlasses.Round, "Opt_Glasses_Round"),
+        new(Face.FaceGlasses.Shades, "Opt_Glasses_Shades"),
+        new(Face.FaceGlasses.Pixel, "Opt_Glasses_Pixel"),
+    ];
+
+    public static IReadOnlyList<Option> Romanizations { get; } =
+    [
+        new(Romanization.Off, "Opt_Roman_Off"),
+        new(Romanization.Below, "Opt_Roman_Below"),
+        new(Romanization.Replace, "Opt_Roman_Replace"),
     ];
 
     public static IReadOnlyList<Option> PlayerModes { get; } =
