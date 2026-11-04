@@ -11,6 +11,8 @@
 
     <Window.Resources>
         <SolidColorBrush x:Key="Accent" Color="#FFFF6B6B" />
+        <!-- Text and ticks drawn on the accent: dark on a light accent, white on a deep one. -->
+        <SolidColorBrush x:Key="OnAccent" Color="#FF101014" />
         <SolidColorBrush x:Key="CardBackground" Color="#F5141418" />
         <SolidColorBrush x:Key="CardBorder" Color="#24FFFFFF" />
 
@@ -197,6 +199,161 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- One half of a split tile (Wi-Fi, Bluetooth): the tile behind carries the color, this only the
+             hover. Tag holds the CornerRadius of its side. -->
+        <Style x:Key="TilePart" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="#01FFFFFF">
+                            <Border x:Name="Hover" Background="White" Opacity="0"
+                                    CornerRadius="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Hover" Property="Opacity" Value="0.08" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Hover" Property="Opacity" Value="0.03" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Buttons inside the side lists: the main action in the accent, the others quiet. -->
+        <Style x:Key="AccentButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="Body">
+                            <Border CornerRadius="7" Background="{DynamicResource Accent}" />
+                            <Border x:Name="Hover" CornerRadius="7" Background="White" Opacity="0" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Hover" Property="Opacity" Value="0.14" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Hover" Property="Opacity" Value="0.05" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Body" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SoftButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="7" Background="#1AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#29FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Text fields (network key, user name, PIN): dark, outlined in the accent while typing. -->
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="CaretBrush" Value="White" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource Accent}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,7" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" CornerRadius="7" Background="#14FFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="KeyField" TargetType="PasswordBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="CaretBrush" Value="White" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource Accent}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,7" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Bd" CornerRadius="7" Background="#14FFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Check" TargetType="CheckBox">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Box" Width="18" Height="18" CornerRadius="4" BorderThickness="1"
+                                    BorderBrush="#80FFFFFF" Background="#0AFFFFFF">
+                                <TextBlock x:Name="Tick" Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                           Foreground="{DynamicResource OnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource Accent}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- The outer margin leaves room for the shadows. -->
@@ -207,16 +364,26 @@
             <ColumnDefinition Width="372" />
         </Grid.ColumnDefinitions>
 
-        <!-- Lists (playback devices, display modes, wireless displays) slide out to the
-             left of the controls instead of replacing them with a sub-page. -->
+        <!-- Lists (playback devices, display modes, wireless displays) slide out beside the
+             controls instead of replacing them with a sub-page: to their left, or to their
+             right beside a taskbar on the screen's left (Mirror swaps the columns). -->
         <Border x:Name="Side" Style="{StaticResource Card}" VerticalAlignment="Bottom"
                 Opacity="0" IsHitTestVisible="False">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="SideShift" X="28" />
             </Border.RenderTransform>
             <StackPanel Margin="6,8,6,6">
-                <TextBlock x:Name="SideTitle" FontSize="13" FontWeight="SemiBold" Margin="10,4,10,8" />
-                <StackPanel x:Name="SideList" />
+                <Grid Margin="10,4,2,8" MinHeight="22">
+                    <TextBlock x:Name="SideTitle" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <!-- Header tools, such as "look again". -->
+                    <StackPanel x:Name="SideTools" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <ScrollViewer x:Name="SideScroll" MaxHeight="430" VerticalScrollBarVisibility="Hidden"
+                              HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <StackPanel x:Name="SideList" />
+                </ScrollViewer>
+                <!-- A link to the matching Windows settings page. -->
+                <StackPanel x:Name="SideFooter" />
             </StackPanel>
         </Border>
 

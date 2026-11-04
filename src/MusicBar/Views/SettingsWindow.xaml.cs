@@ -38,7 +38,7 @@ public partial class SettingsWindow : Window
         _lyrics = lyrics;
         InitializeComponent();
         DataContext = settings;
-        _pages = [PageBar, PageLook, PageLyrics, PageAbout];
+        _pages = [PageGeneral, PageBar, PagePlayer, PageProgress, PageLyrics, PageAbout];
 
         var version = Loc.T("Set_Version", Assembly.GetExecutingAssembly().GetName().Version?.ToString(3));
         VersionText.Text = version;
@@ -50,6 +50,8 @@ public partial class SettingsWindow : Window
         RefreshLyricsInfo();
         RefreshLayerStatus();
         RefreshTaskbarTweaks(pendingRestart: false);
+        RefreshDisplays();
+        PlayerParts.IsEnabled = settings.PlayerMode == PlayerMode.Full;
         BuildSeekGallery();
         CompositionTarget.Rendering += OnPreviewFrame;
         UpdateNowPlaying();
@@ -67,8 +69,78 @@ public partial class SettingsWindow : Window
         };
     }
 
+    // ------------------------------------------------------------------ screens
+
+    sealed record DisplayChoice(DisplayTarget Target, string Device, string Label);
+
+    sealed record PlayerChoice(PlayerTarget Target, string Device, string Label);
+
+    bool _loadingDisplays;
+
+    /// <summary>
+    /// The main screen, every screen, then each connected screen by the number Windows gives it; for the
+    /// player also "with the progress bar" first. A picked screen that is unplugged stays listed.
+    /// </summary>
+    void RefreshDisplays()
+    {
+        var screens = Interop.Monitors.All().Select(m =>
+        {
+            string label = Loc.T("Set_Display_One", Interop.Monitors.Number(m.DeviceName), m.Bounds.Width, m.Bounds.Height);
+            return (m.DeviceName, Label: m.IsPrimary ? label + Loc.T("Set_Display_IsMain") : label);
+        }).ToList();
+        string Missing(string device) => Loc.T("Set_Display_Missing", Interop.Monitors.Number(device));
+
+        var bar = new System.Collections.Generic.List<DisplayChoice>
+        {
+            new(DisplayTarget.Main, "", Loc.T("Set_Display_Main")),
+            new(DisplayTarget.All, "", Loc.T("Set_Display_All")),
+        };
+        bar.AddRange(screens.Select(s => new DisplayChoice(DisplayTarget.One, s.DeviceName, s.Label)));
+        if (_s.DisplayTarget == DisplayTarget.One && _s.DisplayMonitor.Length > 0 && bar.All(c => c.Device != _s.DisplayMonitor))
+            bar.Add(new(DisplayTarget.One, _s.DisplayMonitor, Missing(_s.DisplayMonitor)));
+
+        var player = new System.Collections.Generic.List<PlayerChoice>
+        {
+            new(PlayerTarget.SameAsBar, "", Loc.T("Set_Display_SameAsBar")),
+            new(PlayerTarget.Main, "", Loc.T("Set_Display_Main")),
+            new(PlayerTarget.All, "", Loc.T("Set_Display_All")),
+        };
+        player.AddRange(screens.Select(s => new PlayerChoice(PlayerTarget.One, s.DeviceName, s.Label)));
+        if (_s.PlayerTarget == PlayerTarget.One && _s.PlayerMonitor.Length > 0 && player.All(c => c.Device != _s.PlayerMonitor))
+            player.Add(new(PlayerTarget.One, _s.PlayerMonitor, Missing(_s.PlayerMonitor)));
+
+        _loadingDisplays = true;
+        DisplayCombo.ItemsSource = bar;
+        DisplayCombo.SelectedItem = bar.FirstOrDefault(c => c.Target == _s.DisplayTarget
+                                                            && (c.Target != DisplayTarget.One || c.Device == _s.DisplayMonitor))
+                                    ?? bar[0];
+        PlayerScreenCombo.ItemsSource = player;
+        PlayerScreenCombo.SelectedItem = player.FirstOrDefault(c => c.Target == _s.PlayerTarget
+                                                                    && (c.Target != PlayerTarget.One || c.Device == _s.PlayerMonitor))
+                                         ?? player[0];
+        _loadingDisplays = false;
+    }
+
+    void DisplayCombo_DropDownOpened(object? sender, EventArgs e) => RefreshDisplays();
+
+    void DisplayCombo_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDisplays || DisplayCombo.SelectedItem is not DisplayChoice choice) return;
+        _s.DisplayMonitor = choice.Device;
+        _s.DisplayTarget = choice.Target;
+    }
+
+    void PlayerScreenCombo_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDisplays || PlayerScreenCombo.SelectedItem is not PlayerChoice choice) return;
+        _s.PlayerMonitor = choice.Device;
+        _s.PlayerTarget = choice.Target;
+    }
+
     /// <summary>The page on screen, by its place in the navigation list.</summary>
     public int Page { get => Nav.SelectedIndex; set => Nav.SelectedIndex = value; }
+
+    public int PageCount => _pages.Length;
 
     /// <summary>MusicBar's own fonts first (they all handle Vietnamese), then the installed ones.</summary>
     static System.Collections.Generic.List<string> BuildFonts(string current)
@@ -113,7 +185,7 @@ public partial class SettingsWindow : Window
 
         TransparentCard.Description = Loc.T(Overlay?.TranslucentTaskbarDetected == true
             ? "Set_Transparent_DescTranslucentTB"
-            : "Set_Transparent_Desc");
+            : Interop.XamlTaskbar.Blocked ? "Set_Transparent_DescRestartExplorer" : "Set_Transparent_Desc");
         TaskbarSizeCard.Description = Loc.T(TaskbarTweaks.Kind == TaskbarKind.Windows11 && TaskbarTweaks.HasTaskbarSizeSetting
             ? "Set_TaskbarSize_DescWin11"
             : TaskbarTweaks.CanShrinkHeight
@@ -178,7 +250,7 @@ public partial class SettingsWindow : Window
         var (primary, secondary, art) = Overlay?.PreviewPalette() ?? DemoPalette();
         foreach (var option in SettingsOptions.SeekStyles)
         {
-            var preview = new SeekRenderer { Look = option.Value, ClipToBounds = true, Intensity = _s.FillOpacity };
+            var preview = new SeekRenderer { Look = option.Value, ClipToBounds = true, Intensity = _s.FillOpacity, Direction = _s.SeekDirection };
             preview.SetEdge(true);
             preview.SetColors(primary, secondary, animate: false);
             preview.SetArt(art);
@@ -235,10 +307,10 @@ public partial class SettingsWindow : Window
         foreach (var (value, tile, _) in _seekTiles) tile.BorderBrush = value == _s.SeekStyle ? accent : idle;
     }
 
-    /// <summary>Keeps the previews moving while the appearance page is on screen.</summary>
+    /// <summary>Keeps the previews moving while the progress bar page is on screen.</summary>
     void OnPreviewFrame(object? sender, EventArgs e)
     {
-        if (!IsVisible || PageLook.Visibility != Visibility.Visible) return;
+        if (!IsVisible || PageProgress.Visibility != Visibility.Visible) return;
         double t = _previewClock.Elapsed.TotalSeconds;
         double progress = 0.22 + (t * 0.015) % 0.6;
         foreach (var (_, _, preview) in _seekTiles)
@@ -263,6 +335,9 @@ public partial class SettingsWindow : Window
         if (e.PropertyName == nameof(AppSettings.SeekStyle)) UpdateGallerySelection();
         if (e.PropertyName == nameof(AppSettings.FillOpacity))
             foreach (var (_, _, preview) in _seekTiles) preview.Intensity = _s.FillOpacity;
+        if (e.PropertyName == nameof(AppSettings.SeekDirection))
+            foreach (var (_, _, preview) in _seekTiles) preview.Direction = _s.SeekDirection;
+        if (e.PropertyName == nameof(AppSettings.PlayerMode)) PlayerParts.IsEnabled = _s.PlayerMode == PlayerMode.Full;
     }
 
     void OnMediaChanged(object? sender, PropertyChangedEventArgs e)
@@ -296,7 +371,7 @@ public partial class SettingsWindow : Window
         for (int i = 0; i < _pages.Length; i++)
             _pages[i].Visibility = i == Nav.SelectedIndex ? Visibility.Visible : Visibility.Collapsed;
         PageScroll.ScrollToTop();
-        if (Nav.SelectedIndex == 2) RefreshLyricsInfo();
+        if (PageLyrics.Visibility == Visibility.Visible) RefreshLyricsInfo();
     }
 
     void Swatch_Click(object sender, RoutedEventArgs e)

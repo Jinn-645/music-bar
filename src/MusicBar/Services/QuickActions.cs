@@ -11,11 +11,12 @@ using Windows.Devices.Radios;
 namespace MusicBar.Services;
 
 /// <summary>A list the control center slides out beside itself.</summary>
-public enum QuickPanel { None, Project, Cast }
+public enum QuickPanel { None, Project, Cast, WiFi, Bluetooth }
 
 /// <summary>
 /// A tile in the control center: a switch when <see cref="IsOn"/> is set and
 /// <see cref="Run"/> flips it, a list when <see cref="Panel"/> is set, otherwise a shortcut.
+/// A switch with a list (Wi-Fi, Bluetooth) is split in two, as in Windows: the switch, and an arrow for the list.
 /// </summary>
 public sealed class QuickAction
 {
@@ -45,6 +46,7 @@ public static class QuickActions
                 Label = r.Kind == RadioKind.Bluetooth ? "Bluetooth" : "Wi-Fi",
                 IsOn = () => r.State == RadioState.On,
                 Run = async () => await r.SetStateAsync(r.State == RadioState.On ? RadioState.Off : RadioState.On),
+                Panel = r.Kind == RadioKind.Bluetooth ? QuickPanel.Bluetooth : QuickPanel.WiFi,
             });
         }
         if (NightLight.IsOn != null)
@@ -93,6 +95,9 @@ public static class QuickActions
             return Task.CompletedTask;
         },
     };
+
+    /// <summary>The Wi-Fi or Bluetooth radio, or null when the PC has none (or Windows says no).</summary>
+    public static async Task<Radio?> RadioAsync(RadioKind kind) => (await RadiosAsync()).FirstOrDefault(r => r.Kind == kind);
 
     static async Task<IReadOnlyList<Radio>> RadiosAsync()
     {

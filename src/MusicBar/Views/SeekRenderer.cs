@@ -32,6 +32,7 @@ public sealed class SeekRenderer : FrameworkElement
     readonly float[] _bands = new float[AudioMeter.BandCount];
 
     SeekStyle _style = SeekStyle.Aurora;
+    SeekDirection _direction = SeekDirection.FromStart;
     double _progress;
     bool _timeline;
     bool _playing;
@@ -55,6 +56,8 @@ public sealed class SeekRenderer : FrameworkElement
     WriteableBitmap? _silk;
     float[] _silkLight = [];
     byte[] _silkPixels = [];
+    // The render pass the threads were last spun in: the two halves of a split bar share one spin.
+    int _renderPass, _silkPass = -1, _peaksPass = -1;
 
     readonly List<(double Left, double Right)> _quietZones = [];
 
@@ -89,6 +92,22 @@ public sealed class SeekRenderer : FrameworkElement
             _dirty = true;
         }
     }
+
+    public SeekDirection Direction
+    {
+        get => _direction;
+        set
+        {
+            if (_direction == value) return;
+            _direction = value;
+            _dirty = true;
+        }
+    }
+
+    bool Split => _direction is SeekDirection.FromCenter or SeekDirection.FromEnds;
+
+    /// <summary>How far the playhead travels: the whole width, or half of it when the bar is split.</summary>
+    double Run => Split ? ActualWidth / 2 : ActualWidth;
 
     public static bool UsesAudio(SeekStyle s) => s is not (SeekStyle.Classic or SeekStyle.Ribbon or SeekStyle.Cinema);
 
@@ -226,7 +245,7 @@ public sealed class SeekRenderer : FrameworkElement
 
         bool fading = now - _colorStart < ColorFade;
         bool animating = (IsAnimated(_style) && _playing) || fading;
-        double px = _progress * ActualWidth;
+        double px = _progress * Run;
         if (animating)
         {
             if (now - _lastFrame >= FrameIntervalFor(_style)) InvalidateVisual();
@@ -260,16 +279,54 @@ public sealed class SeekRenderer : FrameworkElement
         _dirty = false;
         double w = ActualWidth, h = ActualHeight;
         if (w < 4 || h < 4) return;
+        _renderPass++;
 
-        double x = _timeline ? _progress * w : 0;
+        double run = Run;
+        double x = _timeline ? _progress * run : 0;
         _lastPx = x;
         var (a, b) = CurrentColors(now);
         var c = ColorUtil.ShiftHue(ColorUtil.Lerp(a, b, 0.5), 48, 0.04);
         double t = _playing ? now : _lastPlayingTime < 0 ? now : _lastPlayingTime;
-        var f = new Frame(dc, w, h, x, a, b, c, _intensity, _edgeAtTop, t, _level);
+        var f = new Frame(dc, run, h, x, a, b, c, _intensity, _edgeAtTop, t, _level);
 
+        // Quiet zones are in this element's units, so the mask goes on before any mirroring.
         bool quiet = _quietZones.Count > 0;
         if (quiet) dc.PushOpacityMask(QuietMask(w));
+        // Every style draws from x = 0 rightwards; the other directions are that drawing
+        // mirrored, or two half-width copies of it back to back.
+        switch (_direction)
+        {
+            case SeekDirection.FromStart:
+                DrawStyle(f);
+                break;
+            case SeekDirection.FromEnd:
+                DrawStyle(f, new Matrix(-1, 0, 0, 1, w, 0));
+                break;
+            case SeekDirection.FromCenter:
+                DrawStyle(f, new Matrix(1, 0, 0, 1, run, 0));
+                DrawStyle(f, new Matrix(-1, 0, 0, 1, run, 0));
+                break;
+            case SeekDirection.FromEnds:
+                DrawStyle(f, Matrix.Identity);
+                DrawStyle(f, new Matrix(-1, 0, 0, 1, w, 0));
+                break;
+        }
+        if (quiet) dc.Pop();
+        if (_playing) _lastPlayingTime = now;
+    }
+
+    /// <summary>One copy of the style, placed by <paramref name="place"/> and kept inside its own run.</summary>
+    void DrawStyle(Frame f, Matrix place)
+    {
+        f.Dc.PushTransform(new MatrixTransform(place));
+        f.Dc.PushClip(new RectangleGeometry(new Rect(0, 0, f.W, f.H)));
+        DrawStyle(f);
+        f.Dc.Pop();
+        f.Dc.Pop();
+    }
+
+    void DrawStyle(Frame f)
+    {
         switch (_style)
         {
             case SeekStyle.Classic: DrawClassic(f); break;
@@ -287,8 +344,6 @@ public sealed class SeekRenderer : FrameworkElement
             case SeekStyle.Bokeh: DrawBokeh(f); break;
             case SeekStyle.Ink: DrawInk(f); break;
         }
-        if (quiet) dc.Pop();
-        if (_playing) _lastPlayingTime = now;
     }
 
     readonly record struct Frame(
@@ -448,6 +503,9 @@ public sealed class SeekRenderer : FrameworkElement
         int n = (int)((f.W + gap) / (barWidth + gap));
         if (n < 2) return;
         if (_peaks.Length != n) _peaks = new float[n];
+        // The second half of a split bar draws the same peaks; they fall once per frame.
+        bool fall = _peaksPass != _renderPass;
+        _peaksPass = _renderPass;
         double offset = (f.W - (n * (barWidth + gap) - gap)) / 2;
         double baseY = f.Top ? f.H : 0;
         double maxH = f.H * 0.86;
@@ -461,7 +519,7 @@ public sealed class SeekRenderer : FrameworkElement
         for (int i = 0; i < n; i++)
         {
             double v = SampleBand(i / (double)(n - 1));
-            _peaks[i] = (float)Math.Max(v, _peaks[i] - (_playing ? 0.012 : 0));
+            if (fall) _peaks[i] = (float)Math.Max(v, _peaks[i] - (_playing ? 0.012 : 0));
             double bh = Math.Max(1.5, maxH * v);
             double bx = offset + i * (barWidth + gap);
             bool isPlayed = bx + barWidth / 2 <= f.X;
@@ -724,6 +782,11 @@ public sealed class SeekRenderer : FrameworkElement
             _silkLight = new float[pw * ph * 4];
             _silkPixels = new byte[pw * ph * 4];
         }
+        else if (_silkPass == _renderPass)
+        {
+            return _silk;
+        }
+        _silkPass = _renderPass;
         var light = _silkLight;
         Array.Clear(light);
 

@@ -18,6 +18,10 @@ public sealed class SettingsService
             new StyleConverter<SeekStyle>(SeekStyle.Aurora),
             new StyleConverter<ControlStyle>(ControlStyle.Glow),
             new StyleConverter<AppLanguage>(AppLanguage.English),
+            new StyleConverter<DisplayTarget>(DisplayTarget.Main),
+            new StyleConverter<SeekDirection>(SeekDirection.FromStart),
+            new StyleConverter<PlayerTarget>(PlayerTarget.SameAsBar),
+            new StyleConverter<PlayerMode>(PlayerMode.Full),
             new JsonStringEnumConverter(),
         },
     };

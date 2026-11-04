@@ -33,7 +33,7 @@ public sealed class TaskbarOverlay : IDisposable
     readonly MediaService _media;
     readonly LyricsService _lyricsService;
     readonly TrackInfoService _trackInfo;
-    readonly TaskbarTracker _tracker = new();
+    readonly TaskbarTracker _tracker;
     readonly TaskbarLayerWindow _layer;
     readonly WidgetWindow _widget;
     readonly InfoPopupWindow _popup;
@@ -41,12 +41,13 @@ public sealed class TaskbarOverlay : IDisposable
     readonly SolidColorBrush _accentBrush = new(ColorUtil.Brand);
     readonly SolidColorBrush _playGlyphBrush = new(Colors.White);
     readonly DispatcherTimer _watch = new() { Interval = TimeSpan.FromMilliseconds(500) };
-    readonly AudioMeter _audio = new();
+    readonly AudioMeter _audio;
     readonly DispatcherTimer _frameTimer = new(DispatcherPriority.Render);
     readonly System.Collections.Generic.List<(double Left, double Right)> _quietZones = [];
     (double Left, double Right)? _quietShown;
     DateTime _quietLostAt = DateTime.MinValue;
-    readonly ControlCenter _controlCenter;
+    // Only on the main taskbar, where the tray is.
+    readonly ControlCenter? _controlCenter;
 
     Palette? _artPalette;
     CancellationTokenSource? _lyricsCts;
@@ -68,29 +69,38 @@ public sealed class TaskbarOverlay : IDisposable
     DateTime _translucentCheckedAt;
     TaskbarKind _kind;
     DateTime _kindCheckedAt = DateTime.MinValue;
-    bool _transparencyApplied;
+    IntPtr _clearedTaskbar;
     Color _currentPrimary = ColorUtil.Brand;
     Color _currentSecondary = ColorUtil.Brand;
     Native.RECT _lastWidgetRect;
     Native.RECT? _bandRect;
     bool _usingBand;
     bool _lyricsShownLogged;
+    bool _dpiMismatchLogged;
 
     // What the lyrics area shows, so it can be re-staged when it moves between band and widget.
     SyncedLyrics? _stagedLyrics;
     string _stagedTitle = "";
     string _stagedArtist = "";
 
-    double _styledHeight = -1;
-    bool _styledEdgeTop = true;
+    // The taskbar's short side in DIPs, and the edge it is docked to, as last styled for.
+    double _styledThickness = -1;
+    TaskbarEdge _styledEdge = TaskbarEdge.Bottom;
     bool _styledOver;
 
-    public TaskbarOverlay(AppSettings settings, MediaService media, LyricsService lyrics)
+    bool Vertical => TaskbarSide.IsVertical(_styledEdge);
+
+    /// <param name="monitorDevice">The monitor whose secondary taskbar to use; null for the main taskbar,
+    /// which also gets the control center.</param>
+    public TaskbarOverlay(AppSettings settings, MediaService media, LyricsService lyrics, AudioMeter audio,
+        TrackInfoService trackInfo, string? monitorDevice)
     {
         _s = settings;
         _media = media;
         _lyricsService = lyrics;
-        _trackInfo = new TrackInfoService(settings);
+        _audio = audio;
+        _trackInfo = trackInfo;
+        _tracker = new TaskbarTracker(monitorDevice);
         _layer = new TaskbarLayerWindow { Audio = _audio };
         _widget = new WidgetWindow(media, _accentBrush, _playGlyphBrush);
         _popup = new InfoPopupWindow(_accentBrush);
@@ -100,30 +110,65 @@ public sealed class TaskbarOverlay : IDisposable
         _widget.InfoDismissed += _popup.Dismiss;
         _widget.ExpandToggled += () => _s.LyricsExpanded = !_s.LyricsExpanded;
 
-        _controlCenter = new ControlCenter(settings, _tracker, _accentBrush);
-        _controlCenter.TrayRearranged += _tracker.Rescan;
-        // A new playback device: start listening to it instead of the old one.
-        _controlCenter.OutputChanged += () =>
+        if (monitorDevice == null)
         {
-            _audio.SetActive(false);
-            Watch();
-        };
+            _controlCenter = new ControlCenter(settings, _tracker, _accentBrush);
+            _controlCenter.TrayRearranged += _tracker.Rescan;
+            // A new playback device: start listening to it instead of the old one.
+            _controlCenter.OutputChanged += _audio.Restart;
+        }
 
         _tracker.LayoutChanged += Reposition;
         _tracker.ZOrderCheck += () =>
         {
             UpdateTransparency();
             EnsureZOrder();
-            _controlCenter.Tick();
+            _controlCenter?.Tick();
         };
         _s.PropertyChanged += OnSettingChanged;
         Loc.Changed += OnLanguageChanged;
         _media.PropertyChanged += OnMediaPropertyChanged;
-        _media.TrackChanged += (_, _) => OnTrackChanged();
-        _media.ThumbnailChanged += (_, _) => OnThumbnailChanged();
+        _media.TrackChanged += OnMediaTrackChanged;
+        _media.ThumbnailChanged += OnMediaThumbnailChanged;
         _watch.Tick += (_, _) => Watch();
         _frameTimer.Tick += OnFrame;
     }
+
+    void OnMediaTrackChanged(object? sender, EventArgs e) => OnTrackChanged();
+
+    void OnMediaThumbnailChanged(object? sender, EventArgs e) => OnThumbnailChanged();
+
+    /// <summary>
+    /// Whether this overlay draws the progress bar on its taskbar. The main taskbar's overlay always
+    /// exists (it owns the control center and the menu) but steps aside when other screens are picked.
+    /// </summary>
+    public bool ShowsBar
+    {
+        get => _showsBar;
+        set
+        {
+            if (value == _showsBar) return;
+            _showsBar = value;
+            Reposition();
+        }
+    }
+
+    /// <summary>Whether this overlay puts the player and the lyrics on its taskbar (they can sit on another screen than the bar).</summary>
+    public bool ShowsPlayer
+    {
+        get => _showsPlayer;
+        set
+        {
+            if (value == _showsPlayer) return;
+            _showsPlayer = value;
+            Reposition();
+        }
+    }
+
+    bool _showsBar = true;
+    bool _showsPlayer = true;
+    // The player and lyrics are up on this taskbar right now.
+    bool _playerOn;
 
     /// <summary>True when the layer is drawn over the taskbar instead of under it.</summary>
     public bool IsOverMode
@@ -141,7 +186,8 @@ public sealed class TaskbarOverlay : IDisposable
     /// TranslucentTB is not already doing it. Windows 10 style taskbars take a
     /// DWM accent; the Windows 11 taskbar needs the helper inside Explorer.
     /// </summary>
-    public bool OwnsTransparency => _s.TransparentTaskbar && !TranslucentTaskbarDetected;
+    public bool OwnsTransparency => _s.TransparentTaskbar && !TranslucentTaskbarDetected
+        && !(CurrentTaskbarKind == TaskbarKind.Windows11 && XamlTaskbar.Blocked);
 
     TaskbarKind CurrentTaskbarKind
     {
@@ -156,27 +202,28 @@ public sealed class TaskbarOverlay : IDisposable
         }
     }
 
-    /// <summary>Explorer resets the accent every now and then (Start menu, theme), so this runs on every tick.</summary>
+    /// <summary>
+    /// Only this overlay's taskbar goes see-through, and only while the layer is behind it: a
+    /// clear taskbar with nothing of MusicBar's there (another monitor, or MusicBar hidden while
+    /// nothing plays) would show the wallpaper smeared through Windows' blur.
+    /// Explorer resets the accent every now and then (Start menu, theme), so this runs on every tick.
+    /// </summary>
     void UpdateTransparency()
     {
         if (_disposed) return;
-        if (OwnsTransparency)
-        {
-            if (CurrentTaskbarKind == TaskbarKind.Windows11) XamlTaskbar.Clear(_tracker.Handle);
-            else TaskbarTransparency.ApplyAll();
-            _transparencyApplied = true;
-        }
-        else if (_transparencyApplied)
-        {
-            _transparencyApplied = false;
-            RestoreTransparency();
-        }
+        if (_s.TransparentTaskbar && CurrentTaskbarKind == TaskbarKind.Windows11) XamlTaskbar.CheckHelper(_tracker.Handle);
+        var want = OwnsTransparency && _layerShown ? _tracker.Handle : IntPtr.Zero;
+        if (_clearedTaskbar != IntPtr.Zero && _clearedTaskbar != want) RestoreTransparency();
+        _clearedTaskbar = want;
+        if (want == IntPtr.Zero) return;
+        if (CurrentTaskbarKind == TaskbarKind.Windows11) XamlTaskbar.Clear(this, want);
+        else TaskbarTransparency.Apply(want);
     }
 
-    static void RestoreTransparency()
+    void RestoreTransparency()
     {
-        XamlTaskbar.Restore();
-        TaskbarTransparency.RestoreAll();
+        XamlTaskbar.Restore(this);
+        TaskbarTransparency.Restore(_clearedTaskbar);
     }
 
     /// <summary>A tool that makes the taskbar see-through (TranslucentTB) is running.</summary>
@@ -205,30 +252,34 @@ public sealed class TaskbarOverlay : IDisposable
         UpdateLyricsSurface(animate: false);
         _widget.SetPlaying(_media.IsPlaying, animate: false);
         OnSessionStateChanged();
-        _controlCenter.Start();
+        _controlCenter?.Start();
         _tracker.Start();
         _watch.Start();
     }
 
     /// <summary>The taskbar's tray can be folded into the control center (Windows 10 style tray).</summary>
-    public bool ControlCenterSupported => _controlCenter.Supported;
+    public bool ControlCenterSupported => _controlCenter?.Supported ?? false;
 
     public void PreviewLyrics() => ActiveLyrics.Preview();
 
     /// <summary>The presenter currently on screen: the free-space band, or the panel beside the cover.</summary>
-    LyricsPresenter ActiveLyrics => _usingBand ? _band.LyricsView : _widget.LyricsView;
+    ILyricsView ActiveLyrics => _usingBand ? _band.LyricsView : _widget.LyricsView;
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         Loc.Changed -= OnLanguageChanged;
-        _controlCenter.Dispose();
-        if (_transparencyApplied) RestoreTransparency();
+        _s.PropertyChanged -= OnSettingChanged;
+        _media.PropertyChanged -= OnMediaPropertyChanged;
+        _media.TrackChanged -= OnMediaTrackChanged;
+        _media.ThumbnailChanged -= OnMediaThumbnailChanged;
+        _controlCenter?.Dispose();
+        if (_clearedTaskbar != IntPtr.Zero) RestoreTransparency();
         SetRendering(false);
         _watch.Stop();
         _tracker.Dispose();
-        _audio.Dispose();
+        _audio.Want(this, false);
         _lyricsCts?.Cancel();
         _detailsCts?.Cancel();
         _layer.Close();
@@ -242,7 +293,7 @@ public sealed class TaskbarOverlay : IDisposable
     void Reposition()
     {
         if (_disposed) return;
-        bool show = _tracker.Shown && _tracker.IsHorizontal && !_fullscreen && !_idle;
+        bool show = (_showsBar || _showsPlayer) && _tracker.Shown && !_fullscreen && !_idle;
         if (!show)
         {
             HideAll();
@@ -252,28 +303,53 @@ public sealed class TaskbarOverlay : IDisposable
         var rc = _tracker.Rect;
         double scale = _tracker.Scale;
         bool over = IsOverMode;
-        bool edgeTop = !_tracker.AtTop;
-        double height = rc.Height / scale;
-        if (Math.Abs(height - _styledHeight) > 0.1 || edgeTop != _styledEdgeTop || over != _styledOver)
+        var edge = _tracker.Edge;
+        double thickness = _tracker.Thickness / scale;
+        if (Math.Abs(thickness - _styledThickness) > 0.1 || edge != _styledEdge || over != _styledOver)
         {
-            _styledHeight = height;
-            _styledEdgeTop = edgeTop;
+            bool turned = TaskbarSide.IsVertical(edge) != Vertical;
+            _styledThickness = thickness;
+            _styledEdge = edge;
             _styledOver = over;
             ApplyAppearance();
+            if (turned)
+            {
+                // The other lyrics display takes over: give it what was on screen.
+                Log.Info($"Taskbar docked {edge}");
+                Restage();
+            }
         }
 
-        if (!_layerShown)
+        if (_showsBar)
         {
-            _layer.Show();
-            _layerShown = true;
+            if (!_layerShown)
+            {
+                _layer.Show();
+                _layerShown = true;
+            }
+            Native.SetWindowPos(_layer.Hwnd, Native.HWND_TOPMOST, rc.Left, rc.Top, rc.Width, rc.Height, Native.SWP_NOACTIVATE);
+            if (!over) Native.SetWindowPos(_layer.Hwnd, _tracker.Handle, 0, 0, 0, 0, KeepPlace);
+            // A window drawn at another screen's DPI gets stretched by Windows and looks soft.
+            double drawn = VisualTreeHelper.GetDpi(_layer).DpiScaleX;
+            if (Math.Abs(drawn - scale) > 0.01 && !_dpiMismatchLogged)
+            {
+                _dpiMismatchLogged = true;
+                Log.Info($"Taskbar on {_tracker.Monitor?.DeviceName} is at {scale:0.##}x but MusicBar's layer draws at {drawn:0.##}x");
+            }
         }
-        Native.SetWindowPos(_layer.Hwnd, Native.HWND_TOPMOST, rc.Left, rc.Top, rc.Width, rc.Height, Native.SWP_NOACTIVATE);
-        if (!over) Native.SetWindowPos(_layer.Hwnd, _tracker.Handle, 0, 0, 0, 0, KeepPlace);
+        else if (_layerShown)
+        {
+            _layer.Hide();
+            _layerShown = false;
+        }
 
-        var widgetRect = WidgetRect(rc, scale, out bool anchorRight);
+        // A minimal taskbar has no player: only the progress, and the lyrics in a gap of their own if wanted.
+        _playerOn = _showsPlayer && _s.PlayerMode != PlayerMode.Off;
+        bool anchorEnd = true;
+        var widgetRect = _playerOn && _s.PlayerMode == PlayerMode.Full ? WidgetRect(rc, scale, out anchorEnd) : null;
         if (widgetRect is { } w)
         {
-            _widget.SetAnchor(anchorRight);
+            _widget.SetAnchor(anchorEnd);
             if (!_widgetShown)
             {
                 _widget.Show();
@@ -283,7 +359,7 @@ public sealed class TaskbarOverlay : IDisposable
             if (!w.Same(_lastWidgetRect))
             {
                 _lastWidgetRect = w;
-                Log.Info($"Taskbar {rc}, occupied [{string.Join(", ", _tracker.Occupied.Select(o => $"{o.Left}-{o.Right}"))}], widget {w}");
+                Log.Info($"Taskbar {rc}, occupied [{TaskbarTracker.Describe(_tracker.Occupied)}], widget {w}");
             }
         }
         else if (_widgetShown)
@@ -293,7 +369,7 @@ public sealed class TaskbarOverlay : IDisposable
             _popup.Dismiss();
         }
 
-        _bandRect = BandRect(rc, scale, widgetRect);
+        _bandRect = _playerOn ? BandRect(rc, scale, widgetRect) : null;
         UpdateLyricsSurface(animate: true);
         SetRendering(true);
     }
@@ -302,7 +378,7 @@ public sealed class TaskbarOverlay : IDisposable
     {
         if (_layerShown) _layer.Hide();
         if (_widgetShown) _widget.Hide();
-        _layerShown = _widgetShown = false;
+        _layerShown = _widgetShown = _playerOn = false;
         _popup.Dismiss();
         _band.Reveal(false, 0);
         SetRendering(false);
@@ -323,10 +399,10 @@ public sealed class TaskbarOverlay : IDisposable
         var pieces = new System.Collections.Generic.List<Span>();
         foreach (var f in _tracker.FreeSpans())
         {
-            if (widget is { } w && w.Right > f.Left && w.Left < f.Right)
+            if (widget is { } wr && AlongBar(wr) is var w && w.End > f.Start && w.Start < f.End)
             {
-                if (w.Left > f.Left) pieces.Add(new Span(f.Left, w.Left));
-                if (w.Right < f.Right) pieces.Add(new Span(w.Right, f.Right));
+                if (w.Start > f.Start) pieces.Add(new Span(f.Start, w.Start));
+                if (w.End < f.End) pieces.Add(new Span(w.End, f.End));
             }
             else
             {
@@ -336,10 +412,17 @@ public sealed class TaskbarOverlay : IDisposable
 
         var best = pieces.Where(p => p.Width - 2 * margin >= min).OrderByDescending(p => p.Width).FirstOrDefault();
         if (best.Width == 0) return null;
-        int width = Math.Min(best.Width - 2 * margin, max);
-        int x = best.Left + (best.Width - width) / 2;
-        return new Native.RECT(x, rc.Top, x + width, rc.Bottom);
+        int length = Math.Min(best.Width - 2 * margin, max);
+        int at = best.Start + (best.Width - length) / 2;
+        return AcrossBar(rc, at, at + length);
     }
+
+    /// <summary>A screen rectangle's stretch along the taskbar.</summary>
+    Span AlongBar(Native.RECT r) => _tracker.IsHorizontal ? new Span(r.Left, r.Right) : new Span(r.Top, r.Bottom);
+
+    /// <summary>The whole thickness of the taskbar between two points along its length.</summary>
+    Native.RECT AcrossBar(Native.RECT rc, int start, int end)
+        => _tracker.IsHorizontal ? new Native.RECT(start, rc.Top, end, rc.Bottom) : new Native.RECT(rc.Left, start, rc.Right, end);
 
     /// <summary>
     /// Shows or hides the lyrics wherever they currently belong: in the
@@ -347,14 +430,15 @@ public sealed class TaskbarOverlay : IDisposable
     /// </summary>
     void UpdateLyricsSurface(bool animate)
     {
-        bool useBand = _s.LyricsPlacement == LyricsPlacement.LargestGap && _bandRect != null;
+        // Without the player there is no "beside the cover": the lyrics take the free space.
+        bool useBand = (_s.LyricsPlacement == LyricsPlacement.LargestGap || _s.PlayerMode == PlayerMode.LyricsOnly) && _bandRect != null;
         if (useBand != _usingBand)
         {
             _usingBand = useBand;
             Restage();
         }
 
-        bool show = _s.LyricsExpanded && _layerShown;
+        bool show = _s.LyricsExpanded && _playerOn;
         if (show != _lyricsShownLogged)
         {
             _lyricsShownLogged = show;
@@ -366,7 +450,8 @@ public sealed class TaskbarOverlay : IDisposable
         if (useBand && show && _bandRect is { } r)
         {
             // Slide in from the widget's side.
-            double from = (r.Left + r.Right) / 2.0 < (_lastWidgetRect.Left + _lastWidgetRect.Right) / 2.0 ? 24 : -24;
+            var (band, widget) = (AlongBar(r), AlongBar(_lastWidgetRect));
+            double from = band.Start + band.End < widget.Start + widget.End ? 24 : -24;
             _band.Reveal(true, animate ? from : 0);
             Native.SetWindowPos(_band.Hwnd, Native.HWND_TOPMOST, r.Left, r.Top, r.Width, r.Height, Native.SWP_NOACTIVATE);
         }
@@ -401,9 +486,13 @@ public sealed class TaskbarOverlay : IDisposable
     /// Picks the empty stretch of taskbar the widget lives in: by default the
     /// gap just left of the notification area, anchored to its right end.
     /// </summary>
-    Native.RECT? WidgetRect(Native.RECT rc, double scale, out bool anchorRight)
+    /// <remarks>
+    /// On a vertical taskbar the same rules run top to bottom: "right" is the bottom end, where
+    /// the tray is, and "left" the top.
+    /// </remarks>
+    Native.RECT? WidgetRect(Native.RECT rc, double scale, out bool anchorEnd)
     {
-        anchorRight = _s.WidgetPlacement != WidgetPlacement.Left;
+        anchorEnd = _s.WidgetPlacement != WidgetPlacement.Left;
         if (!_tracker.HasScanned) return null;
 
         int margin = (int)Math.Round(10 * scale);
@@ -413,21 +502,21 @@ public sealed class TaskbarOverlay : IDisposable
         Span span;
         if (_tracker.Occupied.Count == 0)
         {
-            // UI Automation gave nothing: fall back to the left third, free on a default Windows 11 taskbar.
-            span = new Span(rc.Left, rc.Left + rc.Width * 3 / 10);
-            anchorRight = false;
+            // UI Automation gave nothing: fall back to the first third, free on a default Windows 11 taskbar.
+            span = new Span(_tracker.Begin, _tracker.Begin + _tracker.Length * 3 / 10);
+            anchorEnd = false;
         }
         else
         {
             var free = _tracker.FreeSpans().Where(f => f.Width - 2 * margin >= min).ToList();
             if (free.Count == 0) return null;
-            span = anchorRight ? free[^1] : free[0];
+            span = anchorEnd ? free[^1] : free[0];
         }
 
-        int width = Math.Min(span.Width - 2 * margin, max);
-        if (width < min) return null;
-        int x = anchorRight ? span.Right - margin - width : span.Left + margin;
-        return new Native.RECT(x, rc.Top, x + width, rc.Bottom);
+        int length = Math.Min(span.Width - 2 * margin, max);
+        if (length < min) return null;
+        int at = anchorEnd ? span.End - margin - length : span.Start + margin;
+        return AcrossBar(rc, at, at + length);
     }
 
     /// <summary>
@@ -436,9 +525,13 @@ public sealed class TaskbarOverlay : IDisposable
     /// </summary>
     void EnsureZOrder()
     {
-        if (_disposed || !_layerShown || _tracker.Handle == IntPtr.Zero) return;
+        if (_disposed || !(_layerShown || _playerOn) || _tracker.Handle == IntPtr.Zero) return;
         var tray = _tracker.Handle;
-        if (_styledOver)
+        if (!_layerShown)
+        {
+            // The player on its own, on a taskbar without the bar: it only has to stay above the taskbar.
+        }
+        else if (_styledOver)
         {
             if (!Native.IsAbove(_layer.Hwnd, tray)) Native.SetWindowPos(_layer.Hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, KeepPlace);
         }
@@ -447,7 +540,7 @@ public sealed class TaskbarOverlay : IDisposable
             Native.SetWindowPos(_layer.Hwnd, tray, 0, 0, 0, 0, KeepPlace);
         }
 
-        if (_widgetShown && (!Native.IsAbove(_widget.Hwnd, tray) || !Native.IsAbove(_widget.Hwnd, _layer.Hwnd)))
+        if (_widgetShown && (!Native.IsAbove(_widget.Hwnd, tray) || (_layerShown && !Native.IsAbove(_widget.Hwnd, _layer.Hwnd))))
         {
             Native.SetWindowPos(_widget.Hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, KeepPlace);
         }
@@ -466,7 +559,7 @@ public sealed class TaskbarOverlay : IDisposable
                     && (DateTime.Now - _noSessionSince).TotalSeconds > 2;
         bool fullscreen = _s.HideInFullscreen && IsForegroundFullscreen();
         // Listen to the speakers only while a music-driven style is actually on screen and playing.
-        _audio.SetActive(_s.AudioReactive && _layerShown && _media.IsPlaying && SeekRenderer.UsesAudio(_s.SeekStyle));
+        _audio.Want(this, _s.AudioReactive && _layerShown && _media.IsPlaying && SeekRenderer.UsesAudio(_s.SeekStyle));
         UpdateFramePace();
         if (idle != _idle || fullscreen != _fullscreen || (_layerShown && IsOverMode != _styledOver))
         {
@@ -555,11 +648,15 @@ public sealed class TaskbarOverlay : IDisposable
         {
             // Just the text, so the quiet zone is as long as the line being sung.
             var span = _usingBand ? _band.LyricsScreenSpan() : _widgetShown ? _widget.LyricsScreenSpan() : (0, 0);
-            if (span.Right - span.Left > 4)
+            if (span.End - span.Start > 4)
             {
                 const double pad = 10;
-                double origin = _tracker.Rect.Left, scale = _tracker.Scale;
-                target = ((span.Left - origin) / scale - pad, (span.Right - origin) / scale + pad);
+                var rc = _tracker.Rect;
+                double scale = _tracker.Scale;
+                // In the seekbar's own units: from the taskbar's left, or up from its bottom when vertical.
+                target = _tracker.IsHorizontal
+                    ? ((span.Start - rc.Left) / scale - pad, (span.End - rc.Left) / scale + pad)
+                    : ((rc.Bottom - span.End) / scale - pad, (rc.Bottom - span.Start) / scale + pad);
             }
         }
 
@@ -591,7 +688,8 @@ public sealed class TaskbarOverlay : IDisposable
     {
         switch (e.PropertyName)
         {
-            case nameof(AppSettings.LayerMode) or nameof(AppSettings.WidgetPlacement) or nameof(AppSettings.WidgetMaxWidth):
+            case nameof(AppSettings.LayerMode) or nameof(AppSettings.WidgetPlacement) or nameof(AppSettings.WidgetMaxWidth)
+                or nameof(AppSettings.PlayerMode):
                 Reposition();
                 break;
             case nameof(AppSettings.TransparentTaskbar):
@@ -599,7 +697,7 @@ public sealed class TaskbarOverlay : IDisposable
                 Reposition();
                 break;
             case nameof(AppSettings.ControlCenter):
-                _controlCenter.Tick();
+                _controlCenter?.Tick();
                 break;
             case nameof(AppSettings.LyricsExpanded) or nameof(AppSettings.LyricsPlacement):
                 UpdateLyricsSurface(animate: true);
@@ -635,12 +733,12 @@ public sealed class TaskbarOverlay : IDisposable
 
     void ApplyAppearance()
     {
-        double h = _styledHeight > 0 ? _styledHeight : 30;
-        bool over = _styledHeight > 0 ? _styledOver : IsOverMode;
-        _layer.ApplyStyle(_s, over, _styledEdgeTop);
+        double h = _styledThickness > 0 ? _styledThickness : 30;
+        bool over = _styledThickness > 0 ? _styledOver : IsOverMode;
+        _layer.ApplyStyle(_s, over, _styledEdge);
         bool shadow = over || _s.Background == BarBackground.Transparent || _s.BackgroundOpacity < 0.45;
-        _widget.ApplyStyle(_s, h, shadow);
-        _band.ApplyStyle(_s, h);
+        _widget.ApplyStyle(_s, h, shadow, Vertical);
+        _band.ApplyStyle(_s, h, Vertical);
         UpdateBadge();
         UpdateAccent(animate: false);
     }
@@ -698,9 +796,8 @@ public sealed class TaskbarOverlay : IDisposable
         _playGlyphBrush.Color = ColorUtil.Luminance(primary) > 0.42 ? Color.FromRgb(0x10, 0x10, 0x14) : Colors.White;
         _widget.SetAccent(primary);
         _popup.SetAccent(primary);
-        _controlCenter.SetAccent(primary);
-        _widget.LyricsView.Accent = primary;
-        _band.LyricsView.Accent = primary;
+        _controlCenter?.SetAccent(primary);
+        _band.SetAccent(primary);
     }
 
     // ------------------------------------------------------------------ media state
@@ -774,7 +871,7 @@ public sealed class TaskbarOverlay : IDisposable
         if (!_media.HasSession) ShowLyricsMessage(Loc.T("Msg_NothingPlaying"), "");
         else if (_lyricsStatus == LyricsStatus.Instrumental) ShowLyricsMessage(_media.Title, Loc.T("Msg_Instrumental"));
         if (_popup.IsOpen) _popup.SetContent(BuildCard());
-        _controlCenter.RefreshText();
+        _controlCenter?.RefreshText();
     }
 
     void ShowTrackMessage()
@@ -873,10 +970,7 @@ public sealed class TaskbarOverlay : IDisposable
         if (!_s.ShowInfoPopup || !_media.HasSession || !_widgetShown || _tracker.Monitor == null) return;
         _popup.SetContent(BuildCard());
         _popup.SetProgress(_media.GetPosition(), _media.Duration);
-        var anchor = _widget.CoverCenterOnScreen();
-        bool above = !_tracker.AtTop;
-        int edge = above ? _tracker.Rect.Top : _tracker.Rect.Bottom;
-        _popup.ShowAt(anchor, edge, above, _tracker.Monitor.Bounds);
+        _popup.ShowAt(_widget.CoverCenterOnScreen(), _tracker.Edge, _tracker.Rect, _tracker.Monitor.Bounds);
     }
 
     SongCard BuildCard()
@@ -932,6 +1026,17 @@ public sealed class TaskbarOverlay : IDisposable
         var showLyrics = new MenuItem { Header = Loc.T("Menu_ShowLyrics"), Icon = Glyph(""), IsChecked = _s.LyricsExpanded };
         showLyrics.Click += (_, _) => _s.LyricsExpanded = !_s.LyricsExpanded;
         menu.Items.Add(showLyrics);
+
+        // Hiding the player leaves the bar (and maybe the lyrics); this menu, also on the tray icon, brings it back.
+        var player = new MenuItem { Header = Loc.T("Menu_Player"), Icon = Glyph("") };
+        foreach (var option in SettingsOptions.PlayerModes)
+        {
+            var value = (PlayerMode)option.Value;
+            var item = new MenuItem { Header = option.Label, IsChecked = _s.PlayerMode == value };
+            item.Click += (_, _) => _s.PlayerMode = value;
+            player.Items.Add(item);
+        }
+        menu.Items.Add(player);
 
         var sources = new MenuItem { Header = Loc.T("Menu_Source"), Icon = Glyph("") };
         var auto = new MenuItem { Header = Loc.T("Menu_SourceAuto"), IsChecked = _s.PinnedAppId.Length == 0 };
@@ -997,6 +1102,14 @@ public sealed class TaskbarOverlay : IDisposable
             var item = new MenuItem { Header = option.Label, IsChecked = _s.SeekStyle == option.Value };
             var value = option.Value;
             item.Click += (_, _) => _s.SeekStyle = value;
+            seek.Items.Add(item);
+        }
+        seek.Items.Add(new Separator());
+        foreach (var option in SettingsOptions.SeekDirections)
+        {
+            var value = (SeekDirection)option.Value;
+            var item = new MenuItem { Header = option.Label, IsChecked = _s.SeekDirection == value };
+            item.Click += (_, _) => _s.SeekDirection = value;
             seek.Items.Add(item);
         }
         menu.Items.Add(seek);

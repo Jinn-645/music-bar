@@ -14,6 +14,8 @@
         <Grid.RenderTransform>
             <TranslateTransform x:Name="RootShift" />
         </Grid.RenderTransform>
-        <v:LyricsPresenter x:Name="LyricsView" />
+        <!-- One line at a time on a horizontal taskbar, a word per row on a vertical one. -->
+        <v:LyricsPresenter x:Name="LineLyrics" />
+        <v:WordStackPresenter x:Name="StackLyrics" Margin="2,6" Visibility="Collapsed" />
     </Grid>
 </Window>

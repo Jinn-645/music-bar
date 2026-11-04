@@ -54,7 +54,7 @@ public partial class TaskbarLayerWindow : Window
         set => Seek.Audio = value;
     }
 
-    public void ApplyStyle(AppSettings s, bool over, bool edgeAtTop)
+    internal void ApplyStyle(AppSettings s, bool over, TaskbarEdge edge)
     {
         _surfaceOpacity = over ? Math.Min(s.BackgroundOpacity, OverSurfaceCap) : s.BackgroundOpacity;
         switch (s.Background)
@@ -72,8 +72,18 @@ public partial class TaskbarLayerWindow : Window
         }
 
         Seek.Look = s.SeekStyle;
+        Seek.Direction = s.SeekDirection;
         Seek.Intensity = over ? Math.Min(s.FillOpacity, OverFillCap) : s.FillOpacity;
-        Seek.SetEdge(edgeAtTop);
+
+        // The seekbar always draws along its own x axis with the desktop-facing edge at its top
+        // or bottom. On a vertical taskbar it is turned a quarter left, so it runs bottom to top
+        // and its top lies along the taskbar's left side.
+        bool vertical = edge is TaskbarEdge.Left or TaskbarEdge.Right;
+        if (vertical != Seek.LayoutTransform is RotateTransform)
+            Seek.LayoutTransform = vertical ? new RotateTransform(-90) : Transform.Identity;
+        Seek.SetEdge(edge is TaskbarEdge.Bottom or TaskbarEdge.Right);
+        _tintBrush.StartPoint = vertical ? new Point(0.5, 1) : new Point(0, 0.5);
+        _tintBrush.EndPoint = vertical ? new Point(0.5, 0) : new Point(1, 0.5);
         SetColors(_primary, _secondary, animate: false);
     }
 
@@ -105,6 +115,7 @@ public partial class TaskbarLayerWindow : Window
 
     public void SetTrack(string key) => Seek.SetTrack(key);
 
+    /// <summary>Quiet zones in the seekbar's own units: along its run, which on a vertical taskbar starts at the bottom.</summary>
     public void SetQuietZones(System.Collections.Generic.IReadOnlyList<(double Left, double Right)> zones) => Seek.SetQuietZones(zones);
 
     /// <summary>Called every frame by the overlay.</summary>

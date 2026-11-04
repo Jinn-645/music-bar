@@ -16,24 +16,62 @@ public static partial class Strings
         d.Add("Set_NowPlaying_None", ("Nothing playing", "Chưa có gì"));
         d.Add("Set_NowPlaying_Hint", ("Open a music player", "Hãy mở một trình phát nhạc"));
 
-        // ---- pages (navigation and page titles)
+        // ---- pages (navigation and page titles), one per thing MusicBar puts on the taskbar
+        d.Add("Set_Page_General", ("General", "Chung"));
         d.Add("Set_Page_Bar", ("Taskbar", "Taskbar"));
-        d.Add("Set_Page_Look", ("Appearance", "Giao diện"));
+        d.Add("Set_Page_Player", ("Player", "Trình phát"));
+        d.Add("Set_Page_Progress", ("Progress bar", "Thanh tiến trình"));
         d.Add("Set_Page_Lyrics", ("Lyrics", "Lời bài hát"));
         d.Add("Set_Page_About", ("About", "Giới thiệu"));
 
+        // ---- general page
+        d.Add("Set_General_Subtitle", ("When MusicBar shows up, which player it follows and on which screen.", "Khi nào MusicBar hiện, theo dõi trình phát nào và hiện trên màn hình nào."));
+        d.Add("Set_General_GroupWhen", ("When it shows", "Khi nào hiện"));
+        d.Add("Set_StartWithWindows", ("Start with Windows", "Khởi động cùng Windows"));
+        d.Add("Set_HideIdle", ("Hide when no music is playing", "Ẩn khi không có nhạc"));
+        d.Add("Set_HideIdle_Desc", ("The taskbar goes back to normal; MusicBar shows up again when an app starts playing.", "Taskbar trở về như cũ; MusicBar tự hiện lại khi một ứng dụng bắt đầu phát."));
+        d.Add("Set_HideFullscreen", ("Hide when an app is full screen", "Ẩn khi có ứng dụng toàn màn hình"));
+        d.Add("Set_HideFullscreen_Desc", ("Games, full-screen video, presentations...", "Game, video toàn màn hình, trình chiếu..."));
+        d.Add("Set_General_GroupSource", ("Music source", "Nguồn nhạc"));
+        d.Add("Set_Source", ("Tracked app", "Ứng dụng được theo dõi"));
+        d.Add("Set_Source_Desc", ("Automatic picks the app that's playing; pin an app to always show it.", "Tự động sẽ chọn ứng dụng đang phát; ghim một ứng dụng để luôn hiện nó."));
+        d.Add("Set_Source_Auto", ("Automatic (whatever is playing)", "Tự động (ưu tiên đang phát)"));
+        d.Add("Set_Source_NotRunning", ("{0} (not running)", "{0} (chưa chạy)"));
+        d.Add("Set_Bar_GroupScreens", ("Screens", "Màn hình"));
+        d.Add("Set_DisplayTarget", ("Progress bar on", "Thanh tiến trình hiện trên"));
+        d.Add("Set_DisplayTarget_Desc", ("With more than one screen: the main one, all of them, or one you pick. The control center stays with the main taskbar's tray.", "Khi có nhiều màn hình: màn chính, tất cả, hoặc một màn bạn chọn. Trung tâm điều khiển luôn ở khay của taskbar chính."));
+        d.Add("Set_PlayerTarget", ("Player and lyrics on", "Trình phát và lời hiện trên"));
+        d.Add("Set_PlayerTarget_Desc", ("They can go on a different screen than the progress bar.", "Có thể đặt ở màn hình khác với thanh tiến trình."));
+        d.Add("Set_Display_SameAsBar", ("The same screens as the progress bar", "Cùng màn hình với thanh tiến trình"));
+        d.Add("Set_Display_Main", ("Main screen", "Màn hình chính"));
+        d.Add("Set_Display_All", ("All screens", "Tất cả màn hình"));
+        d.Add("Set_Display_One", ("Screen {0} ({1}×{2})", "Màn hình {0} ({1}×{2})"));
+        d.Add("Set_Display_IsMain", (" · main", " · màn chính"));
+        d.Add("Set_Display_Missing", ("Screen {0} (not connected; main screen for now)", "Màn hình {0} (đang không cắm; tạm dùng màn chính)"));
+
         // ---- taskbar page
-        d.Add("Set_Bar_Subtitle", ("MusicBar runs right on the Windows taskbar: a progress layer that spans the full width of the taskbar, plus a widget with lyrics and playback buttons in the free space.", "MusicBar chạy ngay trên taskbar của Windows: một lớp thanh tiến trình trải hết chiều ngang taskbar, cùng một widget lời bài hát và nút điều khiển ở vùng trống."));
-        d.Add("Set_Bar_GroupWindows", ("Windows taskbar", "Taskbar của Windows"));
+        d.Add("Set_Bar_Subtitle", ("The Windows taskbar under MusicBar: its background, its size and icons, and the control center in the system tray.", "Taskbar Windows bên dưới MusicBar: nền, kích thước, vị trí icon và trung tâm điều khiển ở khay hệ thống."));
+        d.Add("Set_Bar_GroupBackground", ("Background", "Nền taskbar"));
+        d.Add("Set_Transparent", ("Make the taskbar transparent", "Làm taskbar trong suốt"));
+        d.Add("Set_Transparent_Desc", ("Built into MusicBar, no need to install TranslucentTB. When you exit MusicBar, the taskbar gets its background back.", "Có sẵn trong MusicBar, không cần cài TranslucentTB. Thoát MusicBar là taskbar có lại nền như cũ."));
+        d.Add("Set_Transparent_DescTranslucentTB", ("TranslucentTB is running, so MusicBar leaves this to it.", "TranslucentTB đang chạy nên MusicBar để nó lo phần này."));
+        d.Add("Set_Transparent_DescRestartExplorer", ("The taskbar helper from an older MusicBar is still loaded in Explorer and would clear every monitor's taskbar, so MusicBar is tinting over the taskbar for now. Restart Explorer (button below) to finish the update.", "Bộ phận làm trong suốt của bản MusicBar cũ vẫn đang nạp trong Explorer và sẽ xoá nền taskbar của mọi màn hình, nên tạm thời MusicBar phủ mờ lên taskbar. Bấm Khởi động lại Explorer (bên dưới) để hoàn tất cập nhật."));
+        d.Add("Set_Background", ("Background under the progress bar", "Nền dưới thanh tiến trình"));
+        d.Add("Set_BgOpacity", ("Background opacity", "Độ đậm nền"));
+        d.Add("Set_BgOpacity_Desc", ("Doesn't apply to the transparent background. Capped at 35% when tinted over the taskbar.", "Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%."));
+        d.Add("Set_LayerMode", ("MusicBar's layer and the taskbar icons", "Lớp MusicBar so với icon taskbar"));
+        d.Add("Set_LayerMode_Desc", ("Under: the taskbar icons sit on top of the layer, which needs a transparent taskbar. Tinted over: for a taskbar that isn't transparent; the opacity is capped so the icons stay clear.", "Nằm dưới: icon taskbar ở trên lớp, cần taskbar trong suốt. Phủ mờ: dùng khi taskbar không trong suốt, độ đậm tự giới hạn để icon vẫn rõ."));
+        d.Add("Set_Layer_Status", ("Currently: {0} ({1}).", "Đang dùng: {0} ({1})."));
+        d.Add("Set_Layer_Over", ("tinted over the taskbar", "phủ mờ lên taskbar"));
+        d.Add("Set_Layer_Under", ("under the taskbar icons", "nằm dưới icon taskbar"));
+        d.Add("Set_Layer_ToolFound", ("TranslucentTB detected", "đã thấy TranslucentTB"));
+        d.Add("Set_Layer_ToolMissing", ("no taskbar transparency tool detected", "không thấy công cụ làm trong suốt taskbar"));
+
+        d.Add("Set_Bar_GroupWindows", ("Size and icons", "Kích thước và icon"));
         d.Add("Set_TaskbarSize", ("Taskbar size", "Kích thước taskbar"));
         d.Add("Set_TaskbarSize_Desc", ("Small taskbar: smaller icons and a thinner bar.", "Taskbar nhỏ: icon nhỏ và thanh mỏng hơn."));
         d.Add("Set_TaskbarSize_DescWin11", ("Uses the Windows 11 taskbar size setting: small means smaller icons and a thinner bar, applied right away.", "Dùng cài đặt Kích thước taskbar của Windows 11: nhỏ là icon nhỏ và thanh mỏng hơn, áp dụng ngay."));
         d.Add("Set_TaskbarSize_DescIconsOnly", ("This version of Windows 11 can only shrink the icons; the 48 px height is fixed.", "Bản Windows 11 này chỉ thu nhỏ được icon, chiều cao 48 px là cố định."));
-        d.Add("Set_Transparent", ("Make the taskbar transparent", "Làm taskbar trong suốt"));
-        d.Add("Set_Transparent_Desc", ("Built into MusicBar, no need to install TranslucentTB. When you exit MusicBar, the taskbar gets its background back.", "Có sẵn trong MusicBar, không cần cài TranslucentTB. Thoát MusicBar là taskbar có lại nền như cũ."));
-        d.Add("Set_Transparent_DescTranslucentTB", ("TranslucentTB is running, so MusicBar leaves this to it.", "TranslucentTB đang chạy nên MusicBar để nó lo phần này."));
-        d.Add("Set_ControlCenter", ("MusicBar control center", "Trung tâm điều khiển MusicBar"));
-        d.Add("Set_ControlCenter_Desc", ("The network / volume button (Windows 11) or the Control Center button (ExplorerPatcher) opens MusicBar's panel: notifications, quick settings, volume and speaker choice. On a Windows 10-style taskbar, the volume icon and the notification bell are folded into it. Exit MusicBar and everything goes back to how it was.", "Nút mạng / âm lượng (Windows 11) hoặc nút Control Center (ExplorerPatcher) mở bảng của MusicBar: thông báo, cài đặt nhanh, âm lượng và chọn loa. Trên taskbar kiểu Windows 10, icon âm lượng và chuông thông báo được gộp vào đó. Thoát MusicBar là mọi thứ trở lại như cũ."));
         d.Add("Set_Center", ("Center the Start button and icons", "Đặt nút Start và icon ở giữa"));
         d.Add("Set_Center_Desc", ("The Start menu opens in the middle of the screen too.", "Start menu cũng mở ở giữa màn hình."));
         d.Add("Set_UseExplorerPatcher", ("Use the ExplorerPatcher taskbar", "Dùng taskbar ExplorerPatcher"));
@@ -49,79 +87,69 @@ public static partial class Strings
         d.Add("Set_SwitchEp_Caption", ("ExplorerPatcher taskbar", "Taskbar ExplorerPatcher"));
         d.Add("Set_SwitchEp_Restart", ("Explorer needs to restart to switch taskbars. Restart now?", "Cần khởi động lại Explorer để đổi taskbar. Khởi động lại ngay?"));
 
-        d.Add("Set_Bar_GroupLayer", ("Progress layer", "Lớp tiến trình"));
-        d.Add("Set_LayerMode", ("Layer position relative to the taskbar", "Vị trí lớp so với taskbar"));
-        d.Add("Set_LayerMode_Desc", ("Under: the taskbar icons sit on top of the layer, which needs a transparent taskbar (e.g. TranslucentTB). Tinted over: for a taskbar that isn't transparent; the opacity is capped so the icons stay clear.", "Nằm dưới: icon taskbar ở trên lớp, cần taskbar trong suốt (vd. TranslucentTB). Phủ mờ: dùng khi taskbar không trong suốt, độ đậm tự giới hạn để icon vẫn rõ."));
-        d.Add("Set_Layer_Status", ("Currently: {0} ({1}).", "Đang dùng: {0} ({1})."));
-        d.Add("Set_Layer_Over", ("tinted over the taskbar", "phủ mờ lên taskbar"));
-        d.Add("Set_Layer_Under", ("under the taskbar icons", "nằm dưới icon taskbar"));
-        d.Add("Set_Layer_ToolFound", ("TranslucentTB detected", "đã thấy TranslucentTB"));
-        d.Add("Set_Layer_ToolMissing", ("no taskbar transparency tool detected", "không thấy công cụ làm trong suốt taskbar"));
+        d.Add("Set_Bar_GroupTray", ("System tray", "Khay hệ thống"));
+        d.Add("Set_ControlCenter", ("MusicBar control center", "Trung tâm điều khiển MusicBar"));
+        d.Add("Set_ControlCenter_Desc", ("The network / volume button (Windows 11) or the Control Center button (ExplorerPatcher) opens MusicBar's panel: notifications, quick settings, volume and speaker choice. On a Windows 10-style taskbar, the volume icon and the notification bell are folded into it. Exit MusicBar and everything goes back to how it was.", "Nút mạng / âm lượng (Windows 11) hoặc nút Control Center (ExplorerPatcher) mở bảng của MusicBar: thông báo, cài đặt nhanh, âm lượng và chọn loa. Trên taskbar kiểu Windows 10, icon âm lượng và chuông thông báo được gộp vào đó. Thoát MusicBar là mọi thứ trở lại như cũ."));
 
-        d.Add("Set_Bar_GroupWidget", ("Control widget", "Widget điều khiển"));
-        d.Add("Set_WidgetPlacement", ("Widget position", "Vị trí widget"));
-        d.Add("Set_WidgetPlacement_Desc", ("The widget finds the free space between the icons and the system tray by itself.", "Widget tự tìm khoảng trống giữa các icon và khay hệ thống."));
-        d.Add("Set_LyricsExpanded", ("Show lyrics on the taskbar", "Hiện lời bài hát trên taskbar"));
-        d.Add("Set_LyricsExpanded_Desc", ("Click the cover on the taskbar to quickly turn this on or off.", "Bấm vào ảnh bìa trên taskbar để bật hoặc tắt nhanh."));
-        d.Add("Set_LyricsPlacement", ("Lyrics position", "Lời bài hát nằm ở"));
-        d.Add("Set_LyricsPlacement_Desc", ("Largest free space: the lyrics follow the icons and sit in the middle of the free space, whether the icons are centered or left-aligned.", "Khoảng trống lớn nhất: lời tự dời theo icon, nằm giữa vùng trống dù icon căn giữa hay căn trái."));
-        d.Add("Set_InfoPopup", ("Song info card", "Thẻ thông tin bài hát"));
-        d.Add("Set_InfoPopup_Desc", ("Hover over the cover for a moment to see a large cover, the artist, album and genre.", "Giữ chuột trên ảnh bìa một lúc để xem ảnh bìa lớn, ca sĩ, album, thể loại."));
-        d.Add("Set_OnlineInfo", ("Look up genre and release year", "Tra thể loại và năm phát hành"));
-        d.Add("Set_OnlineInfo_Desc", ("Searches the iTunes catalog by song title and artist, since most players don't send a genre.", "Hỏi danh mục iTunes theo tên bài và ca sĩ, vì đa số trình phát không gửi thể loại."));
-        d.Add("Set_WidgetMaxWidth", ("Width with lyrics shown", "Độ rộng khi mở lời bài hát"));
-        d.Add("Set_Source", ("Tracked app", "Ứng dụng được theo dõi"));
-        d.Add("Set_Source_Desc", ("Automatic picks the app that's playing; pin an app to always show it.", "Tự động sẽ chọn ứng dụng đang phát; ghim một ứng dụng để luôn hiện nó."));
-        d.Add("Set_Source_Auto", ("Automatic (whatever is playing)", "Tự động (ưu tiên đang phát)"));
-        d.Add("Set_Source_NotRunning", ("{0} (not running)", "{0} (chưa chạy)"));
-
-        d.Add("Set_Bar_GroupBehavior", ("Behavior", "Hành vi"));
-        d.Add("Set_HideIdle", ("Hide when no music is playing", "Ẩn khi không có nhạc"));
-        d.Add("Set_HideIdle_Desc", ("The taskbar goes back to normal; MusicBar shows up again when an app starts playing.", "Taskbar trở về như cũ; MusicBar tự hiện lại khi một ứng dụng bắt đầu phát."));
-        d.Add("Set_HideFullscreen", ("Hide when an app is full screen", "Ẩn khi có ứng dụng toàn màn hình"));
-        d.Add("Set_HideFullscreen_Desc", ("Games, full-screen video, presentations...", "Game, video toàn màn hình, trình chiếu..."));
-        d.Add("Set_StartWithWindows", ("Start with Windows", "Khởi động cùng Windows"));
-
-        // ---- appearance page
-        d.Add("Set_Look_Subtitle", ("Colors, the taskbar background and what the widget shows. Changes apply right away.", "Màu sắc, nền taskbar và những thứ hiển thị trong widget. Mọi thay đổi áp dụng ngay."));
-        d.Add("Set_Look_GroupColors", ("Background and color", "Nền và màu"));
-        d.Add("Set_Background", ("Taskbar background", "Nền taskbar"));
-        d.Add("Set_BgOpacity", ("Background opacity", "Độ đậm nền"));
-        d.Add("Set_BgOpacity_Desc", ("Doesn't apply to the transparent background. Capped at 35% when tinted over the taskbar.", "Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%."));
-        d.Add("Set_Accent", ("Progress bar accent color", "Màu nhấn của thanh tiến trình"));
-        d.Add("Set_Accent_Desc", ("If the cover has no standout color, the app's color is used, then the Windows accent color.", "Ảnh bìa không có màu nổi bật thì dùng màu ứng dụng, rồi tới màu Windows."));
-        d.Add("Set_CustomColor", ("Custom color", "Màu tự chọn"));
-        d.Add("Set_CustomColor_Desc", ("Pick a swatch or enter a hex code.", "Chọn một mẫu hoặc nhập mã hex."));
-        d.Add("Set_Look_GroupStyle", ("Progress bar style", "Phong cách thanh tiến trình"));
-        d.Add("Set_Look_StyleHint", ("The previews run live with the colors of the song that's playing. Click one to choose it.", "Bản xem trước chạy thật với màu của bài đang phát. Bấm để chọn."));
-        d.Add("Set_FillOpacity", ("Opacity", "Độ đậm"));
-        d.Add("Set_AudioReactive", ("Move with the music", "Nhảy theo nhạc"));
-        d.Add("Set_AudioReactive_Desc", ("Listens to the sound going to your speakers so styles like Spectrum, Waveform and Aurora move with the music. Processed only on this PC.", "Đọc âm thanh đang phát ra loa để các kiểu như Phổ âm, Dạng sóng, Cực quang chuyển động theo nhạc. Chỉ xử lý trong máy."));
-        d.Add("Set_Look_GroupParts", ("Elements", "Thành phần"));
+        // ---- player page
+        d.Add("Set_Player_Subtitle", ("The capsule on the taskbar with the cover and playback buttons. Right-click it for quick options.", "Viên nhỏ trên taskbar gồm ảnh bìa và nút điều khiển. Chuột phải lên nó để chỉnh nhanh."));
+        d.Add("Set_PlayerMode", ("On the taskbar", "Hiện trên taskbar"));
+        d.Add("Set_PlayerMode_Desc", ("For a minimal taskbar, hide the player and keep the lyrics (they move to the largest free space), or hide both and let only the progress bar run. The menu stays on the MusicBar icon in the system tray.", "Muốn taskbar tối giản thì ẩn trình phát mà giữ lời (lời tự dời vào khoảng trống lớn nhất), hoặc ẩn cả hai, chỉ còn thanh tiến trình chạy. Menu vẫn có ở biểu tượng MusicBar trong khay hệ thống."));
+        d.Add("Set_Player_GroupPlace", ("Position", "Vị trí"));
+        d.Add("Set_WidgetPlacement", ("Player position", "Vị trí trình phát"));
+        d.Add("Set_WidgetPlacement_Desc", ("The player finds the free space between the icons and the system tray by itself.", "Trình phát tự tìm khoảng trống giữa các icon và khay hệ thống."));
+        d.Add("Set_Player_GroupParts", ("What it shows", "Thành phần"));
         d.Add("Set_AlbumArt", ("Album cover", "Ảnh bìa"));
         d.Add("Set_AppIcon", ("Icon of the playing app", "Biểu tượng ứng dụng đang phát"));
         d.Add("Set_AppIcon_Desc", ("A small badge in the corner of the cover.", "Huy hiệu nhỏ ở góc ảnh bìa."));
         d.Add("Set_Controls", ("Playback buttons (previous / play / next)", "Nút điều khiển (lùi / phát / tới)"));
         d.Add("Set_ControlStyle", ("Button style", "Kiểu nút điều khiển"));
-        d.Add("Set_ControlStyle_Desc", ("Changes show on the taskbar right away. You can also change it by right-clicking the widget.", "Đổi là thấy ngay trên taskbar. Chuột phải lên widget cũng đổi được."));
-        d.Add("Set_Font", ("Font", "Phông chữ"));
-        d.Add("Set_Font_Desc", ("The first 10 fonts in the list come with MusicBar; they're free and fully support Vietnamese.", "10 phông đầu danh sách có sẵn trong MusicBar, miễn phí và hỗ trợ đủ tiếng Việt."));
+        d.Add("Set_ControlStyle_Desc", ("Changes show on the taskbar right away. You can also change it by right-clicking the player.", "Đổi là thấy ngay trên taskbar. Chuột phải lên trình phát cũng đổi được."));
+        d.Add("Set_Player_GroupCard", ("Song card", "Thẻ bài hát"));
+        d.Add("Set_InfoPopup", ("Song info card", "Thẻ thông tin bài hát"));
+        d.Add("Set_InfoPopup_Desc", ("Hover over the cover for a moment to see a large cover, the artist, album and genre.", "Giữ chuột trên ảnh bìa một lúc để xem ảnh bìa lớn, ca sĩ, album, thể loại."));
+        d.Add("Set_OnlineInfo", ("Look up genre and release year", "Tra thể loại và năm phát hành"));
+        d.Add("Set_OnlineInfo_Desc", ("Searches the iTunes catalog by song title and artist, since most players don't send a genre.", "Hỏi danh mục iTunes theo tên bài và ca sĩ, vì đa số trình phát không gửi thể loại."));
+
+        // ---- progress bar page
+        d.Add("Set_Progress_Subtitle", ("The song's progress runs along the whole taskbar. Changes apply right away.", "Tiến trình bài hát chạy dọc cả taskbar. Mọi thay đổi áp dụng ngay."));
+        d.Add("Set_Progress_GroupStyle", ("Style", "Kiểu"));
+        d.Add("Set_Progress_StyleHint", ("The previews run live with the colors of the song that's playing. Click one to choose it.", "Bản xem trước chạy thật với màu của bài đang phát. Bấm để chọn."));
+        d.Add("Set_Progress_GroupMotion", ("Direction and motion", "Hướng và chuyển động"));
+        d.Add("Set_SeekDirection", ("Direction", "Hướng chạy"));
+        d.Add("Set_SeekDirection_Desc", ("Which way the progress grows along the taskbar.", "Thanh tiến trình chạy theo hướng nào dọc taskbar."));
+        d.Add("Set_FillOpacity", ("Opacity", "Độ đậm"));
+        d.Add("Set_AudioReactive", ("Move with the music", "Nhảy theo nhạc"));
+        d.Add("Set_AudioReactive_Desc", ("Listens to the sound going to your speakers so styles like Spectrum, Waveform and Aurora move with the music. Processed only on this PC.", "Đọc âm thanh đang phát ra loa để các kiểu như Phổ âm, Dạng sóng, Cực quang chuyển động theo nhạc. Chỉ xử lý trong máy."));
+        d.Add("Set_Progress_GroupColor", ("Color", "Màu"));
+        d.Add("Set_Accent", ("Accent color", "Màu nhấn"));
+        d.Add("Set_Accent_Desc", ("Colors the progress bar and the play button. If the cover has no standout color, the app's color is used, then the Windows accent color.", "Tô thanh tiến trình và nút phát. Ảnh bìa không có màu nổi bật thì dùng màu ứng dụng, rồi tới màu Windows."));
+        d.Add("Set_CustomColor", ("Custom color", "Màu tự chọn"));
+        d.Add("Set_CustomColor_Desc", ("Pick a swatch or enter a hex code.", "Chọn một mẫu hoặc nhập mã hex."));
 
         // ---- lyrics page
         d.Add("Set_Lyr_Subtitle", ("Line-synced lyrics come from LRCLIB (an open lyrics library). Downloaded lyrics are saved as .lrc files, ready to use next time without a connection.", "Lời đồng bộ theo từng dòng lấy từ LRCLIB (kho lời mở). Lời đã tải được lưu thành file .lrc để lần sau dùng ngay, không cần mạng."));
-        d.Add("Set_Lyr_GroupDisplay", ("Display", "Hiển thị"));
-        d.Add("Set_LyricsEnabled", ("Show lyrics", "Hiện lời bài hát"));
+        d.Add("Set_Lyr_GroupPlace", ("Where they show", "Hiện ở đâu"));
+        d.Add("Set_LyricsExpanded", ("Show lyrics on the taskbar", "Hiện lời bài hát trên taskbar"));
+        d.Add("Set_LyricsExpanded_Desc", ("Click the cover on the taskbar to quickly turn this on or off.", "Bấm vào ảnh bìa trên taskbar để bật hoặc tắt nhanh."));
+        d.Add("Set_LyricsPlacement", ("Lyrics position", "Lời bài hát nằm ở"));
+        d.Add("Set_LyricsPlacement_Desc", ("Next to the cover: the lyrics open beside the player. Largest free space: they move into the biggest empty stretch of the taskbar, such as the other side of centered icons.", "Ngay cạnh ảnh bìa: lời mở ra bên cạnh trình phát. Khoảng trống lớn nhất: lời dời vào vùng trống lớn nhất của taskbar, ví dụ phía bên kia cụm icon căn giữa."));
+        d.Add("Set_WidgetMaxWidth", ("Player length with lyrics open", "Độ dài trình phát khi mở lời"));
+        d.Add("Set_WidgetMaxWidth_Desc", ("For lyrics next to the cover.", "Dùng khi lời nằm cạnh ảnh bìa."));
+        d.Add("Set_LyricsAlign", ("Lyrics alignment", "Căn lề lời"));
+        d.Add("Set_Lyr_GroupEffects", ("Effects", "Hiệu ứng"));
         d.Add("Set_LyricEffect", ("Line transition effect", "Hiệu ứng chuyển dòng"));
         d.Add("Set_Preview", ("Preview", "Xem thử"));
         d.Add("Set_AnimSpeed", ("Effect speed", "Tốc độ hiệu ứng"));
         d.Add("Set_Karaoke", ("Karaoke highlight in time", "Tô màu karaoke theo thời gian"));
-        d.Add("Set_Karaoke_Desc", ("The line being sung fills in from left to right.", "Dòng đang hát được tô dần từ trái sang phải."));
+        d.Add("Set_Karaoke_Desc", ("The line being sung fills in as it's sung.", "Dòng đang hát được tô dần theo lời."));
         d.Add("Set_NextLine", ("Show the next line", "Hiện dòng kế tiếp"));
-        d.Add("Set_NextLine_Desc", ("Needs a taskbar at least 40 px tall (medium icons).", "Cần taskbar cao từ 40 px (icon cỡ thường)."));
-        d.Add("Set_LyricsAlign", ("Lyrics alignment", "Căn lề lời"));
+        d.Add("Set_NextLine_Desc", ("Needs a taskbar at least 40 px tall (medium icons), or a vertical one.", "Cần taskbar cao từ 40 px (icon cỡ thường), hoặc taskbar dọc."));
         d.Add("Set_Offset", ("Global timing offset", "Độ lệch thời gian chung"));
-        d.Add("Set_Offset_Desc", ("Positive values show lyrics earlier. Each song can be adjusted on its own by right-clicking the bar.", "Số dương: lời hiện sớm hơn. Từng bài có thể chỉnh riêng bằng chuột phải lên thanh."));
+        d.Add("Set_Offset_Desc", ("Positive values show lyrics earlier. Each song can be adjusted on its own by right-clicking the player.", "Số dương: lời hiện sớm hơn. Từng bài có thể chỉnh riêng bằng chuột phải lên trình phát."));
         d.Add("Set_Lyr_GroupText", ("Text style", "Kiểu chữ"));
+        d.Add("Set_Font", ("Font", "Phông chữ"));
+        d.Add("Set_Font_Desc", ("The first 10 fonts in the list come with MusicBar; they're free and fully support Vietnamese.", "10 phông đầu danh sách có sẵn trong MusicBar, miễn phí và hỗ trợ đủ tiếng Việt."));
         d.Add("Set_LyricScale", ("Lyrics text size", "Cỡ chữ lời"));
         d.Add("Set_LyricColor", ("Text color", "Màu chữ"));
         d.Add("Set_LyricColor_Desc", ("In karaoke, the sung part is tinted with the song's color.", "Phần đã hát trong karaoke pha thêm màu của bài."));
@@ -134,6 +162,8 @@ public static partial class Strings
         d.Add("Set_StrokeRadius", ("Outline width", "Độ rộng viền"));
         d.Add("Set_StrokeRadius_Desc", ("Small gives a crisp outline around the text, large a soft glow.", "Nhỏ là viền sắc quanh chữ, lớn là quầng sáng mềm."));
         d.Add("Set_Lyr_GroupSource", ("Source and storage", "Nguồn và bộ nhớ"));
+        d.Add("Set_LyricsEnabled", ("Find lyrics for songs", "Tìm lời cho bài đang phát"));
+        d.Add("Set_LyricsEnabled_Desc", ("Off: the lyrics area shows the song title and artist instead.", "Tắt thì vùng lời chỉ hiện tên bài và ca sĩ."));
         d.Add("Set_FetchOnline", ("Download lyrics from LRCLIB", "Tải lời từ LRCLIB"));
         d.Add("Set_FetchOnline_Desc", ("Turn off to use only .lrc files already on this PC.", "Tắt để chỉ dùng file .lrc có sẵn trong máy."));
         d.Add("Set_Proxy", ("Proxy", "Proxy"));
@@ -156,11 +186,11 @@ public static partial class Strings
         d.Add("Set_About_Media", ("Playback control:", "Điều khiển nhạc:"));
         d.Add("Set_About_GroupTips", ("Tips", "Mẹo"));
         d.Add("Set_Tip_Bar", ("The whole taskbar is the progress bar", "Cả taskbar là thanh tiến trình"));
-        d.Add("Set_Tip_Bar_Desc", ("The played part is colored in from the left edge of the taskbar. The layer ignores the mouse, so the taskbar works as usual.", "Phần đã phát phủ màu từ mép trái taskbar. Lớp này không nhận chuột, taskbar dùng như bình thường."));
-        d.Add("Set_Tip_RightClick", ("Right-click the widget", "Chuột phải lên widget"));
-        d.Add("Set_Tip_RightClick_Desc", ("Switch the player, reload lyrics, shift lyrics earlier or later for each song, and quickly change the effect.", "Đổi nguồn phát, tải lại lời, chỉnh lời sớm/trễ cho từng bài, đổi nhanh hiệu ứng."));
+        d.Add("Set_Tip_Bar_Desc", ("The played part fills in along the taskbar, in the direction picked under Progress bar. The layer ignores the mouse, so the taskbar works as usual.", "Phần đã phát phủ màu dọc taskbar, theo hướng chọn ở mục Thanh tiến trình. Lớp này không nhận chuột, taskbar dùng như bình thường."));
+        d.Add("Set_Tip_RightClick", ("Right-click the player", "Chuột phải lên trình phát"));
+        d.Add("Set_Tip_RightClick_Desc", ("Switch the player, reload lyrics, shift lyrics earlier or later for each song, and quickly change the effect. The MusicBar icon in the system tray has the same menu.", "Đổi nguồn phát, tải lại lời, chỉnh lời sớm/trễ cho từng bài, đổi nhanh hiệu ứng. Biểu tượng MusicBar trong khay hệ thống cũng có menu này."));
         d.Add("Set_Tip_ClickCover", ("Click the cover", "Nhấp vào ảnh bìa"));
-        d.Add("Set_Tip_ClickCover_Desc", ("Shows or hides the lyrics next to it.", "Mở hoặc thu gọn lời bài hát ngay cạnh ảnh bìa."));
+        d.Add("Set_Tip_ClickCover_Desc", ("Shows or hides the lyrics.", "Mở hoặc thu gọn lời bài hát."));
         d.Add("Set_About_GroupData", ("Data", "Dữ liệu"));
         d.Add("Set_DataFolder", ("Data folder", "Thư mục dữ liệu"));
         d.Add("Set_DataFolder_Desc", ("Settings, logs and, by default, lyrics.", "Cài đặt, nhật ký và lời bài hát mặc định."));

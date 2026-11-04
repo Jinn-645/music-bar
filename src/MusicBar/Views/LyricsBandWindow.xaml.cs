@@ -20,6 +20,7 @@ public partial class LyricsBandWindow : Window
 
     readonly DropShadowEffect _lyricStroke = new() { ShadowDepth = 0 };
     int _token;
+    bool _vertical;
 
     public LyricsBandWindow()
     {
@@ -36,23 +37,39 @@ public partial class LyricsBandWindow : Window
 
     public bool IsRevealed { get; private set; }
 
-    /// <summary>Screen pixels covered by the lyric text in the strip; empty when hidden.</summary>
-    public (double Left, double Right) LyricsScreenSpan()
+    /// <summary>The lyrics display in use: lines across a horizontal taskbar, stacked words down a vertical one.</summary>
+    public ILyricsView LyricsView => _vertical ? StackLyrics : LineLyrics;
+
+    /// <summary>
+    /// Screen pixels covered by the lyric text in the strip, along the taskbar's length; empty when hidden.
+    /// </summary>
+    public (double Start, double End) LyricsScreenSpan()
         => IsRevealed && IsVisible && Root.Opacity > 0.05 ? LyricsView.TextScreenSpan() : (0, 0);
 
-    public void ApplyStyle(AppSettings s, double h)
+    public void SetAccent(Color accent) => LineLyrics.Accent = StackLyrics.Accent = accent;
+
+    /// <param name="thickness">The taskbar's short side, in DIPs.</param>
+    public void ApplyStyle(AppSettings s, double thickness, bool vertical)
     {
+        _vertical = vertical;
+        LineLyrics.Visibility = vertical ? Visibility.Collapsed : Visibility.Visible;
+        StackLyrics.Visibility = vertical ? Visibility.Visible : Visibility.Collapsed;
         FontFamily = BundledFonts.Resolve(s.FontFamily);
         Root.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke);
-        bool twoLine = s.ShowNextLine && h >= 40;
-        double main = (twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.45, 12, 16)) * s.LyricScale;
-        double sub = Math.Clamp(h * 0.22, 10, 12) * s.LyricScale;
+        double h = thickness;
+        // Stacked words have room for the next line below them; a horizontal strip needs the height.
+        bool twoLine = s.ShowNextLine && (vertical || h >= 40);
+        double main = (vertical ? Math.Clamp(h * 0.3, 11, 14) : twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.45, 12, 16)) * s.LyricScale;
+        double sub = (vertical ? 11 : Math.Clamp(h * 0.22, 10, 12)) * s.LyricScale;
         LyricsView.Configure(s.LyricEffect, s.Karaoke, twoLine, FontFamily,
             Math.Round(main * 2) / 2, Math.Round(sub * 2) / 2, HorizontalAlignment.Center, s.AnimationSpeed);
     }
 
-    /// <summary>Fades the strip in (sliding from the widget's side) or out, then hides the window.</summary>
-    public void Reveal(bool show, double fromX)
+    /// <summary>
+    /// Fades the strip in (sliding from the widget's side, <paramref name="from"/> DIPs along the
+    /// taskbar) or out, then hides the window.
+    /// </summary>
+    public void Reveal(bool show, double from)
     {
         if (show == IsRevealed) return;
         IsRevealed = show;
@@ -62,7 +79,9 @@ public partial class LyricsBandWindow : Window
             if (!IsVisible) Show();
             var d = TimeSpan.FromMilliseconds(380);
             Root.BeginAnimation(OpacityProperty, new DoubleAnimation(1, d) { EasingFunction = EaseOut });
-            RootShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(fromX, 0, d) { EasingFunction = EaseOut });
+            var along = _vertical ? TranslateTransform.YProperty : TranslateTransform.XProperty;
+            RootShift.BeginAnimation(_vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, null);
+            RootShift.BeginAnimation(along, new DoubleAnimation(from, 0, d) { EasingFunction = EaseOut });
             return;
         }
         var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(220));

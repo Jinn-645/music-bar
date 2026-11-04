@@ -13,15 +13,25 @@
     <Grid x:Name="Root">
         <Border x:Name="Pill" HorizontalAlignment="Right" Margin="0,2" Background="#01FFFFFF"
                 MouseRightButtonUp="Pill_MouseRightButtonUp">
+            <!-- Lyrics, cover and buttons sit in a row across a horizontal taskbar and in a
+                 column down a vertical one (SetLayout picks the cells). -->
             <Grid x:Name="PillGrid" Margin="3,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
                 <Border x:Name="LyricsHost" Grid.Column="0" Width="0" Opacity="0" ClipToBounds="True">
-                    <v:LyricsPresenter x:Name="LyricsView" Margin="10,0,6,0" IsHitTestVisible="False" />
+                    <Grid>
+                        <v:LyricsPresenter x:Name="LineLyrics" Margin="10,0,6,0" IsHitTestVisible="False" />
+                        <v:WordStackPresenter x:Name="StackLyrics" Margin="0,8,0,6" IsHitTestVisible="False" Visibility="Collapsed" />
+                    </Grid>
                 </Border>
 
                 <Button x:Name="CoverButton" Grid.Column="1" Style="{StaticResource BareButton}" Padding="3,0"

@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -10,32 +13,91 @@ using MusicBar.Infrastructure;
 namespace MusicBar.Interop;
 
 /// <summary>
-/// Makes the Windows 11 taskbar see-through. Its background is a XAML element
+/// Makes Windows 11 taskbars see-through. Their background is a XAML element
 /// inside Explorer, so MusicBar gets a small helper (MusicBar.TaskbarTap.dll)
 /// loaded there: a hook on the taskbar's thread brings the DLL into Explorer,
 /// where it attaches to Explorer's XAML through the public diagnostics API and
-/// stays (the approach TranslucentTB takes). The helper keeps the background
-/// clear while MusicBar's "clear" event is set; if MusicBar exits or crashes,
-/// the event goes away and the taskbar gets its own background back.
+/// stays (the approach TranslucentTB takes). The helper clears exactly the
+/// taskbars listed in a small shared-memory block; if MusicBar exits or crashes,
+/// the block goes away and every taskbar gets its own background back.
 /// </summary>
 internal static class XamlTaskbar
 {
-    const string WantEvent = @"Local\MusicBar.TaskbarClear.v1";
+    // Must match the helper (TaskbarTap.cpp): a count, then up to 16 window handles.
+    const string TargetsName = @"Local\MusicBar.TaskbarClear.v2";
+    const int MaxTargets = 16;
     // Must match the helper; bumped whenever the helper changes, so a newer one gets loaded.
-    const string ReadyPrefix = @"Local\MusicBar.TaskbarTap.Ready.v2.";
+    const string ReadyPrefix = @"Local\MusicBar.TaskbarTap.Ready.v3.";
+    const string WatchingPrefix = @"Local\MusicBar.TaskbarTap.Watching.v3.";
+    // The helper of MusicBar 1.0-1.1 keeps Explorer's XAML tree until Explorer restarts, so a
+    // newer helper loaded beside it sees nothing. It only knows "clear every taskbar, or none".
+    const string LegacyReadyPrefix = @"Local\MusicBar.TaskbarTap.Ready.v2.";
+    const string LegacyWantEvent = @"Local\MusicBar.TaskbarClear.v1";
+    static readonly TimeSpan CheckEvery = TimeSpan.FromSeconds(2);
     static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(40);
     static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(35);
 
-    static EventWaitHandle? _want;
+    // Each overlay asks for its own taskbar; the helper gets the union.
+    static readonly Dictionary<object, IntPtr> _wanted = [];
+    static MemoryMappedFile? _targets;
+    static MemoryMappedViewAccessor? _view;
+    static string _published = "";
+    static EventWaitHandle? _legacyWant;
+    static bool _legacy;
+    static DateTime _checkedAt = DateTime.MinValue;
     static uint _loadedIn;
+
+    /// <summary>
+    /// Only the older helper reaches the taskbar, and there is more than one taskbar: it would
+    /// clear every monitor's, so none is cleared until Explorer restarts.
+    /// </summary>
+    public static bool Blocked { get; private set; }
+
+    /// <summary>Notes which helper is in charge of this Explorer (throttled; call it on every tick).</summary>
+    public static void CheckHelper(IntPtr taskbar)
+    {
+        if (taskbar == IntPtr.Zero || DateTime.Now - _checkedAt < CheckEvery) return;
+        _checkedAt = DateTime.Now;
+        Native.GetWindowThreadProcessId(taskbar, out uint pid);
+        _legacy = pid != 0 && !Exists(WatchingPrefix + pid) && Exists(LegacyReadyPrefix + pid);
+        bool blocked = _legacy && TaskbarCount() > 1;
+        if (blocked != Blocked) Log.Info(blocked
+            ? "An older taskbar helper holds Explorer and there are several taskbars: not clearing any until Explorer restarts"
+            : "Taskbar clearing available again");
+        Blocked = blocked;
+        PublishLegacy();
+    }
+
+    static bool Exists(string name)
+    {
+        if (!EventWaitHandle.TryOpenExisting(name, out var handle)) return false;
+        handle.Dispose();
+        return true;
+    }
+
+    static int TaskbarCount()
+    {
+        int n = Native.FindWindow("Shell_TrayWnd", null) != IntPtr.Zero ? 1 : 0;
+        for (var h = IntPtr.Zero; (h = Native.FindWindowEx(IntPtr.Zero, h, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero;) n++;
+        return n;
+    }
+
+    /// <summary>With only the older helper in place, a single taskbar can still be cleared its way.</summary>
+    static void PublishLegacy()
+    {
+        bool want = _legacy && !Blocked && _wanted.Values.Any(h => h != IntPtr.Zero);
+        if (want) (_legacyWant ??= new EventWaitHandle(false, EventResetMode.ManualReset, LegacyWantEvent)).Set();
+        else _legacyWant?.Reset();
+    }
     static DateTime _lastAttempt = DateTime.MinValue;
     static int _loading;
 
-    /// <summary>Asks for a clear taskbar; loads the helper into the current Explorer if needed. Cheap to repeat.</summary>
-    public static void Clear(IntPtr taskbar)
+    /// <summary>Asks for <paramref name="owner"/>'s taskbar to be clear; loads the helper into Explorer if needed. Cheap to repeat.</summary>
+    public static void Clear(object owner, IntPtr taskbar)
     {
-        _want ??= new EventWaitHandle(false, EventResetMode.ManualReset, WantEvent);
-        _want.Set();
+        _wanted[owner] = taskbar;
+        Publish();
+        PublishLegacy();
         if (taskbar == IntPtr.Zero) return;
         Native.GetWindowThreadProcessId(taskbar, out uint pid);
         if (pid == 0 || pid == _loadedIn) return;
@@ -59,8 +121,28 @@ internal static class XamlTaskbar
         });
     }
 
-    /// <summary>Gives the taskbar its own background back.</summary>
-    public static void Restore() => _want?.Reset();
+    /// <summary>Gives <paramref name="owner"/>'s taskbar its own background back.</summary>
+    public static void Restore(object owner)
+    {
+        if (_wanted.Remove(owner)) Publish();
+        PublishLegacy();
+    }
+
+    /// <summary>Writes the taskbars to clear for the helper, the count last so it never reads a half-written list.</summary>
+    static void Publish()
+    {
+        var windows = _wanted.Values.Where(h => h != IntPtr.Zero).Distinct().Take(MaxTargets).ToList();
+        string key = string.Join(",", windows);
+        if (key == _published) return;
+        _published = key;
+        if (_view == null)
+        {
+            _targets = MemoryMappedFile.CreateOrOpen(TargetsName, 8 + 8 * MaxTargets);
+            _view = _targets.CreateViewAccessor();
+        }
+        for (int i = 0; i < windows.Count; i++) _view.Write(8 + 8 * i, (long)windows[i]);
+        _view.Write(0, (uint)windows.Count);
+    }
 
     static bool IsLoaded(uint pid)
     {

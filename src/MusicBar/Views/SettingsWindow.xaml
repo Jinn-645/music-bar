@@ -231,6 +231,13 @@
             <ListBox x:Name="Nav" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0"
                      ItemContainerStyle="{StaticResource NavItem}" SelectionChanged="Nav_SelectionChanged"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <!-- One page per thing on the taskbar, in the order SettingsWindow._pages lists them. -->
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE713;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_General}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
@@ -239,8 +246,14 @@
                 </ListBoxItem>
                 <ListBoxItem>
                     <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE768;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Player}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE790;" FontFamily="{StaticResource Icons}" FontSize="16" VerticalAlignment="Center" />
-                        <TextBlock Text="{l:Tr Set_Page_Look}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{l:Tr Set_Page_Progress}" Margin="14,0,0,0" FontSize="14" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
                 <ListBoxItem>
@@ -288,24 +301,75 @@
         <ScrollViewer x:Name="PageScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="30,22,34,30">
             <Grid MaxWidth="900" HorizontalAlignment="Stretch">
 
+                <!-- General -->
+                <StackPanel x:Name="PageGeneral">
+                    <TextBlock Text="{l:Tr Set_Page_General}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_General_Subtitle}" Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="{l:Tr Set_General_GroupWhen}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7E8;" Header="{l:Tr Set_StartWithWindows}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding StartWithWindows}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE7ED;" Header="{l:Tr Set_HideIdle}"
+                                   Description="{l:Tr Set_HideIdle_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideWhenIdle}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_HideFullscreen}"
+                                   Description="{l:Tr Set_HideFullscreen_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideInFullscreen}" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="{l:Tr Set_General_GroupSource}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE767;" Header="{l:Tr Set_Source}"
+                                   Description="{l:Tr Set_Source_Desc}">
+                        <ComboBox x:Name="SourceCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  SelectedValue="{Binding PinnedAppId}" DropDownOpened="SourceCombo_DropDownOpened" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="{l:Tr Set_Bar_GroupScreens}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE7F4;" Header="{l:Tr Set_DisplayTarget}" Description="{l:Tr Set_DisplayTarget_Desc}">
+                        <ComboBox x:Name="DisplayCombo" MinWidth="260" DisplayMemberPath="Label"
+                                  SelectionChanged="DisplayCombo_Changed" DropDownOpened="DisplayCombo_DropDownOpened" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_PlayerTarget}" Description="{l:Tr Set_PlayerTarget_Desc}">
+                        <ComboBox x:Name="PlayerScreenCombo" MinWidth="260" DisplayMemberPath="Label"
+                                  SelectionChanged="PlayerScreenCombo_Changed" DropDownOpened="DisplayCombo_DropDownOpened" />
+                    </v:SettingCard>
+                </StackPanel>
+
                 <!-- Taskbar -->
-                <StackPanel x:Name="PageBar">
+                <StackPanel x:Name="PageBar" Visibility="Collapsed">
                     <TextBlock Text="{l:Tr Set_Page_Bar}" Style="{StaticResource PageTitle}" />
                     <TextBlock Text="{l:Tr Set_Bar_Subtitle}" Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="{l:Tr Set_Bar_GroupBackground}" Style="{StaticResource Group}" />
+                    <v:SettingCard x:Name="TransparentCard" Glyph="&#xE81E;" Header="{l:Tr Set_Transparent}"
+                                   Description="{l:Tr Set_Transparent_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding TransparentTaskbar}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE771;" Header="{l:Tr Set_Background}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Backgrounds}"
+                                  SelectedValue="{Binding Background}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE706;" Header="{l:Tr Set_BgOpacity}" Description="{l:Tr Set_BgOpacity_Desc}">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding BackgroundOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding BackgroundOpacity, StringFormat={}{0:P0}}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE81E;" Header="{l:Tr Set_LayerMode}"
+                                   Description="{l:Tr Set_LayerMode_Desc}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.LayerModes}" SelectedValue="{Binding LayerMode}" />
+                    </v:SettingCard>
+                    <TextBlock x:Name="LayerStatusText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" />
 
                     <TextBlock Text="{l:Tr Set_Bar_GroupWindows}" Style="{StaticResource Group}" />
                     <v:SettingCard x:Name="TaskbarSizeCard" Glyph="&#xE740;" Header="{l:Tr Set_TaskbarSize}"
                                    Description="{l:Tr Set_TaskbarSize_Desc}">
                         <ComboBox x:Name="TaskbarSizeCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   ItemsSource="{x:Static v:SettingsOptions.TaskbarSizes}" SelectionChanged="TaskbarSize_Changed" />
-                    </v:SettingCard>
-                    <v:SettingCard x:Name="TransparentCard" Glyph="&#xE81E;" Header="{l:Tr Set_Transparent}"
-                                   Description="{l:Tr Set_Transparent_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding TransparentTaskbar}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE91C;" Header="{l:Tr Set_ControlCenter}"
-                                   Description="{l:Tr Set_ControlCenter_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ControlCenter}" />
                     </v:SettingCard>
                     <v:SettingCard Glyph="&#xE8E3;" Header="{l:Tr Set_Center}"
                                    Description="{l:Tr Set_Center_Desc}">
@@ -329,80 +393,85 @@
                         </Grid>
                     </Border>
 
-                    <TextBlock Text="{l:Tr Set_Bar_GroupLayer}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE81E;" Header="{l:Tr Set_LayerMode}"
-                                   Description="{l:Tr Set_LayerMode_Desc}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                  ItemsSource="{x:Static v:SettingsOptions.LayerModes}" SelectedValue="{Binding LayerMode}" />
-                    </v:SettingCard>
-                    <TextBlock x:Name="LayerStatusText" FontSize="12" Opacity="0.55" Margin="18,-2,0,8" />
-
-                    <TextBlock Text="{l:Tr Set_Bar_GroupWidget}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE737;" Header="{l:Tr Set_WidgetPlacement}" Description="{l:Tr Set_WidgetPlacement_Desc}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                  ItemsSource="{x:Static v:SettingsOptions.Placements}" SelectedValue="{Binding WidgetPlacement}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8FD;" Header="{l:Tr Set_LyricsExpanded}"
-                                   Description="{l:Tr Set_LyricsExpanded_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsExpanded}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8A1;" Header="{l:Tr Set_LyricsPlacement}"
-                                   Description="{l:Tr Set_LyricsPlacement_Desc}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                  ItemsSource="{x:Static v:SettingsOptions.LyricsPlacements}" SelectedValue="{Binding LyricsPlacement}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE946;" Header="{l:Tr Set_InfoPopup}"
-                                   Description="{l:Tr Set_InfoPopup_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowInfoPopup}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_OnlineInfo}"
-                                   Description="{l:Tr Set_OnlineInfo_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineTrackInfo}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_WidgetMaxWidth}">
-                        <StackPanel Orientation="Horizontal">
-                            <Slider Width="220" Minimum="240" Maximum="1200" TickFrequency="20" IsSnapToTickEnabled="True"
-                                    Value="{Binding WidgetMaxWidth}" VerticalAlignment="Center" />
-                            <TextBlock Style="{StaticResource Value}" Text="{Binding WidgetMaxWidth, StringFormat={}{0:0} px}" />
-                        </StackPanel>
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE767;" Header="{l:Tr Set_Source}"
-                                   Description="{l:Tr Set_Source_Desc}">
-                        <ComboBox x:Name="SourceCombo" MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                  SelectedValue="{Binding PinnedAppId}" DropDownOpened="SourceCombo_DropDownOpened" />
-                    </v:SettingCard>
-
-                    <TextBlock Text="{l:Tr Set_Bar_GroupBehavior}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE7ED;" Header="{l:Tr Set_HideIdle}"
-                                   Description="{l:Tr Set_HideIdle_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideWhenIdle}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_HideFullscreen}"
-                                   Description="{l:Tr Set_HideFullscreen_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding HideInFullscreen}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE7E8;" Header="{l:Tr Set_StartWithWindows}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding StartWithWindows}" />
+                    <TextBlock Text="{l:Tr Set_Bar_GroupTray}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE91C;" Header="{l:Tr Set_ControlCenter}"
+                                   Description="{l:Tr Set_ControlCenter_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ControlCenter}" />
                     </v:SettingCard>
                 </StackPanel>
 
-                <!-- Look -->
-                <StackPanel x:Name="PageLook" Visibility="Collapsed">
-                    <TextBlock Text="{l:Tr Set_Page_Look}" Style="{StaticResource PageTitle}" />
-                    <TextBlock Text="{l:Tr Set_Look_Subtitle}" Style="{StaticResource PageSubtitle}" />
+                <!-- Player -->
+                <StackPanel x:Name="PagePlayer" Visibility="Collapsed">
+                    <TextBlock Text="{l:Tr Set_Page_Player}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Player_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
-                    <TextBlock Text="{l:Tr Set_Look_GroupColors}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE771;" Header="{l:Tr Set_Background}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Backgrounds}"
-                                  SelectedValue="{Binding Background}" />
+                    <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_PlayerMode}" Description="{l:Tr Set_PlayerMode_Desc}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.PlayerModes}" SelectedValue="{Binding PlayerMode}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE706;" Header="{l:Tr Set_BgOpacity}" Description="{l:Tr Set_BgOpacity_Desc}">
+
+                    <!-- Everything below shapes the player, so it rests while the player is hidden. -->
+                    <StackPanel x:Name="PlayerParts">
+                        <TextBlock Text="{l:Tr Set_Player_GroupPlace}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE737;" Header="{l:Tr Set_WidgetPlacement}" Description="{l:Tr Set_WidgetPlacement_Desc}">
+                            <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      ItemsSource="{x:Static v:SettingsOptions.Placements}" SelectedValue="{Binding WidgetPlacement}" />
+                        </v:SettingCard>
+
+                        <TextBlock Text="{l:Tr Set_Player_GroupParts}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE91B;" Header="{l:Tr Set_AlbumArt}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAlbumArt}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE71D;" Header="{l:Tr Set_AppIcon}" Description="{l:Tr Set_AppIcon_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAppIcon}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_Controls}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowControls}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_ControlStyle}" Description="{l:Tr Set_ControlStyle_Desc}">
+                            <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      ItemsSource="{x:Static v:SettingsOptions.ControlStyles}" SelectedValue="{Binding ControlStyle}" />
+                        </v:SettingCard>
+                        <TextBlock Text="{l:Tr Set_Player_GroupCard}" Style="{StaticResource Group}" />
+                        <v:SettingCard Glyph="&#xE946;" Header="{l:Tr Set_InfoPopup}"
+                                       Description="{l:Tr Set_InfoPopup_Desc}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowInfoPopup}" />
+                        </v:SettingCard>
+                        <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_OnlineInfo}"
+                                       Description="{l:Tr Set_OnlineInfo_Desc}" IsEnabled="{Binding ShowInfoPopup}">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineTrackInfo}" />
+                        </v:SettingCard>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Progress bar -->
+                <StackPanel x:Name="PageProgress" Visibility="Collapsed">
+                    <TextBlock Text="{l:Tr Set_Page_Progress}" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{l:Tr Set_Progress_Subtitle}" Style="{StaticResource PageSubtitle}" />
+
+                    <TextBlock Text="{l:Tr Set_Progress_GroupStyle}" Style="{StaticResource Group}" />
+                    <TextBlock Text="{l:Tr Set_Progress_StyleHint}"
+                               FontSize="12" Opacity="0.6" Margin="2,-4,0,10" />
+                    <WrapPanel x:Name="SeekGallery" Margin="0,0,-10,6" />
+
+                    <TextBlock Text="{l:Tr Set_Progress_GroupMotion}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8AB;" Header="{l:Tr Set_SeekDirection}" Description="{l:Tr Set_SeekDirection_Desc}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.SeekDirections}" SelectedValue="{Binding SeekDirection}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE793;" Header="{l:Tr Set_FillOpacity}">
                         <StackPanel Orientation="Horizontal">
-                            <Slider Width="220" Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
-                                    Value="{Binding BackgroundOpacity}" VerticalAlignment="Center" />
-                            <TextBlock Style="{StaticResource Value}" Text="{Binding BackgroundOpacity, StringFormat={}{0:P0}}" />
+                            <Slider Width="220" Minimum="0.08" Maximum="0.9" SmallChange="0.02" LargeChange="0.1"
+                                    Value="{Binding FillOpacity}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding FillOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
                     </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE995;" Header="{l:Tr Set_AudioReactive}"
+                                   Description="{l:Tr Set_AudioReactive_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AudioReactive}" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="{l:Tr Set_Progress_GroupColor}" Style="{StaticResource Group}" />
                     <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_Accent}"
                                    Description="{l:Tr Set_Accent_Desc}">
                         <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.AccentSources}"
@@ -427,56 +496,6 @@
                                      Text="{Binding CustomColor, UpdateSourceTrigger=LostFocus}" KeyDown="HexBox_KeyDown" />
                         </StackPanel>
                     </v:SettingCard>
-
-                    <TextBlock Text="{l:Tr Set_Look_GroupStyle}" Style="{StaticResource Group}" />
-                    <TextBlock Text="{l:Tr Set_Look_StyleHint}"
-                               FontSize="12" Opacity="0.6" Margin="2,-4,0,10" />
-                    <WrapPanel x:Name="SeekGallery" Margin="0,0,-10,6" />
-                    <v:SettingCard Glyph="&#xE793;" Header="{l:Tr Set_FillOpacity}">
-                        <StackPanel Orientation="Horizontal">
-                            <Slider Width="220" Minimum="0.08" Maximum="0.9" SmallChange="0.02" LargeChange="0.1"
-                                    Value="{Binding FillOpacity}" VerticalAlignment="Center" />
-                            <TextBlock Style="{StaticResource Value}" Text="{Binding FillOpacity, StringFormat={}{0:P0}}" />
-                        </StackPanel>
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE995;" Header="{l:Tr Set_AudioReactive}"
-                                   Description="{l:Tr Set_AudioReactive_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AudioReactive}" />
-                    </v:SettingCard>
-
-                    <TextBlock Text="{l:Tr Set_Look_GroupParts}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE91B;" Header="{l:Tr Set_AlbumArt}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAlbumArt}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE71D;" Header="{l:Tr Set_AppIcon}" Description="{l:Tr Set_AppIcon_Desc}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowAppIcon}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_Controls}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowControls}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE790;" Header="{l:Tr Set_ControlStyle}" Description="{l:Tr Set_ControlStyle_Desc}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                  ItemsSource="{x:Static v:SettingsOptions.ControlStyles}" SelectedValue="{Binding ControlStyle}" />
-                    </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8D2;" Header="{l:Tr Set_Font}"
-                                   Description="{l:Tr Set_Font_Desc}">
-                        <ComboBox x:Name="FontCombo" MinWidth="260" SelectedItem="{Binding FontFamily}" MaxDropDownHeight="420"
-                                  VirtualizingPanel.IsVirtualizing="True">
-                            <ComboBox.Resources>
-                                <v:FontPreviewConverter x:Key="FontPreview" />
-                            </ComboBox.Resources>
-                            <ComboBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel />
-                                </ItemsPanelTemplate>
-                            </ComboBox.ItemsPanel>
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" FontFamily="{Binding Converter={StaticResource FontPreview}}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </v:SettingCard>
                 </StackPanel>
 
                 <!-- Lyrics -->
@@ -484,10 +503,29 @@
                     <TextBlock Text="{l:Tr Set_Page_Lyrics}" Style="{StaticResource PageTitle}" />
                     <TextBlock Text="{l:Tr Set_Lyr_Subtitle}" Style="{StaticResource PageSubtitle}" />
 
-                    <TextBlock Text="{l:Tr Set_Lyr_GroupDisplay}" Style="{StaticResource Group}" />
-                    <v:SettingCard Glyph="&#xE8D6;" Header="{l:Tr Set_LyricsEnabled}">
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsEnabled}" />
+                    <TextBlock Text="{l:Tr Set_Lyr_GroupPlace}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8FD;" Header="{l:Tr Set_LyricsExpanded}"
+                                   Description="{l:Tr Set_LyricsExpanded_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsExpanded}" />
                     </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8A1;" Header="{l:Tr Set_LyricsPlacement}"
+                                   Description="{l:Tr Set_LyricsPlacement_Desc}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  ItemsSource="{x:Static v:SettingsOptions.LyricsPlacements}" SelectedValue="{Binding LyricsPlacement}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE740;" Header="{l:Tr Set_WidgetMaxWidth}" Description="{l:Tr Set_WidgetMaxWidth_Desc}">
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Width="220" Minimum="240" Maximum="1200" TickFrequency="20" IsSnapToTickEnabled="True"
+                                    Value="{Binding WidgetMaxWidth}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding WidgetMaxWidth, StringFormat={}{0:0} px}" />
+                        </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8E3;" Header="{l:Tr Set_LyricsAlign}">
+                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Alignments}"
+                                  SelectedValue="{Binding LyricsAlign}" />
+                    </v:SettingCard>
+
+                    <TextBlock Text="{l:Tr Set_Lyr_GroupEffects}" Style="{StaticResource Group}" />
                     <v:SettingCard Glyph="&#xE945;" Header="{l:Tr Set_LyricEffect}">
                         <StackPanel Orientation="Horizontal">
                             <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.LyricEffects}"
@@ -509,10 +547,6 @@
                     <v:SettingCard Glyph="&#xE8FD;" Header="{l:Tr Set_NextLine}" Description="{l:Tr Set_NextLine_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShowNextLine}" />
                     </v:SettingCard>
-                    <v:SettingCard Glyph="&#xE8E3;" Header="{l:Tr Set_LyricsAlign}">
-                        <ComboBox MinWidth="260" DisplayMemberPath="Label" SelectedValuePath="Value" ItemsSource="{x:Static v:SettingsOptions.Alignments}"
-                                  SelectedValue="{Binding LyricsAlign}" />
-                    </v:SettingCard>
                     <v:SettingCard Glyph="&#xE916;" Header="{l:Tr Set_Offset}"
                                    Description="{l:Tr Set_Offset_Desc}">
                         <StackPanel Orientation="Horizontal">
@@ -523,6 +557,25 @@
                     </v:SettingCard>
 
                     <TextBlock Text="{l:Tr Set_Lyr_GroupText}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8D2;" Header="{l:Tr Set_Font}"
+                                   Description="{l:Tr Set_Font_Desc}">
+                        <ComboBox x:Name="FontCombo" MinWidth="260" SelectedItem="{Binding FontFamily}" MaxDropDownHeight="420"
+                                  VirtualizingPanel.IsVirtualizing="True">
+                            <ComboBox.Resources>
+                                <v:FontPreviewConverter x:Key="FontPreview" />
+                            </ComboBox.Resources>
+                            <ComboBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ComboBox.ItemsPanel>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontFamily="{Binding Converter={StaticResource FontPreview}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </v:SettingCard>
                     <v:SettingCard Glyph="&#xE8E9;" Header="{l:Tr Set_LyricScale}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Width="220" Minimum="0.6" Maximum="2" SmallChange="0.05" LargeChange="0.1"
@@ -598,6 +651,9 @@
                     </v:SettingCard>
 
                     <TextBlock Text="{l:Tr Set_Lyr_GroupSource}" Style="{StaticResource Group}" />
+                    <v:SettingCard Glyph="&#xE8D6;" Header="{l:Tr Set_LyricsEnabled}" Description="{l:Tr Set_LyricsEnabled_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsEnabled}" />
+                    </v:SettingCard>
                     <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_FetchOnline}" Description="{l:Tr Set_FetchOnline_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FetchOnline}" />
                     </v:SettingCard>

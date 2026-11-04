@@ -8,17 +8,24 @@ using MusicBar.Infrastructure;
 
 namespace MusicBar.Interop;
 
-/// <summary>A horizontal pixel range on screen, in physical pixels.</summary>
-internal readonly record struct Span(int Left, int Right)
+/// <summary>
+/// A stretch of the taskbar along its length, in physical screen pixels: x on a
+/// horizontal taskbar, y (top to bottom) on a vertical one.
+/// </summary>
+internal readonly record struct Span(int Start, int End)
 {
-    public int Width => Right - Left;
+    public int Width => End - Start;
 }
+
+/// <summary>The screen edge the taskbar is docked to.</summary>
+internal enum TaskbarEdge { Bottom, Top, Left, Right }
 
 /// <summary>
 /// Follows the Windows taskbar (Shell_TrayWnd): its rectangle, whether it is
 /// on screen (auto-hide, fullscreen), and which parts of it are occupied by
 /// the Start button, app icons and the notification area, so the widget can
-/// sit in the empty space.
+/// sit in the empty space. Positions along the taskbar are <see cref="Span"/>s,
+/// so the same layout works for a taskbar docked to any edge.
 /// </summary>
 internal sealed class TaskbarTracker : IDisposable
 {
@@ -42,8 +49,12 @@ internal sealed class TaskbarTracker : IDisposable
     bool _scanning;
     int _partialScans;
 
-    public TaskbarTracker()
+    // The monitor (device name) whose secondary taskbar this follows; null follows the main taskbar.
+    readonly string? _monitorDevice;
+
+    public TaskbarTracker(string? monitorDevice = null)
     {
+        _monitorDevice = monitorDevice;
         _foregroundProc = (_, _, _, _, _, _, _) => ZOrderCheck?.Invoke();
         _poll.Tick += (_, _) => Tick();
     }
@@ -65,7 +76,28 @@ internal sealed class TaskbarTracker : IDisposable
 
     public bool IsHorizontal => Rect.Width >= Rect.Height;
 
-    public bool AtTop => Monitor != null && Rect.Top <= Monitor.Bounds.Top + 2 && Rect.Bottom < Monitor.Bounds.Bottom - 2;
+    public bool AtTop => Edge == TaskbarEdge.Top;
+
+    public TaskbarEdge Edge
+    {
+        get
+        {
+            if (Monitor == null) return IsHorizontal ? TaskbarEdge.Bottom : TaskbarEdge.Left;
+            var b = Monitor.Bounds;
+            if (IsHorizontal) return Rect.Top <= b.Top + 2 && Rect.Bottom < b.Bottom - 2 ? TaskbarEdge.Top : TaskbarEdge.Bottom;
+            return Rect.Left <= b.Left + 2 && Rect.Right < b.Right - 2 ? TaskbarEdge.Left : TaskbarEdge.Right;
+        }
+    }
+
+    /// <summary>Where the taskbar begins along its length (its left, or its top when vertical).</summary>
+    public int Begin => IsHorizontal ? Rect.Left : Rect.Top;
+
+    public int End => IsHorizontal ? Rect.Right : Rect.Bottom;
+
+    public int Length => End - Begin;
+
+    /// <summary>The taskbar's short side, in physical pixels.</summary>
+    public int Thickness => IsHorizontal ? Rect.Height : Rect.Width;
 
     public double Scale => Monitor?.Scale ?? 1;
 
@@ -96,9 +128,13 @@ internal sealed class TaskbarTracker : IDisposable
     void Tick()
     {
         bool changed = false;
-        if (Handle == IntPtr.Zero || !Native.IsWindow(Handle))
+        // A secondary taskbar can end up on another monitor when screens are rearranged: find ours again.
+        bool lost = Handle == IntPtr.Zero || !Native.IsWindow(Handle)
+                    || (_monitorDevice != null && Monitor != null && Monitor.DeviceName != _monitorDevice);
+        if (lost)
         {
-            Handle = Native.FindWindow("Shell_TrayWnd", null);
+            Handle = _monitorDevice == null ? Native.FindWindow("Shell_TrayWnd", null) : Monitors.SecondaryTaskbarOn(_monitorDevice);
+            Rect = default;
             Occupied = [];
             HasScanned = false;
             changed = true;
@@ -152,22 +188,25 @@ internal sealed class TaskbarTracker : IDisposable
         _lastScan = DateTime.Now;
         var hwnd = Handle;
         var rc = Rect;
+        bool horizontal = IsHorizontal;
         try
         {
-            var (occupied, quickSettings) = await Task.Run(() => FindOccupied(hwnd, rc));
+            var (occupied, quickSettings) = await Task.Run(() => FindOccupied(hwnd, rc, horizontal));
             if (hwnd != Handle || !rc.Same(Rect)) return;
 
             // UI Automation on the taskbar sometimes answers with nothing, or with a fragment: at
             // startup, and for as long as Windows' Quick Settings is open. The notification area
-            // always ends a horizontal taskbar, so a scan without it is not the taskbar's layout.
-            // Once a layout with it is known, keep that one until a scan finds the tray again;
-            // before that (startup), look again shortly and settle for what there is after a few tries.
-            if (!Complete(occupied, rc))
+            // always ends the taskbar (its right, or its bottom when vertical), so a scan without it
+            // is not the taskbar's layout. Once a layout with it is known, keep that one until a scan
+            // finds the tray again; before that (startup, Explorer restarting), look again every half
+            // second and settle for what there is after about five (a secondary taskbar may have no
+            // clock at its end).
+            if (!Complete(occupied))
             {
                 if (++_partialScans == 1)
-                    Log.Info($"Taskbar scan without the tray ignored: [{string.Join(", ", occupied.Select(o => $"{o.Left}-{o.Right}"))}]");
-                if (HasScanned && Complete(Occupied, rc)) return;
-                if (_partialScans < 4)
+                    Log.Info($"Taskbar scan without the tray ignored: [{Describe(occupied)}]");
+                if (HasScanned && Complete(Occupied)) return;
+                if (_partialScans < 10)
                 {
                     _lastScan = DateTime.Now - ScanEvery + PartialRetry;
                     return;
@@ -201,35 +240,53 @@ internal sealed class TaskbarTracker : IDisposable
         }
     }
 
-    /// <summary>The spans reach the far end of a horizontal taskbar, where the notification area is.</summary>
-    bool Complete(IEnumerable<Span> spans, Native.RECT rc)
-        => !IsHorizontal || spans.Any(s => s.Right >= rc.Right - rc.Width / 20);
+    /// <summary>The spans reach the far end of the taskbar, where the notification area is.</summary>
+    bool Complete(IEnumerable<Span> spans) => spans.Any(s => s.End >= End - Length / 20);
+
+    public static string Describe(IEnumerable<Span> spans) => string.Join(", ", spans.Select(o => $"{o.Start}-{o.End}"));
+
+    /// <summary>A screen rectangle as a stretch along the taskbar, and across it.</summary>
+    readonly record struct Along(double Start, double End, double CrossStart, double CrossEnd)
+    {
+        public double Length => End - Start;
+
+        public static Along Of(System.Windows.Rect r, bool horizontal) => horizontal
+            ? new Along(r.Left, r.Right, r.Top, r.Bottom)
+            : new Along(r.Top, r.Bottom, r.Left, r.Right);
+
+        public static Along Of(Native.RECT r, bool horizontal) => horizontal
+            ? new Along(r.Left, r.Right, r.Top, r.Bottom)
+            : new Along(r.Top, r.Bottom, r.Left, r.Right);
+
+        public Span ToSpan() => new((int)Math.Floor(Start), (int)Math.Ceiling(End));
+    }
 
     /// <summary>
-    /// Walks the taskbar's UI Automation tree and collects the horizontal
-    /// ranges covered by real controls. Containers that span most of the bar
-    /// are ignored. When icons are centered, the group is assumed symmetric
-    /// around the middle, starting at the Start button.
+    /// Walks the taskbar's UI Automation tree and collects the stretches along
+    /// it covered by real controls. Containers that span most of the bar are
+    /// ignored. When icons are centered, the group is assumed symmetric around
+    /// the middle, starting at the Start button.
     /// </summary>
-    static (List<Span> Occupied, Span? QuickSettings) FindOccupied(IntPtr tray, Native.RECT rc)
+    static (List<Span> Occupied, Span? QuickSettings) FindOccupied(IntPtr tray, Native.RECT rc, bool horizontal)
     {
+        var bar = Along.Of(rc, horizontal);
         var spans = new List<Span>();
         var quick = new List<Span>();
-        double? startLeft = null;
+        double? startAt = null;
         try
         {
-            CollectFromAutomation(tray, rc, spans, quick, ref startLeft);
+            CollectFromAutomation(tray, bar, horizontal, spans, quick, ref startAt);
         }
         catch (Exception ex)
         {
             Log.Error("UI Automation scan of the taskbar failed", ex);
         }
-        if (spans.Count == 0) CollectFromChildWindows(tray, rc, spans, ref startLeft);
+        if (spans.Count == 0) CollectFromChildWindows(tray, bar, horizontal, spans, ref startAt);
 
-        if (startLeft is double start && start - rc.Left > rc.Width * 0.1)
-            spans.Add(new Span((int)start, (int)(rc.Left + rc.Right - start)));
+        if (startAt is double start && start - bar.Start > bar.Length * 0.1)
+            spans.Add(new Span((int)start, (int)(bar.Start + bar.End - start)));
 
-        Span? quickSettings = quick.Count == 0 ? null : new Span(quick.Min(q => q.Left), quick.Max(q => q.Right));
+        Span? quickSettings = quick.Count == 0 ? null : new Span(quick.Min(q => q.Start), quick.Max(q => q.End));
         return (Merge(spans), quickSettings);
     }
 
@@ -248,7 +305,7 @@ internal sealed class TaskbarTracker : IDisposable
     /// Fallback for when UI Automation returns nothing: the Windows 10 style
     /// taskbar's own child windows (Start button, notification area, ...).
     /// </summary>
-    static void CollectFromChildWindows(IntPtr tray, Native.RECT rc, List<Span> spans, ref double? startLeft)
+    static void CollectFromChildWindows(IntPtr tray, Along bar, bool horizontal, List<Span> spans, ref double? startAt)
     {
         var found = new List<(string Class, Native.RECT Rect)>();
         Native.EnumWindowsProc callback = (h, _) =>
@@ -262,14 +319,15 @@ internal sealed class TaskbarTracker : IDisposable
         foreach (var (cls, r) in found)
         {
             if (cls == TrayContainer) continue;
-            if (r.Width < 2 || r.Height < 2 || r.Width > rc.Width * 0.3) continue;
-            if (r.Bottom <= rc.Top || r.Top >= rc.Bottom) continue;
-            if (cls == "Start") startLeft = startLeft.HasValue ? Math.Min(startLeft.Value, r.Left) : r.Left;
-            spans.Add(new Span(r.Left, r.Right));
+            var a = Along.Of(r, horizontal);
+            if (r.Width < 2 || r.Height < 2 || a.Length > bar.Length * 0.3) continue;
+            if (a.CrossEnd <= bar.CrossStart || a.CrossStart >= bar.CrossEnd) continue;
+            if (cls == "Start") startAt = startAt.HasValue ? Math.Min(startAt.Value, a.Start) : a.Start;
+            spans.Add(a.ToSpan());
         }
     }
 
-    static void CollectFromAutomation(IntPtr tray, Native.RECT rc, List<Span> spans, List<Span> quick, ref double? startLeft)
+    static void CollectFromAutomation(IntPtr tray, Along bar, bool horizontal, List<Span> spans, List<Span> quick, ref double? startAt)
     {
         var root = AutomationElement.FromHandle(tray);
         var all = root.FindAll(TreeScope.Descendants, Condition.TrueCondition);
@@ -291,44 +349,45 @@ internal sealed class TaskbarTracker : IDisposable
             {
                 continue;
             }
-            if (!b.IsEmpty && IsQuickSettingsButton(cls, name))
-                quick.Add(new Span((int)Math.Floor(b.Left), (int)Math.Ceiling(b.Right)));
+            if (b.IsEmpty) continue;
+            var a = Along.Of(b, horizontal);
+            if (IsQuickSettingsButton(cls, name)) quick.Add(a.ToSpan());
 
-            if (b.IsEmpty || b.Width < 2 || b.Height < 2) continue;
-            if (b.Width > rc.Width * 0.3 || cls == TrayContainer) continue;
-            if (b.Bottom <= rc.Top || b.Top >= rc.Bottom) continue;
+            if (b.Width < 2 || b.Height < 2) continue;
+            if (a.Length > bar.Length * 0.3 || cls == TrayContainer) continue;
+            if (a.CrossEnd <= bar.CrossStart || a.CrossStart >= bar.CrossEnd) continue;
 
             if (cls == "Start" || id == "StartButton")
-                startLeft = startLeft.HasValue ? Math.Min(startLeft.Value, b.Left) : b.Left;
-            spans.Add(new Span((int)Math.Floor(b.Left), (int)Math.Ceiling(b.Right)));
+                startAt = startAt.HasValue ? Math.Min(startAt.Value, a.Start) : a.Start;
+            spans.Add(a.ToSpan());
         }
     }
 
     static List<Span> Merge(List<Span> spans)
     {
         var merged = new List<Span>();
-        foreach (var s in spans.OrderBy(s => s.Left))
+        foreach (var s in spans.OrderBy(s => s.Start))
         {
-            if (merged.Count > 0 && s.Left <= merged[^1].Right + 2)
-                merged[^1] = merged[^1] with { Right = Math.Max(merged[^1].Right, s.Right) };
+            if (merged.Count > 0 && s.Start <= merged[^1].End + 2)
+                merged[^1] = merged[^1] with { End = Math.Max(merged[^1].End, s.End) };
             else
                 merged.Add(s);
         }
         return merged;
     }
 
-    /// <summary>Empty horizontal ranges of the taskbar.</summary>
+    /// <summary>Empty stretches of the taskbar.</summary>
     public List<Span> FreeSpans()
     {
         var free = new List<Span>();
-        int x = Rect.Left;
+        int at = Begin, end = End;
         foreach (var o in Occupied)
         {
-            if (o.Right <= Rect.Left || o.Left >= Rect.Right) continue;
-            if (o.Left > x) free.Add(new Span(x, o.Left));
-            x = Math.Max(x, o.Right);
+            if (o.End <= Begin || o.Start >= end) continue;
+            if (o.Start > at) free.Add(new Span(at, o.Start));
+            at = Math.Max(at, o.End);
         }
-        if (x < Rect.Right) free.Add(new Span(x, Rect.Right));
+        if (at < end) free.Add(new Span(at, end));
         return free;
     }
 }

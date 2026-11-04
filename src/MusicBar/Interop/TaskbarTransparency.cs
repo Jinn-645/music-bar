@@ -36,36 +36,24 @@ internal static class TaskbarTransparency
     [DllImport("user32.dll")]
     static extern bool SetWindowCompositionAttribute(IntPtr hWnd, ref CompositionData data);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string? className, string? windowName);
-
     [DllImport("user32.dll")]
     static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, string lParam, uint flags, uint timeout, out IntPtr result);
 
-    /// <summary>Clears the background of the primary and every secondary taskbar.</summary>
-    public static void ApplyAll()
-    {
-        ForEachTaskbar(Clear);
-    }
+    /// <summary>
+    /// Clears one taskbar's background (only taskbars with MusicBar's layer behind them;
+    /// a see-through taskbar with nothing there shows the wallpaper smeared through Windows' blur).
+    /// </summary>
+    public static void Apply(IntPtr taskbar) => Clear(taskbar);
 
-    /// <summary>Asks Explorer to repaint its own taskbar background.</summary>
-    public static void RestoreAll()
+    /// <summary>Asks Explorer to repaint a taskbar's own background.</summary>
+    public static void Restore(IntPtr taskbar)
     {
-        ForEachTaskbar(h => PostMessage(h, WM_DWMCOLORIZATIONCOLORCHANGED, IntPtr.Zero, IntPtr.Zero));
+        PostMessage(taskbar, WM_DWMCOLORIZATIONCOLORCHANGED, IntPtr.Zero, IntPtr.Zero);
         SendMessageTimeout(new IntPtr(0xFFFF), 0x001A /* WM_SETTINGCHANGE */, IntPtr.Zero, "ImmersiveColorSet",
             0x0002 /* SMTO_ABORTIFHUNG */, 500, out _);
-    }
-
-    static void ForEachTaskbar(Action<IntPtr> action)
-    {
-        var primary = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Shell_TrayWnd", null);
-        if (primary != IntPtr.Zero) action(primary);
-        var secondary = IntPtr.Zero;
-        while ((secondary = FindWindowEx(IntPtr.Zero, secondary, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
-            action(secondary);
     }
 
     static void Clear(IntPtr hwnd)

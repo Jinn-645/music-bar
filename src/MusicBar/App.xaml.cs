@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,13 +26,13 @@ public partial class App : Application
     SettingsService? _settings;
     MediaService? _media;
     LyricsService? _lyrics;
-    TaskbarOverlay? _overlay;
+    TaskbarOverlays? _bars;
     SettingsWindow? _settingsWindow;
     TrayIcon? _tray;
 
     public static App Instance => (App)Current;
 
-    public TaskbarOverlay? Overlay => _overlay;
+    public TaskbarOverlay? Overlay => _bars?.Main;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -107,10 +107,10 @@ public partial class App : Application
 
         _media = new MediaService(settings);
         _lyrics = new LyricsService(settings);
-        _overlay = new TaskbarOverlay(settings, _media, _lyrics);
-        _overlay.Start();
+        _bars = new TaskbarOverlays(settings, _media, _lyrics);
+        _bars.Start();
 
-        _tray = new TrayIcon(ShowSettings, _overlay.ShowMenu);
+        _tray = new TrayIcon(ShowSettings, _bars.Main.ShowMenu);
         _media.TrackChanged += (_, _) =>
             _tray.SetTooltip(_media.HasSession && _media.Title.Length > 0 ? $"MusicBar · {_media.Title}" : "MusicBar");
 
@@ -166,7 +166,7 @@ public partial class App : Application
         _exiting = true;
         _settings?.SaveNow();
         _settingsWindow?.Close();
-        _overlay?.Dispose();
+        _bars?.Dispose();
         _tray?.Dispose();
         _tray = null;
         _showSignal?.Set();

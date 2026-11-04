@@ -33,6 +33,7 @@ public partial class InfoPopupWindow : Window
 
     readonly SolidColorBrush _chipAccent = new(Color.FromArgb(0x47, 0xFF, 0x6B, 0x6B));
     int _showToken;
+    TaskbarEdge _edge = TaskbarEdge.Bottom;
     long _lastSecond = -1;
 
     public InfoPopupWindow(SolidColorBrush accentBrush)
@@ -116,25 +117,42 @@ public partial class InfoPopupWindow : Window
     }
 
     /// <summary>
-    /// Opens the card next to the taskbar, horizontally centred on
-    /// <paramref name="anchor"/> (screen pixels) and kept on the monitor.
+    /// Opens the card next to the taskbar, centred on <paramref name="anchor"/> (screen pixels)
+    /// along the taskbar's length and kept on the monitor.
     /// </summary>
-    internal void ShowAt(Point anchor, int taskbarEdgeY, bool above, Native.RECT monitorBounds)
+    internal void ShowAt(Point anchor, TaskbarEdge edge, Native.RECT taskbar, Native.RECT monitorBounds)
     {
         _showToken++;
-        Root.RenderTransformOrigin = new Point(0.5, above ? 1 : 0);
+        _edge = edge;
+        Root.RenderTransformOrigin = edge switch
+        {
+            TaskbarEdge.Top => new Point(0.5, 0),
+            TaskbarEdge.Left => new Point(0, 0.5),
+            TaskbarEdge.Right => new Point(1, 0.5),
+            _ => new Point(0.5, 1),
+        };
         if (!IsVisible) Show();
         UpdateLayout();
 
         var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         int w = (int)Math.Round(ActualWidth * m.M11);
         int h = (int)Math.Round(ActualHeight * m.M22);
-        int x = (int)Math.Round(anchor.X - w / 2.0);
-        x = Math.Clamp(x, monitorBounds.Left - (int)(Root.Margin.Left * m.M11) + 6,
-            Math.Max(monitorBounds.Left, monitorBounds.Right - w + (int)(Root.Margin.Right * m.M11) - 6));
-        int y = above
-            ? taskbarEdgeY - (int)Math.Round(CardGap * m.M22) + (int)Math.Round(Root.Margin.Bottom * m.M22) - h
-            : taskbarEdgeY + (int)Math.Round(CardGap * m.M22) - (int)Math.Round(Root.Margin.Top * m.M22);
+        int gapX = (int)Math.Round(CardGap * m.M11), gapY = (int)Math.Round(CardGap * m.M22);
+        int left = (int)Math.Round(Root.Margin.Left * m.M11), right = (int)Math.Round(Root.Margin.Right * m.M11);
+        int top = (int)Math.Round(Root.Margin.Top * m.M22), bottom = (int)Math.Round(Root.Margin.Bottom * m.M22);
+        int x, y;
+        if (TaskbarSide.IsVertical(edge))
+        {
+            x = edge == TaskbarEdge.Left ? taskbar.Right + gapX - left : taskbar.Left - gapX + right - w;
+            y = Math.Clamp((int)Math.Round(anchor.Y - h / 2.0), monitorBounds.Top - top + 6,
+                Math.Max(monitorBounds.Top, monitorBounds.Bottom - h + bottom - 6));
+        }
+        else
+        {
+            x = Math.Clamp((int)Math.Round(anchor.X - w / 2.0), monitorBounds.Left - left + 6,
+                Math.Max(monitorBounds.Left, monitorBounds.Right - w + right - 6));
+            y = edge == TaskbarEdge.Top ? taskbar.Bottom + gapY - top : taskbar.Top - gapY + bottom - h;
+        }
         Native.SetWindowPos(Hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
 
         IsOpen = true;
@@ -142,7 +160,9 @@ public partial class InfoPopupWindow : Window
         Root.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(180)));
         RootScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.93, 1, d) { EasingFunction = Spring });
         RootScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.93, 1, d) { EasingFunction = Spring });
-        RootShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(above ? 12 : -12, 0, d) { EasingFunction = EaseOut });
+        var (axis, toward) = TaskbarSide.Slide(edge);
+        RootShift.BeginAnimation(axis == TranslateTransform.XProperty ? TranslateTransform.YProperty : TranslateTransform.XProperty, null);
+        RootShift.BeginAnimation(axis, new DoubleAnimation(toward * 12, 0, d) { EasingFunction = EaseOut });
     }
 
     public void Dismiss()
@@ -157,7 +177,8 @@ public partial class InfoPopupWindow : Window
             if (token == _showToken) Hide();
         };
         Root.BeginAnimation(OpacityProperty, fade);
-        RootShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(6, d) { EasingFunction = EaseOut });
+        var (axis, toward) = TaskbarSide.Slide(_edge);
+        RootShift.BeginAnimation(axis, new DoubleAnimation(toward * 6, d) { EasingFunction = EaseOut });
     }
 
     static T Frozen<T>(T freezable) where T : Freezable

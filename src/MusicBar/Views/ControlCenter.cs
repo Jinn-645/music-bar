@@ -104,11 +104,13 @@ internal sealed class ControlCenter : IDisposable
         if (moved) TrayRearranged?.Invoke();
 
         // Windows 11 tray: its network/volume buttons already form the Quick Settings entry.
+        var bar = _tracker.Rect;
         Native.RECT? entry = _tray.Entry != IntPtr.Zero ? _tray.EntryRect
-            : _tracker.QuickSettings is { } qs ? new Native.RECT(qs.Left, _tracker.Rect.Top, qs.Right, _tracker.Rect.Bottom)
-            : null;
+            : _tracker.QuickSettings is not { } qs ? null
+            : _tracker.IsHorizontal ? new Native.RECT(qs.Start, bar.Top, qs.End, bar.Bottom)
+            : new Native.RECT(bar.Left, qs.Start, bar.Right, qs.End);
         Supported = entry != null;
-        if (entry is not { } r || !_tracker.Shown || !_tracker.IsHorizontal)
+        if (entry is not { } r || !_tracker.Shown)
         {
             HideHotspot();
             return;
@@ -149,9 +151,7 @@ internal sealed class ControlCenter : IDisposable
 
         var monitor = _tracker.Monitor;
         if (monitor == null) return;
-        var rc = _tracker.Rect;
-        bool above = !_tracker.AtTop;
-        _panel.Open(monitor.Bounds.Right, above ? rc.Top : rc.Bottom, above, monitor.Bounds);
+        _panel.Open(_tracker.Edge, _tracker.Rect, monitor.Bounds);
         _feed.SetFastPolling(true);
         _hotspot.SetBadge(0);
     }

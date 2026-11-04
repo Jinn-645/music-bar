@@ -28,13 +28,14 @@ public partial class ControlCenterWindow : Window
     readonly DispatcherTimer _volumePoll = new() { Interval = TimeSpan.FromMilliseconds(300) };
     int _token;
     bool _syncing;
-    enum SideKind { None, Outputs, Project, Cast }
+    enum SideKind { None, Outputs, Project, Cast, WiFi, Bluetooth }
 
     SideKind _side;
     int _sideToken;
     string? _defaultId;
-    int _right, _edgeY;
-    bool _above = true;
+    TaskbarEdge _edge = TaskbarEdge.Bottom;
+    Native.RECT _taskbar, _monitor;
+    bool _mirrored;
     Color _accent = ColorUtil.Brand;
     readonly System.Collections.Generic.List<Action> _tilePainters = [];
 
@@ -82,21 +83,25 @@ public partial class ControlCenterWindow : Window
     {
         _accent = accent;
         Resources["Accent"] = new SolidColorBrush(accent);
+        Resources["OnAccent"] = new SolidColorBrush(ColorUtil.Luminance(accent) > 0.42 ? Color.FromRgb(0x10, 0x10, 0x14) : Colors.White);
         foreach (var paint in _tilePainters) paint();
         NotificationWash.Color = ColorUtil.WithAlpha(accent, 0.16);
         CountText.Foreground = new SolidColorBrush(ColorUtil.Luminance(accent) > 0.42 ? Color.FromRgb(0x10, 0x10, 0x14) : Colors.White);
     }
 
     /// <summary>
-    /// Opens the panel at the right end of the taskbar: <paramref name="right"/> is
-    /// the screen x the panel ends at, <paramref name="edgeY"/> the taskbar edge.
+    /// Opens the panel beside the far end of the taskbar, where the tray is: above or below a
+    /// horizontal taskbar at the screen's right, beside a vertical one at the screen's bottom.
     /// </summary>
-    internal void Open(int right, int edgeY, bool above, Native.RECT monitorBounds)
+    internal void Open(TaskbarEdge edge, Native.RECT taskbar, Native.RECT monitorBounds)
     {
         _token++;
-        _right = right;
-        _edgeY = edgeY;
-        _above = above;
+        _edge = edge;
+        _taskbar = taskbar;
+        _monitor = monitorBounds;
+        Mirror(edge == TaskbarEdge.Left);
+        // The cards hug the taskbar's side of the window: its bottom, or its top under a top taskbar.
+        Main.VerticalAlignment = Side.VerticalAlignment = edge == TaskbarEdge.Top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
         IsOpen = true;
         NotificationScroll.MaxHeight = Math.Max(160, monitorBounds.Height / Scale() * 0.5);
         SetSide(SideKind.None, animate: false);
@@ -115,7 +120,9 @@ public partial class ControlCenterWindow : Window
 
         var d = TimeSpan.FromMilliseconds(260);
         Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
-        MainShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(above ? 18 : -18, 0, d) { EasingFunction = EaseOut });
+        var (axis, toward) = TaskbarSide.Slide(edge);
+        MainShift.BeginAnimation(axis == TranslateTransform.XProperty ? TranslateTransform.YProperty : TranslateTransform.XProperty, null);
+        MainShift.BeginAnimation(axis, new DoubleAnimation(toward * 18, 0, d) { EasingFunction = EaseOut });
     }
 
     public void Dismiss()
@@ -124,6 +131,7 @@ public partial class ControlCenterWindow : Window
         IsOpen = false;
         ClosedAt = DateTime.Now;
         _volumePoll.Stop();
+        LeaveWireless();
         int token = ++_token;
         var d = TimeSpan.FromMilliseconds(140);
         var fade = new DoubleAnimation(0, d);
@@ -132,11 +140,30 @@ public partial class ControlCenterWindow : Window
             if (token == _token) Hide();
         };
         Root.BeginAnimation(OpacityProperty, fade);
-        MainShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(_above ? 8 : -8, d) { EasingFunction = EaseOut });
+        var (axis, toward) = TaskbarSide.Slide(_edge);
+        MainShift.BeginAnimation(axis, new DoubleAnimation(toward * 8, d) { EasingFunction = EaseOut });
     }
 
     double Scale() => PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice.M11
                       ?? VisualTreeHelper.GetDpi(this).DpiScaleX;
+
+    /// <summary>
+    /// The window keeps a column free for the side lists. Beside a taskbar on the screen's left the
+    /// panel is pinned by its left edge, so the controls take the left column (next to the taskbar)
+    /// and the lists slide out to their right instead.
+    /// </summary>
+    void Mirror(bool mirrored)
+    {
+        if (mirrored == _mirrored) return;
+        _mirrored = mirrored;
+        var columns = Root.ColumnDefinitions;
+        (columns[0].Width, columns[2].Width) = (columns[2].Width, columns[0].Width);
+        Grid.SetColumn(Main, mirrored ? 0 : 2);
+        Grid.SetColumn(Side, mirrored ? 2 : 0);
+    }
+
+    /// <summary>How far a closed side list sits tucked toward the controls.</summary>
+    double SideTuck => _mirrored ? -28 : 28;
 
     /// <summary>Keeps the main card's outer corner pinned next to the taskbar's end.</summary>
     void Place()
@@ -145,10 +172,23 @@ public partial class ControlCenterWindow : Window
         double s = Scale();
         int w = (int)Math.Round(ActualWidth * s);
         int h = (int)Math.Round(ActualHeight * s);
-        int x = _right - (int)Math.Round(Gap * s) + (int)Math.Round(Root.Margin.Right * s) - w;
-        int y = _above
-            ? _edgeY - (int)Math.Round(Gap * s) + (int)Math.Round(Root.Margin.Bottom * s) - h
-            : _edgeY + (int)Math.Round(Gap * s) - (int)Math.Round(Root.Margin.Top * s);
+        int gap = (int)Math.Round(Gap * s);
+        var m = Root.Margin;
+        // The window's margin is shadow room: the card itself sits the gap away.
+        int left = (int)Math.Round(m.Left * s), top = (int)Math.Round(m.Top * s);
+        int right = (int)Math.Round(m.Right * s), bottom = (int)Math.Round(m.Bottom * s);
+        int x = _edge switch
+        {
+            TaskbarEdge.Left => _taskbar.Right + gap - left,
+            TaskbarEdge.Right => _taskbar.Left - gap + right - w,
+            _ => _monitor.Right - gap + right - w,
+        };
+        int y = _edge switch
+        {
+            TaskbarEdge.Top => _taskbar.Bottom + gap - top,
+            TaskbarEdge.Bottom => _taskbar.Top - gap + bottom - h,
+            _ => _monitor.Bottom - gap + bottom - h,
+        };
         Native.SetWindowPos(Hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE);
     }
 
@@ -210,9 +250,13 @@ public partial class ControlCenterWindow : Window
 
     void Output_Click(object sender, RoutedEventArgs e) => SetSide(_side == SideKind.Outputs ? SideKind.None : SideKind.Outputs);
 
-    /// <summary>Slides a list out beside the panel (or back in): playback devices, display modes or wireless displays.</summary>
+    /// <summary>
+    /// Slides a list out beside the panel (or back in): playback devices, display modes, wireless
+    /// displays, Wi-Fi networks or Bluetooth devices.
+    /// </summary>
     void SetSide(SideKind kind, bool animate = true)
     {
+        if (kind != _side) LeaveWireless();
         _side = kind;
         _sideToken++;
         bool open = kind != SideKind.None;
@@ -221,18 +265,22 @@ public partial class ControlCenterWindow : Window
             case SideKind.Outputs: RenderOutputs(); break;
             case SideKind.Project: RenderProject(); break;
             case SideKind.Cast: RenderCast(); break;
+            case SideKind.WiFi: ShowWifi(); break;
+            case SideKind.Bluetooth: ShowBluetooth(); break;
         }
         Side.IsHitTestVisible = open;
         OutputChevron.Text = kind == SideKind.Outputs ? "" : "";
         var d = TimeSpan.FromMilliseconds(animate ? 220 : 0);
         Side.BeginAnimation(OpacityProperty, new DoubleAnimation(open ? 1 : 0, animate ? TimeSpan.FromMilliseconds(open ? 180 : 120) : d));
-        SideShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(open ? 0 : 28, d) { EasingFunction = EaseOut });
+        SideShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(open ? 0 : SideTuck, d) { EasingFunction = EaseOut });
     }
 
     void SideHeader(string title)
     {
         SideTitle.Text = title;
         SideList.Children.Clear();
+        SideTools.Children.Clear();
+        SideFooter.Children.Clear();
     }
 
     TextBlock SideMessage(string text)
@@ -242,8 +290,11 @@ public partial class ControlCenterWindow : Window
         return message;
     }
 
-    /// <summary>One entry of a side list: icon, name, optional detail, and a check on the current one.</summary>
-    void SideRow(string glyph, string title, string? detail, bool current, Action click)
+    /// <summary>
+    /// One entry of a side list: icon, name, optional detail, and a check on the current one.
+    /// <paramref name="menu"/> builds its right-click menu.
+    /// </summary>
+    Button SideRow(string glyph, string title, string? detail, bool current, Action click, Func<ContextMenu>? menu = null)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -279,7 +330,19 @@ public partial class ControlCenterWindow : Window
 
         var button = new Button { Style = (Style)FindResource("RowButton"), Content = row, Margin = new Thickness(0, 0, 0, 2) };
         button.Click += (_, _) => click();
+        if (menu != null)
+        {
+            button.MouseRightButtonUp += (_, e) =>
+            {
+                var m = menu();
+                m.PlacementTarget = button;
+                m.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                m.IsOpen = true;
+                e.Handled = true;
+            };
+        }
         SideList.Children.Add(button);
+        return button;
     }
 
     void RenderOutputs()
@@ -387,8 +450,19 @@ public partial class ControlCenterWindow : Window
         foreach (var action in actions) TileGrid.Children.Add(Tile(action));
     }
 
+    static SideKind SideOf(QuickPanel panel) => panel switch
+    {
+        QuickPanel.Project => SideKind.Project,
+        QuickPanel.Cast => SideKind.Cast,
+        QuickPanel.WiFi => SideKind.WiFi,
+        QuickPanel.Bluetooth => SideKind.Bluetooth,
+        _ => SideKind.None,
+    };
+
     FrameworkElement Tile(QuickAction action)
     {
+        if (action.Panel != QuickPanel.None && action.IsOn != null && action.Run != null) return SplitTile(action);
+
         var glyph = new TextBlock
         {
             Text = action.Glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 16,
@@ -428,7 +502,7 @@ public partial class ControlCenterWindow : Window
         {
             if (action.Panel != QuickPanel.None)
             {
-                var kind = action.Panel == QuickPanel.Project ? SideKind.Project : SideKind.Cast;
+                var kind = SideOf(action.Panel);
                 SetSide(_side == kind ? SideKind.None : kind);
                 return;
             }
@@ -448,6 +522,71 @@ public partial class ControlCenterWindow : Window
 
         var cell = new StackPanel { Margin = new Thickness(4, 0, 4, 10) };
         cell.Children.Add(button);
+        cell.Children.Add(label);
+        return cell;
+    }
+
+    /// <summary>
+    /// A switch with its own list (Wi-Fi, Bluetooth), split as in Windows: the larger part flips the
+    /// switch, the arrow beside it opens the list of networks or devices.
+    /// </summary>
+    FrameworkElement SplitTile(QuickAction action)
+    {
+        var icons = (FontFamily)FindResource("IconFont");
+        var glyph = new TextBlock { Text = action.Glyph, FontFamily = icons, FontSize = 16 };
+        var arrow = new TextBlock { Text = "", FontFamily = icons, FontSize = 10 };
+        var toggle = new Button { Style = (Style)FindResource("TilePart"), Tag = new CornerRadius(8, 0, 0, 8), Content = glyph, ToolTip = action.Label };
+        var open = new Button { Style = (Style)FindResource("TilePart"), Tag = new CornerRadius(0, 8, 8, 0), Content = arrow, Width = 30, ToolTip = action.Label };
+        var divider = new Border { Width = 1, Margin = new Thickness(0, 10, 0, 10), Background = new SolidColorBrush(Color.FromArgb(0x30, 255, 255, 255)) };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(toggle);
+        Grid.SetColumn(divider, 1);
+        grid.Children.Add(divider);
+        Grid.SetColumn(open, 2);
+        grid.Children.Add(open);
+        var body = new Border { Height = 44, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Child = grid };
+        body.BorderBrush = new SolidColorBrush(Color.FromArgb(0x1A, 255, 255, 255));
+
+        void Paint()
+        {
+            bool on = action.IsOn!.Invoke();
+            if (on) body.SetResourceReference(Border.BackgroundProperty, "Accent");
+            else body.SetResourceReference(Border.BackgroundProperty, "TileIdle");
+            Brush ink = on && ColorUtil.Luminance(_accent) > 0.42 ? new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x14)) : Brushes.White;
+            glyph.Foreground = arrow.Foreground = ink;
+            divider.Background = on ? new SolidColorBrush(ColorUtil.WithAlpha(((SolidColorBrush)ink).Color, 0.3)) : new SolidColorBrush(Color.FromArgb(0x30, 255, 255, 255));
+        }
+        Paint();
+        _tilePainters.Add(Paint);
+
+        var kind = SideOf(action.Panel);
+        toggle.Click += async (_, _) =>
+        {
+            try
+            {
+                await action.Run!();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Quick setting '{action.Label}' failed", ex);
+            }
+            Paint();
+            // The open list follows the switch: off shows the "turn on" note, on starts looking.
+            if (_side == kind) SetSide(kind, animate: false);
+        };
+        open.Click += (_, _) => SetSide(_side == kind ? SideKind.None : kind);
+
+        var label = new TextBlock
+        {
+            Text = action.Label, FontSize = 11, Opacity = 0.85, TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap, MaxHeight = 30, Margin = new Thickness(0, 5, 0, 0),
+        };
+        var cell = new StackPanel { Margin = new Thickness(4, 0, 4, 10) };
+        cell.Children.Add(body);
         cell.Children.Add(label);
         return cell;
     }

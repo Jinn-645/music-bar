@@ -15,8 +15,8 @@ public static partial class Strings
         d.Add("Opt_Layer_Auto", ("Automatic", "Tự động"));
         d.Add("Opt_Layer_Under", ("Under the taskbar icons", "Nằm dưới icon taskbar"));
         d.Add("Opt_Layer_Over", ("Tinted over the taskbar", "Phủ mờ lên taskbar"));
-        d.Add("Opt_Place_Right", ("Right, next to the system tray", "Bên phải, cạnh khay hệ thống"));
-        d.Add("Opt_Place_Left", ("Left", "Bên trái"));
+        d.Add("Opt_Place_Right", ("Right, next to the system tray (bottom when vertical)", "Bên phải, cạnh khay hệ thống (dọc: phía dưới)"));
+        d.Add("Opt_Place_Left", ("Left (top when vertical)", "Bên trái (dọc: phía trên)"));
         d.Add("Opt_Lyrics_BesideCover", ("Next to the cover", "Ngay cạnh ảnh bìa"));
         d.Add("Opt_Lyrics_LargestGap", ("Largest free space on the taskbar", "Khoảng trống lớn nhất trên taskbar"));
         d.Add("Opt_Size_Small", ("Small", "Nhỏ"));
@@ -31,12 +31,16 @@ public static partial class Strings
         d.Add("Opt_Ctl_Vinyl", ("Vinyl: spins while playing, the cover is the label", "Đĩa than: xoay khi phát, nhãn là ảnh bìa"));
         d.Add("Opt_Ctl_Keys", ("Cassette keys: raised keys with a lamp", "Phím cassette: phím nổi, có đèn báo"));
         d.Add("Opt_Ctl_Bubbles", ("Bubbles: they wobble like jelly when pressed", "Bong bóng: bấm là nảy như thạch"));
+        d.Add("Opt_Dir_FromStart", ("Left to right (bottom to top when vertical)", "Trái sang phải (dọc: dưới lên)"));
+        d.Add("Opt_Dir_FromEnd", ("Right to left (top to bottom when vertical)", "Phải sang trái (dọc: trên xuống)"));
+        d.Add("Opt_Dir_FromCenter", ("Out from the middle", "Từ giữa ra hai đầu"));
+        d.Add("Opt_Dir_FromEnds", ("In from both ends", "Từ hai đầu vào giữa"));
         d.Add("Opt_Accent_Art", ("From the album cover", "Theo ảnh bìa bài hát"));
         d.Add("Opt_Accent_App", ("From the playing app's color", "Theo màu ứng dụng phát nhạc"));
         d.Add("Opt_Accent_System", ("Windows accent color", "Theo màu nhấn của Windows"));
         d.Add("Opt_Accent_Custom", ("Custom color", "Màu tự chọn"));
-        d.Add("Opt_Align_Left", ("Next to the cover", "Sát ảnh bìa"));
-        d.Add("Opt_Align_Center", ("Centered in the widget", "Giữa widget"));
+        d.Add("Opt_Align_Left", ("Left (top when vertical)", "Trái (dọc: phía trên)"));
+        d.Add("Opt_Align_Center", ("Centered", "Ở giữa"));
 
         // ---- progress bar styles
         d.Add("Seek_Aurora", ("Aurora", "Cực quang"));
@@ -84,7 +88,11 @@ public static partial class Strings
         d.Add("Card_Track", ("Track {0}", "Bài {0}"));
         d.Add("Card_TrackOf", ("Track {0}/{1}", "Bài {0}/{1}"));
         d.Add("Menu_OpenApp", ("Open {0}", "Mở {0}"));
-        d.Add("Menu_ShowLyrics", ("Show lyrics next to the cover", "Hiện lời bài hát cạnh ảnh bìa"));
+        d.Add("Menu_ShowLyrics", ("Show lyrics", "Hiện lời bài hát"));
+        d.Add("Menu_Player", ("On the taskbar", "Hiện trên taskbar"));
+        d.Add("Opt_Player_Full", ("Player and lyrics", "Trình phát và lời bài hát"));
+        d.Add("Opt_Player_LyricsOnly", ("Only the lyrics (hide the player)", "Chỉ lời bài hát (ẩn trình phát)"));
+        d.Add("Opt_Player_Off", ("Neither, just the progress bar", "Ẩn cả hai, chỉ còn thanh tiến trình"));
         d.Add("Menu_Source", ("Player", "Nguồn phát"));
         d.Add("Menu_SourceAuto", ("Automatic (whatever is playing)", "Tự động (ưu tiên đang phát)"));
         d.Add("Menu_Lyrics", ("Lyrics", "Lời bài hát"));
@@ -144,6 +152,59 @@ public static partial class Strings
         d.Add("CC_NoWifi", ("Casting with Miracast needs Wi-Fi, and this PC has no Wi-Fi adapter.", "Truyền màn hình qua Miracast cần Wi-Fi; máy chưa cắm bộ thu Wi-Fi nào."));
         d.Add("CC_Connecting", ("Connecting to {0}…", "Đang kết nối tới {0}…"));
         d.Add("CC_ConnectFailed", ("Couldn't connect to {0}.", "Không kết nối được tới {0}."));
+        d.Add("CC_TurnOn", ("Turn on", "Bật lên"));
+        d.Add("CC_LookAgain", ("Look again", "Tìm lại"));
+        d.Add("CC_Connect", ("Connect", "Kết nối"));
+        d.Add("CC_Cancel", ("Cancel", "Hủy"));
+        d.Add("CC_Joining", ("Connecting…", "Đang kết nối…"));
+
+        // ---- Wi-Fi list
+        d.Add("CC_WifiOff", ("Wi-Fi is off.", "Wi-Fi đang tắt."));
+        d.Add("CC_WifiNoAdapter", ("This PC has no Wi-Fi adapter.", "Máy không có bộ thu Wi-Fi."));
+        d.Add("CC_WifiDenied", ("Windows didn't let MusicBar use Wi-Fi.", "Windows không cho MusicBar dùng Wi-Fi."));
+        d.Add("CC_WifiSearching", ("Looking for networks…", "Đang tìm mạng…"));
+        d.Add("CC_WifiNone", ("No networks found.", "Không thấy mạng nào."));
+        d.Add("CC_WifiConnected", ("Connected", "Đã kết nối"));
+        d.Add("CC_WifiConnectedSecured", ("Connected, secured", "Đã kết nối, bảo mật"));
+        d.Add("CC_WifiSecured", ("Secured", "Bảo mật"));
+        d.Add("CC_WifiOpen", ("Open", "Mạng mở"));
+        d.Add("CC_WifiAuto", ("Connect automatically", "Tự động kết nối"));
+        d.Add("CC_WifiKeyHint", ("Network security key", "Mật khẩu mạng"));
+        d.Add("CC_WifiEnterprise", ("This network signs in with an account. Windows' own Wi-Fi list walks you through that.", "Mạng này đăng nhập bằng tài khoản. Hãy kết nối qua danh sách Wi-Fi của Windows."));
+        d.Add("CC_WifiWindowsList", ("Open Windows' Wi-Fi list", "Mở danh sách Wi-Fi của Windows"));
+        d.Add("CC_WifiShowKey", ("Show the key", "Hiện mật khẩu"));
+        d.Add("CC_WifiWrongKey", ("That key isn't right. Try again.", "Mật khẩu chưa đúng. Thử lại nhé."));
+        d.Add("CC_WifiFailed", ("Couldn't connect to {0}.", "Không kết nối được {0}."));
+        d.Add("CC_WifiForget", ("Forget", "Quên mạng này"));
+        d.Add("CC_WifiSettings", ("Wi-Fi settings", "Cài đặt Wi-Fi"));
+        d.Add("CC_WifiMore", ("More Wi-Fi settings", "Cài đặt Wi-Fi khác"));
+
+        // ---- Bluetooth list
+        d.Add("CC_BtOff", ("Bluetooth is off.", "Bluetooth đang tắt."));
+        d.Add("CC_BtMine", ("Your devices", "Thiết bị của bạn"));
+        d.Add("CC_BtNearby", ("Nearby", "Ở gần"));
+        d.Add("CC_BtSearching", ("Looking for devices… Put yours in pairing mode.", "Đang tìm thiết bị… Hãy bật chế độ ghép đôi trên thiết bị."));
+        d.Add("CC_BtNoAdapter", ("This PC has no Bluetooth.", "Máy không có Bluetooth."));
+        d.Add("CC_BtRemoving", ("Removing…", "Đang gỡ…"));
+        d.Add("CC_BtConnected", ("Connected", "Đã kết nối"));
+        d.Add("CC_BtPaired", ("Paired", "Đã ghép đôi"));
+        d.Add("CC_BtReady", ("Ready to pair", "Sẵn sàng ghép đôi"));
+        d.Add("CC_BtPair", ("Pair", "Ghép đôi"));
+        d.Add("CC_BtPairing", ("Pairing…", "Đang ghép đôi…"));
+        d.Add("CC_BtPairFailed", ("Couldn't pair with {0}.", "Không ghép đôi được với {0}."));
+        d.Add("CC_BtRemove", ("Remove device", "Gỡ thiết bị"));
+        d.Add("CC_BtRemoveFailed", ("Couldn't remove {0}.", "Không gỡ được {0}."));
+        d.Add("CC_BtDisconnecting", ("Disconnecting…", "Đang ngắt…"));
+        d.Add("CC_BtLinkFailed", ("The device didn't answer. Make sure it's on and nearby, or try Bluetooth settings.", "Thiết bị không phản hồi. Kiểm tra thiết bị đã bật và ở gần, hoặc thử trong cài đặt Bluetooth."));
+        d.Add("CC_BtNoLink", ("Windows connects this device on its own when it's on and nearby.", "Windows tự kết nối thiết bị này khi nó bật và ở gần."));
+        d.Add("CC_BtPinShow", ("Type this PIN on {0}, then press Enter on it:", "Nhập mã PIN này trên {0} rồi bấm Enter:"));
+        d.Add("CC_BtPinMatch", ("Does {0} show this PIN?", "{0} có hiện đúng mã PIN này không?"));
+        d.Add("CC_BtPinEnter", ("Enter the PIN for {0} (often 0000 or 1234):", "Nhập mã PIN của {0} (thường là 0000 hoặc 1234):"));
+        d.Add("CC_BtYes", ("Yes, it matches", "Đúng mã"));
+        d.Add("CC_BtNo", ("No", "Không đúng"));
+        d.Add("CC_BtSettings", ("Bluetooth settings", "Cài đặt Bluetooth"));
+        d.Add("CC_BtMore", ("More Bluetooth settings", "Cài đặt Bluetooth khác"));
+        d.Add("BT_Unnamed", ("Unknown device", "Thiết bị không tên"));
         d.Add("QA_NightLight", ("Night light", "Ánh sáng đêm"));
         d.Add("QA_LiveCaptions", ("Live captions", "Phụ đề trực tiếp"));
         d.Add("QA_EnergySaver", ("Energy saver", "Tiết kiệm năng lượng"));

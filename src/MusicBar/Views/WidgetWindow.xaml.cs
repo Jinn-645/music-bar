@@ -45,7 +45,9 @@ public partial class WidgetWindow : Window
     bool _artFrontIsA;
     BitmapSource? _shownArt;
     bool _expanded;
-    bool _anchorRight = true;
+    // Anchored at the taskbar's far end (its right, or its bottom when vertical), near the tray.
+    bool _anchorEnd = true;
+    bool _vertical;
     bool _playing;
     bool _lyricsElsewhere;
     bool _lyricsVisibleElsewhere;
@@ -94,8 +96,19 @@ public partial class WidgetWindow : Window
 
     // ------------------------------------------------------------------ layout
 
-    public void ApplyStyle(AppSettings s, double h, bool textShadow)
+    /// <summary>The lyrics display in use: lines beside the cover, or stacked words above or below it.</summary>
+    public ILyricsView LyricsView => _vertical ? StackLyrics : LineLyrics;
+
+    /// <param name="h">The taskbar's short side (its height, or its width when vertical), in DIPs.</param>
+    public void ApplyStyle(AppSettings s, double h, bool textShadow, bool vertical)
     {
+        if (vertical != _vertical)
+        {
+            _vertical = vertical;
+            LineLyrics.Visibility = vertical ? Visibility.Collapsed : Visibility.Visible;
+            StackLyrics.Visibility = vertical ? Visibility.Visible : Visibility.Collapsed;
+            Arrange();
+        }
         FontFamily = BundledFonts.Resolve(s.FontFamily);
         LyricsHost.Effect = LyricStyle.Apply(s, LyricsView, _lyricStroke);
 
@@ -114,9 +127,11 @@ public partial class WidgetWindow : Window
         CoverButton.Visibility = s.ShowAlbumArt ? Visibility.Visible : Visibility.Collapsed;
         ControlsShell.Visibility = s.ShowControls ? Visibility.Visible : Visibility.Collapsed;
 
-        bool twoLine = s.ShowNextLine && h >= 40;
-        double main = (twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.42, 12, 15)) * s.LyricScale;
-        double sub = Math.Clamp(h * 0.22, 10, 12) * s.LyricScale;
+        // Stacked words have room for the next line below them; a horizontal pill needs the height.
+        bool twoLine = s.ShowNextLine && (vertical || h >= 40);
+        double main = (vertical ? Math.Clamp(h * 0.3, 11, 14) : twoLine ? Math.Clamp(h * 0.30, 12, 15) : Math.Clamp(h * 0.42, 12, 15)) * s.LyricScale;
+        double sub = (vertical ? 11 : Math.Clamp(h * 0.22, 10, 12)) * s.LyricScale;
+        // Stacked words read top down, so "left" (where reading starts) is their top.
         LyricsView.Configure(s.LyricEffect, s.Karaoke, twoLine, FontFamily,
             Math.Round(main * 2) / 2, Math.Round(sub * 2) / 2,
             s.LyricsAlign == LyricsAlign.Center ? HorizontalAlignment.Center : HorizontalAlignment.Left,
@@ -156,13 +171,15 @@ public partial class WidgetWindow : Window
             ControlStyle.Bubbles => (0.82, 0.82, 1.0, 1.0, 0.44, 0.48, 3.5),
             _ => (1.0, 1.0, 1.0, 1.0, 0.6, 0.56, 3.0),
         };
+        // Stacked down a vertical taskbar, wide buttons (the capsule's pill) stand upright instead.
+        if (_vertical) (sw, sh, pw, ph) = (sh, sw, ph, pw);
         PrevButton.Width = NextButton.Width = Math.Round(button * sw);
         PrevButton.Height = NextButton.Height = Math.Round(button * sh);
         PlayButton.Width = Math.Round(button * pw);
         PlayButton.Height = Math.Round(button * ph);
         PrevIcon.Width = PrevIcon.Height = NextIcon.Width = NextIcon.Height = Math.Round(button * sg);
         PlayIconBox.Width = PlayIconBox.Height = Math.Round(button * pg);
-        PlayButton.Margin = new Thickness(gap, 0, gap, 0);
+        PlayButton.Margin = _vertical ? new Thickness(0, gap, 0, gap) : new Thickness(gap, 0, gap, 0);
 
         // Background carries the accent everywhere (bubble tint, key lamp, ring arc), except on
         // the record, whose label is the cover.
@@ -192,7 +209,7 @@ public partial class WidgetWindow : Window
         ControlsShell.BorderBrush = capsule ? CapsuleRim : null;
         ControlsShell.BorderThickness = new Thickness(capsule ? 0.8 : 0);
         ControlsShell.Padding = new Thickness(capsule ? 2 : 0);
-        ControlsShell.CornerRadius = new CornerRadius(capsule ? (PlayButton.Height + 5.6) / 2 : 0);
+        ControlsShell.CornerRadius = new CornerRadius(capsule ? ((_vertical ? PlayButton.Width : PlayButton.Height) + 5.6) / 2 : 0);
 
         PlayButton.ApplyTemplate();
         if (PlayButton.Template.FindName("Disc", PlayButton) is FrameworkElement disc) disc.RenderTransform = _spin;
@@ -223,14 +240,45 @@ public partial class WidgetWindow : Window
         if (Math.Abs(progress - shown) >= 0.0015 || (progress == 0) != (shown == 0)) Transport.SetProgress(PlayButton, progress);
     }
 
-    /// <summary>Right-anchored widgets open their lyrics to the left of the cover, left-anchored ones to the right.</summary>
-    public void SetAnchor(bool right)
+    /// <summary>
+    /// Widgets anchored at the taskbar's far end (right, or bottom) open their lyrics before the
+    /// cover (to its left, or above it); widgets at the near end open them after it.
+    /// </summary>
+    public void SetAnchor(bool end)
     {
-        if (right == _anchorRight) return;
-        _anchorRight = right;
-        Pill.HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        Grid.SetColumn(LyricsHost, right ? 0 : 2);
-        Grid.SetColumn(ControlsShell, right ? 2 : 0);
+        if (end == _anchorEnd) return;
+        _anchorEnd = end;
+        Arrange();
+    }
+
+    /// <summary>Lyrics, cover and buttons in a row or a column, in order from the anchored end inwards.</summary>
+    void Arrange()
+    {
+        void Put(UIElement e, int slot)
+        {
+            Grid.SetColumn(e, _vertical ? 0 : slot);
+            Grid.SetRow(e, _vertical ? slot : 0);
+        }
+        Put(LyricsHost, _anchorEnd ? 0 : 2);
+        Put(CoverButton, 1);
+        Put(ControlsShell, _anchorEnd ? 2 : 0);
+
+        var end = _anchorEnd;
+        Pill.HorizontalAlignment = _vertical ? HorizontalAlignment.Stretch : end ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        Pill.VerticalAlignment = !_vertical ? VerticalAlignment.Stretch : end ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+        Pill.Margin = _vertical ? new Thickness(2, 0, 2, 0) : new Thickness(0, 2, 0, 2);
+        PillGrid.Margin = _vertical ? new Thickness(0, 3, 0, 3) : new Thickness(3, 0, 3, 0);
+        Controls.Orientation = _vertical ? Orientation.Vertical : Orientation.Horizontal;
+        CoverButton.Padding = _vertical ? new Thickness(0, 3, 0, 3) : new Thickness(3, 0, 3, 0);
+        CoverButton.HorizontalAlignment = _vertical ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+        CoverButton.VerticalAlignment = _vertical ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+        ControlsShell.Margin = _vertical ? new Thickness(0, 2, 0, 1) : new Thickness(2, 0, 1, 0);
+        ControlsShell.HorizontalAlignment = _vertical ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+        ControlsShell.VerticalAlignment = _vertical ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+        // The lyrics grow along the taskbar; across it they fill the pill.
+        LyricsHost.BeginAnimation(_vertical ? WidthProperty : HeightProperty, null);
+        LyricsHost.ClearValue(_vertical ? WidthProperty : HeightProperty);
+        FitLyrics(animate: false);
         UpdateOverlayGlyph();
     }
 
@@ -243,22 +291,25 @@ public partial class WidgetWindow : Window
 
     void FitLyrics(bool animate)
     {
+        var size = _vertical ? HeightProperty : WidthProperty;
         double target = 0;
         if (_expanded)
         {
-            double fixedPart = CoverButton.ActualWidth + ControlsShell.ActualWidth + 8;
-            target = Math.Max(0, ActualWidth - fixedPart);
+            double fixedPart = _vertical
+                ? CoverButton.ActualHeight + ControlsShell.ActualHeight + ControlsShell.Margin.Top + ControlsShell.Margin.Bottom + 8
+                : CoverButton.ActualWidth + ControlsShell.ActualWidth + 8;
+            target = Math.Max(0, (_vertical ? ActualHeight : ActualWidth) - fixedPart);
         }
         if (!animate)
         {
-            LyricsHost.BeginAnimation(WidthProperty, null);
+            LyricsHost.BeginAnimation(size, null);
             LyricsHost.BeginAnimation(OpacityProperty, null);
-            LyricsHost.Width = target;
+            LyricsHost.SetValue(size, target);
             LyricsHost.Opacity = _expanded ? 1 : 0;
             return;
         }
         var d = TimeSpan.FromMilliseconds(_expanded ? 380 : 280);
-        LyricsHost.BeginAnimation(WidthProperty, new DoubleAnimation(target, d) { EasingFunction = EaseOut });
+        LyricsHost.BeginAnimation(size, new DoubleAnimation(target, d) { EasingFunction = EaseOut });
         LyricsHost.BeginAnimation(OpacityProperty, new DoubleAnimation(_expanded ? 1 : 0, TimeSpan.FromMilliseconds(_expanded ? 420 : 160))
         {
             BeginTime = _expanded ? TimeSpan.FromMilliseconds(90) : TimeSpan.Zero,
@@ -284,26 +335,36 @@ public partial class WidgetWindow : Window
             return;
         }
         // Chevron points the way the lyrics panel will move.
-        bool opensLeft = _anchorRight != _expanded;
+        bool opensLeft = _anchorEnd != _expanded;
+        if (_vertical)
+        {
+            ArtOverlayGlyph.Text = opensLeft ? "" : "";
+            return;
+        }
         ArtOverlayGlyph.Text = opensLeft ? "" : "";
     }
 
     // ------------------------------------------------------------------ content
 
-    public void SetAccent(Color accent) => _playGlow.Color = accent;
+    public void SetAccent(Color accent)
+    {
+        _playGlow.Color = accent;
+        LineLyrics.Accent = StackLyrics.Accent = accent;
+    }
 
     /// <summary>
-    /// Screen pixels covered by the lyric text beside the cover (just the text, so it
-    /// follows each line's length); empty when the panel is closed.
+    /// Screen pixels covered by the lyric text beside the cover, along the taskbar's length (just
+    /// the text, so it follows each line's length); empty when the panel is closed.
     /// </summary>
-    public (double Left, double Right) LyricsScreenSpan()
+    public (double Start, double End) LyricsScreenSpan()
     {
-        if (!IsVisible || LyricsHost.ActualWidth < 2 || LyricsHost.Opacity < 0.05) return (0, 0);
-        double hostLeft = LyricsHost.PointToScreen(new Point(0, 0)).X;
-        double hostRight = LyricsHost.PointToScreen(new Point(LyricsHost.ActualWidth, 0)).X;
-        var (left, right) = LyricsView.TextScreenSpan();
-        if (right - left < 1) return (0, 0);
-        return (Math.Max(hostLeft, left), Math.Min(hostRight, right));
+        double length = _vertical ? LyricsHost.ActualHeight : LyricsHost.ActualWidth;
+        if (!IsVisible || length < 2 || LyricsHost.Opacity < 0.05) return (0, 0);
+        var first = LyricsHost.PointToScreen(new Point(0, 0));
+        var last = LyricsHost.PointToScreen(_vertical ? new Point(0, length) : new Point(length, 0));
+        var (start, end) = LyricsView.TextScreenSpan();
+        if (end - start < 1) return (0, 0);
+        return _vertical ? (Math.Max(first.Y, start), Math.Min(last.Y, end)) : (Math.Max(first.X, start), Math.Min(last.X, end));
     }
 
     public Point CoverCenterOnScreen()

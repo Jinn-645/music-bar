@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using MusicBar.Infrastructure;
@@ -22,6 +22,8 @@ public sealed class AudioMeter : IDisposable
     float _publishedLevel;
     Thread? _thread;
     volatile bool _run;
+    // Bumped on every start: a capture thread from an earlier start ends even if capture was turned straight back on.
+    volatile int _generation;
     bool _loggedFailure;
 
     public bool IsCapturing { get; private set; }
@@ -45,7 +47,8 @@ public sealed class AudioMeter : IDisposable
         _run = active;
         if (active)
         {
-            _thread = new Thread(Loop) { IsBackground = true, Name = "MusicBar.AudioMeter", Priority = ThreadPriority.BelowNormal };
+            int generation = ++_generation;
+            _thread = new Thread(() => Loop(generation)) { IsBackground = true, Name = "MusicBar.AudioMeter", Priority = ThreadPriority.BelowNormal };
             _thread.Start();
         }
         else
@@ -59,15 +62,33 @@ public sealed class AudioMeter : IDisposable
         }
     }
 
+    // One meter serves the bar on every taskbar: it listens while any of them needs it.
+    readonly System.Collections.Generic.HashSet<object> _wanting = [];
+
+    public void Want(object owner, bool wants)
+    {
+        if (wants) _wanting.Add(owner);
+        else _wanting.Remove(owner);
+        SetActive(_wanting.Count > 0);
+    }
+
+    /// <summary>A new playback device: stop listening to the old one and pick up the default again.</summary>
+    public void Restart()
+    {
+        if (!_run) return;
+        SetActive(false);
+        SetActive(true);
+    }
+
     public void Dispose() => SetActive(false);
 
-    void Loop()
+    void Loop(int generation)
     {
-        while (_run)
+        while (_run && generation == _generation)
         {
             try
             {
-                Capture();
+                Capture(generation);
             }
             catch (Exception ex)
             {
@@ -77,14 +98,14 @@ public sealed class AudioMeter : IDisposable
                     Log.Error("Audio capture failed; seekbar falls back to synthetic motion", ex);
                     _loggedFailure = true;
                 }
-                for (int i = 0; i < 30 && _run; i++) Thread.Sleep(100);
+                for (int i = 0; i < 30 && _run && generation == _generation; i++) Thread.Sleep(100);
             }
         }
     }
 
     // ------------------------------------------------------------------ WASAPI
 
-    void Capture()
+    void Capture(int generation)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
         IMMDevice? device = null;
@@ -122,7 +143,7 @@ public sealed class AudioMeter : IDisposable
             int sinceAnalysis = 0;
             int quietTicks = 0;
 
-            while (_run)
+            while (_run && generation == _generation)
             {
                 Thread.Sleep(10);
                 bool gotData = false;

@@ -18,6 +18,21 @@ public enum AccentSource { AlbumArt, App, SystemAccent, Custom }
 /// <summary>How the playback progress is drawn across the taskbar.</summary>
 public enum SeekStyle { Classic, Aurora, Liquid, Neon, Spectrum, Waveform, Ribbon, Cinema, Mosaic, Mesh, Silk, Holo, Bokeh, Ink }
 
+/// <summary>
+/// Which way the progress runs: from the start of the taskbar (left, or the bottom of a
+/// vertical one), from the other end, out from the middle, or in from both ends.
+/// </summary>
+public enum SeekDirection { FromStart, FromEnd, FromCenter, FromEnds }
+
+/// <summary>Which taskbars MusicBar shows on when there are several screens.</summary>
+public enum DisplayTarget { Main, All, One }
+
+/// <summary>Where the player and the lyrics go: with the progress bar, or on screens of their own.</summary>
+public enum PlayerTarget { SameAsBar, Main, All, One }
+
+/// <summary>What sits on the taskbar besides the progress bar.</summary>
+public enum PlayerMode { Full, LyricsOnly, Off }
+
 /// <summary>The language of everything MusicBar shows.</summary>
 public enum AppLanguage { English, Vietnamese }
 
@@ -105,6 +120,9 @@ public sealed class AppSettings : ObservableObject
     SeekStyle _seekStyle = SeekStyle.Aurora;
     public SeekStyle SeekStyle { get => _seekStyle; set => Set(ref _seekStyle, value); }
 
+    SeekDirection _seekDirection = SeekDirection.FromStart;
+    public SeekDirection SeekDirection { get => _seekDirection; set => Set(ref _seekDirection, value); }
+
     /// <summary>Let the seekbar follow the music (reads the system audio mix locally).</summary>
     bool _audioReactive = true;
     public bool AudioReactive { get => _audioReactive; set => Set(ref _audioReactive, value); }
@@ -120,6 +138,24 @@ public sealed class AppSettings : ObservableObject
 
     bool _showControls = true;
     public bool ShowControls { get => _showControls; set => Set(ref _showControls, value); }
+
+    /// <summary>The player (cover and buttons) on the taskbar, only its lyrics, or neither (just the progress bar).</summary>
+    PlayerMode _playerMode = PlayerMode.Full;
+    public PlayerMode PlayerMode { get => _playerMode; set => Set(ref _playerMode, value); }
+
+    DisplayTarget _displayTarget = DisplayTarget.Main;
+    public DisplayTarget DisplayTarget { get => _displayTarget; set => Set(ref _displayTarget, value); }
+
+    // The screen for DisplayTarget.One, by its device name (\\.\DISPLAY2).
+    string _displayMonitor = "";
+    public string DisplayMonitor { get => _displayMonitor; set => Set(ref _displayMonitor, value ?? ""); }
+
+    PlayerTarget _playerTarget = PlayerTarget.SameAsBar;
+    public PlayerTarget PlayerTarget { get => _playerTarget; set => Set(ref _playerTarget, value); }
+
+    // The screen for PlayerTarget.One.
+    string _playerMonitor = "";
+    public string PlayerMonitor { get => _playerMonitor; set => Set(ref _playerMonitor, value ?? ""); }
 
     AppLanguage _language = AppLanguage.English;
     public AppLanguage Language { get => _language; set => Set(ref _language, value); }

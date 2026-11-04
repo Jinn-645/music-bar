@@ -69,6 +69,21 @@ public static class SettingsOptions
         new(ControlStyle.Bubbles, "Opt_Ctl_Bubbles"),
     ];
 
+    public static IReadOnlyList<Option> PlayerModes { get; } =
+    [
+        new(PlayerMode.Full, "Opt_Player_Full"),
+        new(PlayerMode.LyricsOnly, "Opt_Player_LyricsOnly"),
+        new(PlayerMode.Off, "Opt_Player_Off"),
+    ];
+
+    public static IReadOnlyList<Option> SeekDirections { get; } =
+    [
+        new(SeekDirection.FromStart, "Opt_Dir_FromStart"),
+        new(SeekDirection.FromEnd, "Opt_Dir_FromEnd"),
+        new(SeekDirection.FromCenter, "Opt_Dir_FromCenter"),
+        new(SeekDirection.FromEnds, "Opt_Dir_FromEnds"),
+    ];
+
     public static IReadOnlyList<Option> AccentSources { get; } =
     [
         new(AccentSource.AlbumArt, "Opt_Accent_Art"),

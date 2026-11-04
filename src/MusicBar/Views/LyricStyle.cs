@@ -12,7 +12,7 @@ internal static class LyricStyle
     /// Colors the presenter's text and sets up <paramref name="stroke"/>; returns the effect to
     /// put on the lyrics' container (null when the stroke is off).
     /// </summary>
-    public static Effect? Apply(AppSettings s, LyricsPresenter view, DropShadowEffect stroke)
+    public static Effect? Apply(AppSettings s, ILyricsView view, DropShadowEffect stroke)
     {
         view.SetTextStyle(ColorUtil.TryParse(s.LyricColor, out var text) ? text : Colors.White, s.LyricOpacity);
         if (!s.LyricStroke) return null;

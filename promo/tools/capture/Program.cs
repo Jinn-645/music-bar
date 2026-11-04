@@ -70,6 +70,7 @@ static class Program
                     case "assets": Assets(args); break;
                     case "controls": await ControlStyles(args); break;
                     case "settings": await SettingsPages(args); break;
+                    case "wireless": await Wireless(); break;
                     default: throw new ArgumentException("unknown mode " + args[0]);
                 }
             }
@@ -248,8 +249,60 @@ static class Program
         Call("SetSide", Enum.Parse(sideKind, "Outputs"), false);
         await Task.Delay(300);
         SavePng(Snap(panel, scale), Path.Combine(outDir, "panel-outputs.png"));
+
+        // The Wi-Fi list with made-up networks and a key being typed. It is drawn directly: opening it
+        // for real would scan, and on a PC that blocks the scan, open Windows' own Wi-Fi list on screen.
+        // Closed as far as Dismiss knows, so losing focus doesn't fade it out.
+        typeof(ControlCenterWindow).GetProperty("IsOpen", Any)!.SetValue(panel, false);
+        Call("SetSide", Enum.Parse(sideKind, "None"), false);
+        type.GetField("_side", Any)!.SetValue(panel, Enum.Parse(sideKind, "WiFi"));
+        var side = (FrameworkElement)type.GetField("Side", Any)!.GetValue(panel)!;
+        side.BeginAnimation(UIElement.OpacityProperty, null);
+        side.Opacity = 1;
+        ((TranslateTransform)type.GetField("SideShift", Any)!.GetValue(panel)!).BeginAnimation(TranslateTransform.XProperty, null);
+        ((TranslateTransform)type.GetField("SideShift", Any)!.GetValue(panel)!).X = 0;
+        type.GetField("_networks", Any)!.SetValue(panel, new List<WifiNetwork>
+        {
+            new("Nhà Mèo 5G", 4, WifiSecurity.Password, true, "Nhà Mèo 5G", true),
+            new("Cafe Sáng", 3, WifiSecurity.Open, false, null, true),
+            new("VNPT-Tang2", 3, WifiSecurity.Password, false, null, true),
+            new("Viettel_8A2C", 2, WifiSecurity.Password, false, "Viettel_8A2C", false),
+            new("CongTy-Staff", 1, WifiSecurity.Enterprise, false, null, true),
+        });
+        type.GetField("_wifiOpen", Any)!.SetValue(panel, "VNPT-Tang2");
+        type.GetField("_wifiAskKey", Any)!.SetValue(panel, true);
+        Call("RenderWifi");
+        await Task.Delay(300);
+        SavePng(Snap(panel, scale), Path.Combine(outDir, "panel-wifi-list.png"));
         panel.Close();
         Console.WriteLine($"panel → {outDir} ({panel.ActualWidth}x{panel.ActualHeight} DIP)");
+    }
+
+    // ---------------------------------------------------------------- Wi-Fi and Bluetooth
+
+    /// <summary>What the control center's Wi-Fi and Bluetooth lists would show, printed (read-only).</summary>
+    static async Task Wireless()
+    {
+        var wifi = new WifiNetworks();
+        Console.WriteLine($"wifi open: {await wifi.OpenAsync()}");
+        var cached = await wifi.ListAsync(scan: false);
+        Console.WriteLine($"wifi cached: {cached.Count} blocked={wifi.Blocked}");
+        var networks = await wifi.ListAsync(scan: true);
+        Console.WriteLine($"wifi scanned: {networks.Count} blocked={wifi.Blocked}");
+        foreach (var n in networks)
+            Console.WriteLine($"  {n.Bars} bars  {n.Security,-10} connected={n.Connected,-5} saved={n.Saved,-5} auto={n.AutoConnect,-5} {n.Ssid}");
+
+        var bt = new BluetoothDevices(Dispatcher.CurrentDispatcher);
+        bt.Start();
+        await Task.Delay(8000);
+        bt.Stop();
+        var items = bt.Items();
+        Console.WriteLine($"bluetooth: {items.Count}");
+        foreach (var i in items)
+        {
+            bool audio = i.Paired && await BluetoothDevices.CanConnectAsync(i);
+            Console.WriteLine($"  paired={i.Paired,-5} connected={i.Connected,-5} {i.Kind,-8} audio={audio,-5} {i.Address,-17} {i.Name}");
+        }
     }
 
     // ---------------------------------------------------------------- settings window
@@ -267,7 +320,7 @@ static class Program
             ShowActivated = false,
         };
         window.Show();
-        for (int page = 0; page < 4; page++)
+        for (int page = 0; page < window.PageCount; page++)
         {
             window.Page = page;
             await Task.Delay(700);
@@ -319,7 +372,7 @@ static class Program
             for (int i = 0; i < styles.Length; i++)
             {
                 settings.ControlStyle = styles[i];
-                widget.ApplyStyle(settings, h, textShadow: false);
+                widget.ApplyStyle(settings, h, textShadow: false, vertical: false);
                 for (int state = 0; state < 2; state++)
                 {
                     widget.SetPlaying(state == 1, animate: false);

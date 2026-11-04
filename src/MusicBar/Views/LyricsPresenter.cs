@@ -20,7 +20,7 @@ namespace MusicBar.Views;
 /// scrolling and gap dots all stay locked to the music, including on seek
 /// and pause.
 /// </summary>
-public sealed class LyricsPresenter : Grid
+public sealed class LyricsPresenter : Grid, ILyricsView
 {
     sealed class Karaoke
     {
@@ -151,7 +151,7 @@ public sealed class LyricsPresenter : Grid
     }
 
     /// <summary>The span of drawn text on screen (physical pixels), or (0, 0).</summary>
-    public (double Left, double Right) TextScreenSpan()
+    public (double Start, double End) TextScreenSpan()
     {
         if (TextBounds() is not { } text) return (0, 0);
         return (PointToScreen(new Point(text.Left, 0)).X, PointToScreen(new Point(text.Right, 0)).X);
