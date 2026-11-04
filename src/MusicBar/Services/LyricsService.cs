@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -16,12 +17,17 @@ namespace MusicBar.Services;
 
 /// <summary>
 /// Finds synced lyrics: first in the local folder (.lrc files, including ones
-/// the user drops in), then on LRCLIB (lrclib.net, the open lyrics database).
-/// Downloads are written back as .lrc so the next play is instant and offline.
+/// the user drops in), then on LRCLIB (lrclib.net, the open lyrics database),
+/// then, if the user allows it, on NetEase Cloud Music. Downloads are written
+/// back as .lrc (with word times when the song was synced word by word) so the
+/// next play is instant and offline. Lyrics can also be shared back to LRCLIB.
 /// </summary>
-public sealed class LyricsService
+public sealed partial class LyricsService
 {
-    const string Marker = "[re:MusicBar/LRCLIB]";
+    // Every file MusicBar downloaded starts with one of these; files without are the user's own.
+    const string MarkerStart = "[re:MusicBar/";
+    const string Marker = MarkerStart + "LRCLIB]";
+    const string NetEaseMarker = MarkerStart + "NetEase]";
     static readonly TimeSpan MissTtl = TimeSpan.FromDays(3);
     static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
@@ -35,15 +41,27 @@ public sealed class LyricsService
         public bool Instrumental { get; set; }
         public string? PlainLyrics { get; set; }
         public string? SyncedLyrics { get; set; }
+        /// <summary>LRCLIB's YAML Lyricsfile: the same lyrics, with word times when someone synced them word by word.</summary>
+        public string? Lyricsfile { get; set; }
+
+        /// <summary>The synced lyrics as LRC, with word times when there are any.</summary>
+        public string? Lrc => Services.Lyricsfile.ToWordLrc(Lyricsfile) ?? SyncedLyrics;
+
+        public bool HasWordSync => Lyricsfile?.Contains("words:", StringComparison.Ordinal) == true;
     }
 
     readonly AppSettings _settings;
     readonly object _missLock = new();
-    HttpClient? _http;
+    readonly Dictionary<string, HttpClient> _http = new();
+    readonly NetEaseLyrics _netEase;
     string? _httpProxy;
     Dictionary<string, DateTime>? _misses;
 
-    public LyricsService(AppSettings settings) => _settings = settings;
+    public LyricsService(AppSettings settings)
+    {
+        _settings = settings;
+        _netEase = new NetEaseLyrics(Client);
+    }
 
     public string Folder => string.IsNullOrWhiteSpace(_settings.LyricsFolder) ? AppPaths.DefaultLyricsDir : _settings.LyricsFolder;
 
@@ -67,7 +85,8 @@ public sealed class LyricsService
         }
         if (!_settings.FetchOnline) return new LyricsResult(LyricsStatus.NotFound, null, "offline", null);
 
-        LrclibTrack? found;
+        LrclibTrack? found = null;
+        bool failed = false;
         try
         {
             found = await FetchAsync(q, artist, title, ct);
@@ -79,74 +98,204 @@ public sealed class LyricsService
         catch (Exception ex)
         {
             Log.Error($"LRCLIB lookup failed for '{artist} - {title}'", ex);
-            return new LyricsResult(LyricsStatus.Error, null, "LRCLIB", null);
+            failed = true;
         }
 
         var path = Path.Combine(Folder, FileName(artist, title) + ".lrc");
-        if (found == null)
-        {
-            RecordMiss(key);
-            return new LyricsResult(LyricsStatus.NotFound, null, "LRCLIB", null);
-        }
-
-        if (found.Instrumental)
+        if (found is { Instrumental: true })
         {
             Save(path, Header(found, artist, title) + "[instrumental:true]\n");
             return new LyricsResult(LyricsStatus.Instrumental, null, "LRCLIB", path);
         }
 
-        if (!string.IsNullOrWhiteSpace(found.SyncedLyrics))
+        if (found?.Lrc is { Length: > 0 } lrc)
         {
-            var text = Header(found, artist, title) + found.SyncedLyrics.Replace("\r\n", "\n");
+            var text = Header(found, artist, title) + lrc.Replace("\r\n", "\n");
             Save(path, text);
             ForgetMiss(key);
             return new LyricsResult(LyricsStatus.Synced, LrcParser.Parse(text), "LRCLIB", path);
         }
 
+        // Nothing synced on LRCLIB (or LRCLIB is down): NetEase, if the user allows it.
+        if (_settings.LyricsFromNetEase && await FromNetEaseAsync(q, artist, title, path, ct) is { } fromNetEase)
+        {
+            ForgetMiss(key);
+            return fromNetEase;
+        }
+
+        if (failed) return new LyricsResult(LyricsStatus.Error, null, "LRCLIB", null);
+        if (found == null)
+        {
+            RecordMiss(key);
+            return new LyricsResult(LyricsStatus.NotFound, null, "LRCLIB", null);
+        }
         var plainPath = Path.ChangeExtension(path, ".txt");
         if (!string.IsNullOrWhiteSpace(found.PlainLyrics)) Save(plainPath, found.PlainLyrics);
         return new LyricsResult(LyricsStatus.PlainOnly, null, "LRCLIB", plainPath);
     }
 
     /// <summary>
-    /// Songs LRCLIB has for words typed by hand (the lyrics panel's search), the ones with synced
-    /// lyrics first, then the closest in length to <paramref name="duration"/>.
+    /// The song on NetEase: the closest match by name, artist and length (not a live or remixed
+    /// version unless that is what plays), saved as its .lrc. Null when NetEase has nothing synced.
     /// </summary>
-    public async Task<IReadOnlyList<LyricsCandidate>> SearchAsync(string text, TimeSpan duration, CancellationToken ct)
+    async Task<LyricsResult?> FromNetEaseAsync(TrackQuery q, string artist, string title, string path, CancellationToken ct)
+    {
+        try
+        {
+            var variants = TitleCleaner.Variants(q.Artist, q.Title);
+            var songs = (await _netEase.SearchAsync($"{artist} {title}".Trim(), ct)).ToList();
+            var song = PickNetEase(songs, variants, q.Title, q.Duration.TotalSeconds);
+            if (song == null)
+            {
+                songs.AddRange(await _netEase.SearchAsync(title, ct));
+                song = PickNetEase(songs, variants, q.Title, q.Duration.TotalSeconds);
+            }
+            if (song == null) return null;
+            var lrc = await _netEase.LyricsAsync(song.Id, ct);
+            if (lrc == null) return null;
+            var text = NetEaseHeader(song) + lrc;
+            Save(path, text);
+            Log.Info($"Lyrics from NetEase: '{song.Artist} - {song.Name}' ({song.Id})");
+            return new LyricsResult(LyricsStatus.Synced, LrcParser.Parse(text), "NetEase", path);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"NetEase lookup failed for '{artist} - {title}'", ex);
+            return null;
+        }
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\b(live|remix|unplugged|acoustic|instrumental|inst\.?|karaoke|cover|sped up|slowed|nightcore|伴奏|现场|翻唱)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex Version();
+
+    /// <summary>The NetEase song that is most likely the one playing, scored like LRCLIB's candidates.</summary>
+    static NetEaseSong? PickNetEase(List<NetEaseSong> songs, IReadOnlyList<(string Artist, string Title)> variants, string playing, double duration)
+    {
+        var artists = variants.Select(v => v.Artist).Where(a => a.Length > 0).Distinct().ToList();
+        NetEaseSong? best = null;
+        double bestScore = double.MinValue;
+        foreach (var s in songs)
+        {
+            double titleSim = variants.Max(v => TitleCleaner.Similarity(s.Name, v.Title));
+            if (titleSim < 0.45) continue;
+            double? diff = duration > 0 && s.Seconds > 0 ? Math.Abs(s.Seconds - duration) : null;
+            // NetEase holds many versions of a song; another length is another recording, and its lyrics would run out of step.
+            if (diff > 8) continue;
+            // Stricter than LRCLIB: NetEase is full of covers and remixes of the same length, and it
+            // writes other spellings of a name in brackets, which the artist match already reads.
+            double artistSim = artists.Count == 0 ? 0.5 : artists.Max(a => TitleCleaner.ArtistMatch(s.Artist, a));
+            if (artists.Count > 0 && artistSim < TitleCleaner.SameArtistAt) continue;
+            // A live, remixed, covered or karaoke version only when that is what plays.
+            if (Version().IsMatch(s.Name) && !Version().IsMatch(playing)) continue;
+            double score = titleSim * 40 + artistSim * 60;
+            if (diff is double gap)
+            {
+                if (gap <= 2) score += 40;
+                else if (gap <= 5) score += 20;
+                else if (gap > 20) score -= 80;
+            }
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = s;
+            }
+        }
+        return best;
+    }
+
+    static string NetEaseHeader(NetEaseSong s)
+    {
+        var sb = new StringBuilder();
+        sb.Append(NetEaseMarker).Append('\n');
+        sb.Append("[ti:").Append(s.Name).Append("]\n");
+        sb.Append("[ar:").Append(s.Artist).Append("]\n");
+        if (s.Album.Length > 0) sb.Append("[al:").Append(s.Album).Append("]\n");
+        if (s.Seconds > 0) sb.Append("[length:").Append(TimeSpan.FromSeconds(s.Seconds).ToString(@"m\:ss", CultureInfo.InvariantCulture)).Append("]\n");
+        sb.Append("[id:netease-").Append(s.Id).Append("]\n");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Songs LRCLIB has for words typed by hand (the lyrics panel's search): the playing song's
+    /// artist first, so a song of the same name by someone else sinks; then synced lyrics, then
+    /// the closest in length to the song playing.
+    /// </summary>
+    public async Task<IReadOnlyList<LyricsCandidate>> SearchAsync(string text, TrackQuery playing, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text)) return [];
+        // NetEase alongside, when allowed; it failing only means fewer results.
+        var netEase = _settings.LyricsFromNetEase ? NetEaseCandidatesAsync(text, ct) : null;
         var found = await GetAsync<List<LrclibTrack>>("api/search" + Query(("q", text.Trim())), ct) ?? [];
-        double seconds = duration.TotalSeconds;
-        return found
+        double seconds = playing.Duration.TotalSeconds;
+        var artists = TitleCleaner.Variants(playing.Artist, playing.Title).Select(v => v.Artist).Where(a => a.Length > 0).Distinct().ToList();
+        bool SameArtist(LyricsCandidate c) => artists.Count > 0 && artists.Max(a => TitleCleaner.ArtistMatch(c.Artist, a)) >= TitleCleaner.SameArtistAt;
+        var candidates = found
             .Where(t => t.Instrumental || !string.IsNullOrWhiteSpace(t.SyncedLyrics) || !string.IsNullOrWhiteSpace(t.PlainLyrics))
-            .OrderByDescending(t => !string.IsNullOrWhiteSpace(t.SyncedLyrics))
-            .ThenBy(t => seconds > 0 && t.Duration is double d ? Math.Abs(d - seconds) : 0)
-            .Take(30)
             .Select(t => new LyricsCandidate(t.TrackName ?? "", t.ArtistName ?? "", t.AlbumName ?? "",
                 TimeSpan.FromSeconds(t.Duration ?? 0), !string.IsNullOrWhiteSpace(t.SyncedLyrics), t.Instrumental) { Track = t })
             .ToList();
+        if (netEase != null) candidates.AddRange(await netEase);
+        return candidates
+            .OrderByDescending(SameArtist)
+            .ThenByDescending(c => c.Synced)
+            .ThenBy(c => c.From == "LRCLIB" ? 0 : 1)
+            .ThenBy(c => seconds > 0 && c.Duration > TimeSpan.Zero ? Math.Abs(c.Duration.TotalSeconds - seconds) : 0)
+            .Take(30)
+            .ToList();
+    }
+
+    async Task<List<LyricsCandidate>> NetEaseCandidatesAsync(string text, CancellationToken ct)
+    {
+        try
+        {
+            // Whether a NetEase song has synced lyrics is only known once they are fetched: shown as synced, checked when picked.
+            // When NetEase distrusts a caller it answers with unrelated songs: only those sharing words with the search stay.
+            return (await _netEase.SearchAsync(text, ct))
+                .Where(s => TitleCleaner.Similarity($"{s.Name} {s.Artist}", text) >= 0.2)
+                .Select(s => new LyricsCandidate(s.Name, s.Artist, s.Album, TimeSpan.FromSeconds(s.Seconds), true, false) { From = "NetEase", NetEaseId = s.Id })
+                .ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("NetEase search failed", ex);
+            return [];
+        }
     }
 
     /// <summary>
     /// Makes a hand-picked search result the lyrics of the song playing: saved as its .lrc file,
-    /// so it is used from now on, replacing whatever was found before.
+    /// so it is used from now on, replacing whatever was found before. Null when the pick turned
+    /// out to have no lyrics after all (a NetEase song without synced lyrics).
     /// </summary>
-    public LyricsResult Use(LyricsCandidate pick, TrackQuery q)
+    public async Task<LyricsResult?> UseAsync(LyricsCandidate pick, TrackQuery q, CancellationToken ct)
     {
         Directory.CreateDirectory(Folder);
         var (artist, title) = TitleCleaner.Clean(q.Artist, q.Title);
         var path = Path.Combine(Folder, FileName(artist, title) + ".lrc");
         var plainPath = Path.ChangeExtension(path, ".txt");
-        var t = pick.Track;
+        if (pick.Track is not { } t)
+        {
+            var lrc = await _netEase.LyricsAsync(pick.NetEaseId, ct);
+            if (lrc == null) return null;
+            var text = NetEaseHeader(new NetEaseSong(pick.NetEaseId, pick.Title, pick.Artist, pick.Album, pick.Duration.TotalSeconds)) + lrc;
+            Save(path, text);
+            try { File.Delete(plainPath); } catch (Exception) { }
+            ForgetMiss(MissKey(artist, title));
+            return new LyricsResult(LyricsStatus.Synced, LrcParser.Parse(text), "NetEase", path);
+        }
         ForgetMiss(MissKey(artist, title));
         if (t.Instrumental)
         {
             Save(path, Header(t, artist, title) + "[instrumental:true]\n");
             return new LyricsResult(LyricsStatus.Instrumental, null, "LRCLIB", path);
         }
-        if (!string.IsNullOrWhiteSpace(t.SyncedLyrics))
+        if (t.Lrc is { Length: > 0 } synced)
         {
-            var text = Header(t, artist, title) + t.SyncedLyrics.Replace("\r\n", "\n");
+            var text = Header(t, artist, title) + synced.Replace("\r\n", "\n");
             Save(path, text);
             try { File.Delete(plainPath); } catch (Exception) { }
             return new LyricsResult(LyricsStatus.Synced, LrcParser.Parse(text), "LRCLIB", path);
@@ -172,6 +321,180 @@ public sealed class LyricsService
         {
             Log.Error("Saving lyric offset failed", ex);
         }
+    }
+
+    /// <summary>
+    /// Where lyrics on disk came from, by the mark MusicBar put at the top of the file: "LRCLIB",
+    /// "NetEase", or "file" for one the user added; null for none (demo lyrics, nothing found).
+    /// </summary>
+    public static string? OriginOf(LyricsResult? result)
+    {
+        if (result?.FilePath is not { } path || !File.Exists(path)) return null;
+        try
+        {
+            using var reader = new StreamReader(path);
+            var head = (reader.ReadLine() ?? "").Trim();
+            return head.StartsWith(Marker, StringComparison.Ordinal) ? "LRCLIB"
+                : head.StartsWith(NetEaseMarker, StringComparison.Ordinal) ? "NetEase"
+                : "file";
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------------------ sharing on LRCLIB
+
+    /// <summary>
+    /// The lyrics on screen as something worth sharing on LRCLIB, or null when there is nothing to
+    /// add: lyrics from a file of the user's own, or LRCLIB lyrics whose timing they corrected. A
+    /// correction keeps the LRCLIB track's own name, album and length, so it becomes a new revision of
+    /// that track instead of a duplicate. Lyrics from NetEase are not offered.
+    /// </summary>
+    public LyricsDraft? DraftFor(LyricsResult? result, TrackQuery q)
+    {
+        if (result?.Lyrics is not { Lines.Count: > 0 } lyrics || result.FilePath is not { } path || !File.Exists(path)) return null;
+        string text;
+        try
+        {
+            text = File.ReadAllText(path);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+        var head = text.TrimStart();
+        bool own = !head.StartsWith(MarkerStart, StringComparison.Ordinal);
+        bool fromLrclib = head.StartsWith(Marker, StringComparison.Ordinal);
+        int offset = (int)lyrics.Offset.TotalMilliseconds;
+        if (!own && !(fromLrclib && offset != 0)) return null;
+
+        var tags = LrcParser.Tags(text);
+        var (artist, title) = TitleCleaner.Clean(q.Artist, q.Title);
+        string Tag(string key, string fallback) => tags.TryGetValue(key, out var v) && v.Length > 0 ? v : fallback;
+        var duration = tags.TryGetValue("length", out var length) && ParseLength(length) is { } l ? l : q.Duration;
+
+        // The correction folded into the times: a positive offset showed the lyrics earlier.
+        var shift = TimeSpan.FromMilliseconds(offset);
+        var synced = new StringBuilder();
+        var plain = new StringBuilder();
+        int count = 0;
+        foreach (var line in lyrics.Lines)
+        {
+            synced.Append(LrcParser.Stamp(line.Start - shift)).Append(line.Text).Append('\n');
+            plain.Append(line.Text).Append('\n');
+            if (!line.IsBlank) count++;
+        }
+        return new LyricsDraft(Tag("ti", title), Tag("ar", artist), Tag("al", q.Album), duration,
+            synced.ToString().TrimEnd('\n'), plain.ToString().Trim('\n'), count, offset);
+    }
+
+    static TimeSpan? ParseLength(string text)
+    {
+        var parts = text.Split(':');
+        if (parts.Length == 2 && int.TryParse(parts[0], out int m) && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double s))
+            return TimeSpan.FromSeconds(m * 60 + s);
+        return null;
+    }
+
+    /// <summary>
+    /// Why LRCLIB would refuse (or should not get) these lyrics, as a string key, or null when they look right:
+    /// a name and artist, a length, a handful of timed lines, none past the end of the song.
+    /// </summary>
+    public static string? Problem(LyricsDraft d)
+    {
+        if (d.Title.Trim().Length == 0 || d.Artist.Trim().Length == 0) return "LyrS_NeedName";
+        if (d.Duration < TimeSpan.FromSeconds(10)) return "LyrS_NeedLength";
+        if (d.Lines < 4) return "LyrS_TooFew";
+        var last = LrcParser.Parse(d.Synced).Lines.LastOrDefault();
+        if (last != null && last.Start > d.Duration + TimeSpan.FromSeconds(2)) return "LyrS_TooLong";
+        return null;
+    }
+
+    sealed class Challenge
+    {
+        public string Prefix { get; set; } = "";
+        public string Target { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Shares lyrics on LRCLIB. LRCLIB keeps spam out with a small proof of work: it hands out a
+    /// prefix and a target, and wants a number that, after the prefix, hashes (SHA-256) to no more
+    /// than the target; finding one takes a few seconds. Reports its stage: "challenge", "solving", "sending".
+    /// </summary>
+    public async Task PublishAsync(LyricsDraft d, IProgress<string>? stage, CancellationToken ct)
+    {
+        stage?.Report("challenge");
+        Challenge challenge;
+        using (var response = await Client().PostAsync("api/request-challenge", null, ct))
+        {
+            response.EnsureSuccessStatusCode();
+            challenge = JsonSerializer.Deserialize<Challenge>(await response.Content.ReadAsStringAsync(ct), Json)
+                ?? throw new HttpRequestException("LRCLIB sent no challenge");
+        }
+
+        stage?.Report("solving");
+        var nonce = await Task.Run(() => Solve(challenge.Prefix, challenge.Target, ct), ct);
+
+        stage?.Report("sending");
+        var body = JsonSerializer.Serialize(new
+        {
+            trackName = d.Title.Trim(),
+            artistName = d.Artist.Trim(),
+            albumName = d.Album.Trim(),
+            duration = Math.Round(d.Duration.TotalSeconds),
+            plainLyrics = d.Plain,
+            syncedLyrics = d.Synced,
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/publish") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        request.Headers.Add("X-Publish-Token", $"{challenge.Prefix}:{nonce}");
+        using var published = await Client().SendAsync(request, ct);
+        if (!published.IsSuccessStatusCode)
+        {
+            var reason = await published.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"LRCLIB refused the lyrics ({(int)published.StatusCode}): {reason}", null, published.StatusCode);
+        }
+        Log.Info($"Lyrics shared on LRCLIB: '{d.Artist} - {d.Title}' ({d.Lines} lines, offset {d.OffsetMs} ms folded in)");
+    }
+
+    /// <summary>The proof of work: the first number (on any core) whose hash after the prefix is at most the target.</summary>
+    static string Solve(string prefix, string targetHex, CancellationToken ct)
+    {
+        var target = Convert.FromHexString(targetHex);
+        var prefixBytes = Encoding.UTF8.GetBytes(prefix);
+        long found = -1;
+        int workers = Math.Max(1, Environment.ProcessorCount - 1);
+        Parallel.For(0, workers, new ParallelOptions { MaxDegreeOfParallelism = workers }, w =>
+        {
+            Span<byte> input = stackalloc byte[prefixBytes.Length + 20];
+            prefixBytes.CopyTo(input);
+            Span<byte> hash = stackalloc byte[32];
+            for (long n = w, i = 0; Interlocked.Read(ref found) < 0; n += workers, i++)
+            {
+                if ((i & 0xFFFF) == 0 && ct.IsCancellationRequested) return;
+                n.TryFormat(input[prefixBytes.Length..], out int digits, default, CultureInfo.InvariantCulture);
+                SHA256.HashData(input[..(prefixBytes.Length + digits)], hash);
+                if (AtMost(hash, target))
+                {
+                    Interlocked.CompareExchange(ref found, n, -1);
+                    return;
+                }
+            }
+        });
+        ct.ThrowIfCancellationRequested();
+        return found.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The hash is no larger than the target, compared byte by byte from the first (as LRCLIB does).</summary>
+    static bool AtMost(ReadOnlySpan<byte> hash, ReadOnlySpan<byte> target)
+    {
+        for (int i = 0; i < hash.Length && i < target.Length; i++)
+        {
+            if (hash[i] > target[i]) return false;
+            if (hash[i] < target[i]) return true;
+        }
+        return true;
     }
 
     public (int Saved, int Misses) GetCacheStats()
@@ -208,7 +531,7 @@ public sealed class LyricsService
                 using (var reader = new StreamReader(file))
                 {
                     var head = reader.ReadLine() ?? "";
-                    if (!file.EndsWith(".txt") && !head.Contains(Marker)) continue;
+                    if (!file.EndsWith(".txt") && !head.Contains(MarkerStart)) continue;
                 }
                 File.Delete(file);
                 removed++;
@@ -335,26 +658,34 @@ public sealed class LyricsService
 
     // ------------------------------------------------------------------ LRCLIB
 
-    HttpClient Client()
+    HttpClient Client() => Client("https://lrclib.net/");
+
+    /// <summary>One client per site, made again when the proxy setting changes.</summary>
+    HttpClient Client(string baseAddress)
     {
         var proxy = _settings.ProxyUrl;
-        if (_http != null && proxy == _httpProxy) return _http;
+        lock (_http)
+        {
+            if (proxy != _httpProxy)
+            {
+                foreach (var old in _http.Values) old.Dispose();
+                _http.Clear();
+                _httpProxy = proxy;
+            }
+            if (_http.TryGetValue(baseAddress, out var client)) return client;
 
-        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
-        if (!string.IsNullOrWhiteSpace(proxy))
-        {
-            handler.Proxy = new WebProxy(proxy);
-            handler.UseProxy = true;
+            var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
+            if (!string.IsNullOrWhiteSpace(proxy))
+            {
+                handler.Proxy = new WebProxy(proxy);
+                handler.UseProxy = true;
+            }
+            client = new HttpClient(handler) { BaseAddress = new Uri(baseAddress), Timeout = TimeSpan.FromSeconds(15) };
+            // MusicBar says who it is, to every site.
+            client.DefaultRequestHeaders.UserAgent.ParseAdd($"MusicBar/{UpdateService.Current.ToString(3)} (https://github.com/lvt1693/music-bar)");
+            _http[baseAddress] = client;
+            return client;
         }
-        _http?.Dispose();
-        _http = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://lrclib.net/"),
-            Timeout = TimeSpan.FromSeconds(15),
-        };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("MusicBar/1.0 (Windows desktop lyrics bar)");
-        _httpProxy = proxy;
-        return _http;
     }
 
     async Task<LrclibTrack?> FetchAsync(TrackQuery q, string artist, string title, CancellationToken ct)
@@ -419,32 +750,34 @@ public sealed class LyricsService
     /// </summary>
     static LrclibTrack? Pick(List<LrclibTrack> candidates, IReadOnlyList<(string Artist, string Title)> variants, int duration)
     {
+        // Everyone the song could be by: the player's artist, the channel, a name read from the title.
+        var artists = variants.Select(v => v.Artist).Where(a => a.Length > 0).Distinct().ToList();
         LrclibTrack? best = null;
         double bestScore = double.MinValue;
         foreach (var c in candidates)
         {
-            double titleSim = 0, artistSim = 0;
-            foreach (var (artist, title) in variants)
-            {
-                double sim = TitleCleaner.Similarity(c.TrackName ?? "", title);
-                if (sim <= titleSim) continue;
-                titleSim = sim;
-                artistSim = artist.Length > 0 ? TitleCleaner.Similarity(c.ArtistName ?? "", artist) : 0.5;
-            }
+            double titleSim = variants.Max(v => TitleCleaner.Similarity(c.TrackName ?? "", v.Title));
             if (titleSim < 0.45) continue;
-            double score = titleSim * 40 + artistSim * 30;
+            double? diff = duration > 0 && c.Duration is double d ? Math.Abs(d - duration) : null;
 
-            if (!string.IsNullOrWhiteSpace(c.SyncedLyrics)) score += 100;
+            // Who sings it counts as much as the name: a song of the same name by someone else is
+            // the wrong song. One by another name is only taken at the very same length (the artist
+            // written another way or in another script), and below any that matches.
+            double artistSim = artists.Count == 0 ? 0.5 : artists.Max(a => TitleCleaner.ArtistMatch(c.ArtistName ?? "", a));
+            bool otherArtist = artists.Count > 0 && artistSim < TitleCleaner.SameArtistAt;
+            if (otherArtist && diff is not <= 3) continue;
+            double score = titleSim * 40 + artistSim * 60 - (otherArtist ? 50 : 0);
+
+            if (!string.IsNullOrWhiteSpace(c.SyncedLyrics)) score += c.HasWordSync ? 110 : 100;
             else if (c.Instrumental) score += 60;
             else if (!string.IsNullOrWhiteSpace(c.PlainLyrics)) score += 10;
             else continue;
 
-            if (duration > 0 && c.Duration is double d)
+            if (diff is double gap)
             {
-                double diff = Math.Abs(d - duration);
-                if (diff <= 2) score += 40;
-                else if (diff <= 5) score += 20;
-                else if (diff > 20) score -= 80;
+                if (gap <= 2) score += 40;
+                else if (gap <= 5) score += 20;
+                else if (gap > 20) score -= 80;
             }
 
             if (score > bestScore)
@@ -465,6 +798,18 @@ public sealed class LyricsService
                 using var response = await Client().GetAsync(url, ct);
                 // Not found, or a query LRCLIB won't take (a missing field): nothing there.
                 if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) return null;
+                // Too many requests: wait as long as LRCLIB asks, if that is short, else try again later.
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    var wait = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.FromSeconds(5));
+                    if (attempt < 2 && wait <= TimeSpan.FromSeconds(12))
+                    {
+                        await Task.Delay(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, ct);
+                        continue;
+                    }
+                    throw new HttpRequestException($"LRCLIB asks to wait {wait.TotalSeconds:0} s", null, HttpStatusCode.TooManyRequests);
+                }
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync(ct);
                 return JsonSerializer.Deserialize<T>(json, Json);

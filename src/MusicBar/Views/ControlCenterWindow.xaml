@@ -445,7 +445,8 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel Margin="14,14,14,10">
                     <UniformGrid x:Name="TileGrid" Columns="3" Margin="-4,0,-4,4" />
-                    <Grid>
+                    <!-- The wheel anywhere on the volume row moves the volume. -->
+                    <Grid Background="Transparent" MouseWheel="Volume_MouseWheel">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />

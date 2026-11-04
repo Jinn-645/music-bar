@@ -78,6 +78,7 @@ public partial class TaskbarLayerWindow : Window
 
         Seek.Look = s.SeekStyle;
         Seek.Direction = s.SeekDirection;
+        Seek.IdleMotion = s.SeekIdleMotion;
         Seek.Intensity = over ? Math.Min(s.FillOpacity, OverFillCap) : s.FillOpacity;
 
         // The seekbar always draws along its own x axis with the desktop-facing edge at its top

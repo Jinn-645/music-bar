@@ -152,6 +152,12 @@ public static partial class Strings
         d.Add("Set_BreakMinutes_Desc", ("Every fourth break is three times as long. The face reminds you to stretch and drink some water.", "Cứ 4 hiệp thì được nghỉ dài gấp 3. Mặt sẽ nhắc vươn vai, uống nước."));
         d.Add("Set_FocusStart", ("Focus timer", "Hẹn giờ"));
         d.Add("Set_FocusStart_Desc", ("Or right-click the face.", "Hoặc chuột phải vào cái mặt."));
+        d.Add("Set_MinutesUnit", ("min", "phút"));
+        d.Add("Set_NetEase", ("Also ask NetEase", "Tìm thêm trên NetEase"));
+        d.Add("Set_NetEase_Desc", ("When LRCLIB has no synced lyrics, try NetEase Cloud Music (strong on Korean, Chinese and Japanese songs). An unofficial source: it may stop working any time.",
+            "Khi LRCLIB không có lời chạy theo nhạc thì hỏi NetEase Cloud Music (mạnh nhạc Hàn, Hoa, Nhật). Nguồn không chính thức, có thể ngừng chạy bất cứ lúc nào."));
+        d.Add("Set_IdleMotion", ("Keep moving when paused", "Vẫn chuyển động khi tạm dừng"));
+        d.Add("Set_IdleMotion_Desc", ("Paused, the style drifts slowly in place instead of freezing. Off saves a little power.", "Tạm dừng nhạc thì hiệu ứng trôi chậm tại chỗ thay vì đứng im. Tắt đi thì đỡ tốn pin hơn chút."));
         d.Add("Set_FocusStartButton", ("Start", "Bắt đầu"));
         d.Add("Set_FocusStopButton", ("Stop", "Dừng"));
         d.Add("Set_Face_GroupPlay", ("Playing with it", "Trêu nó"));

@@ -777,7 +777,7 @@ public sealed class WordStackPresenter : Grid, ILyricsView
     {
         if (s.Line != null)
         {
-            double p = Math.Clamp((pos - s.Line.Start).TotalSeconds / s.SungFor.TotalSeconds, 0, 1);
+            double p = s.Line.WordProgress(pos) ?? Math.Clamp((pos - s.Line.Start).TotalSeconds / s.SungFor.TotalSeconds, 0, 1);
             double focus = s.Karaoke != null ? Sing(s, p) : s.MainHeight * p;
             if (s.Overflow > 0.5) Follow(s, focus, dt);
         }

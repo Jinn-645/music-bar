@@ -814,7 +814,9 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     void UpdateFramePace()
     {
         bool moving = _media.IsPlaying && (_s.SeekStyle != SeekStyle.Classic || _s.LyricsExpanded);
-        var interval = TimeSpan.FromMilliseconds(moving ? 33 : 250);
+        // Paused, an animated style drifts slowly in place: half the frame rate is smooth enough.
+        bool drifting = !_media.IsPlaying && _media.HasSession && _layerShown && _s.SeekIdleMotion && _s.SeekStyle != SeekStyle.Classic;
+        var interval = TimeSpan.FromMilliseconds(moving ? 33 : drifting ? 66 : 250);
         if (_frameTimer.Interval != interval) _frameTimer.Interval = interval;
     }
 
@@ -932,7 +934,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
                 or nameof(AppSettings.LyricsPanelRomanized) or nameof(AppSettings.KeepListeningStats)
                 or nameof(AppSettings.RecapDoneYear) or nameof(AppSettings.RecapAskedOn)
                 or nameof(AppSettings.CheckForUpdates) or nameof(AppSettings.SkippedVersion)
-                or nameof(AppSettings.FocusMinutes) or nameof(AppSettings.BreakMinutes):
+                or nameof(AppSettings.FocusMinutes) or nameof(AppSettings.BreakMinutes) or nameof(AppSettings.LyricsFromNetEase):
                 break;
             default:
                 ApplyAppearance();
@@ -1432,6 +1434,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         LyricsStatus.Synced => _lyricsResult?.Source switch
         {
             "LRCLIB" => Loc.T("LyrSt_Downloaded"),
+            "NetEase" => Loc.T("LyrSt_NetEase"),
             "demo" => Loc.T("LyrSt_Demo"),
             _ => Loc.T("LyrSt_Cached"),
         },

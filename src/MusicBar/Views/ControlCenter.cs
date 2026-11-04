@@ -30,6 +30,8 @@ internal sealed class ControlCenter : IDisposable
     bool _hotspotShown;
     bool _disposed;
     Native.RECT _hotspotRect;
+    // Wheel travel over the button not yet turned into a volume step (a touchpad scrolls in small bits).
+    int _wheel;
 
     public ControlCenter(AppSettings settings, TaskbarTracker tracker, SolidColorBrush accent)
     {
@@ -38,6 +40,7 @@ internal sealed class ControlCenter : IDisposable
         _hotspot = new TrayHotspotWindow(accent);
         _panel = new ControlCenterWindow(_feed, _audio);
         _hotspot.Clicked += Toggle;
+        _hotspot.Scrolled += ScrollVolume;
         _panel.OutputChanged += () => OutputChanged?.Invoke();
         _feed.Changed += () => _hotspot.SetBadge(_panel.IsOpen ? 0 : _feed.Unseen);
         _panel.IsVisibleChanged += (_, _) =>
@@ -154,6 +157,26 @@ internal sealed class ControlCenter : IDisposable
         _panel.Open(_tracker.Edge, _tracker.Rect, monitor.Bounds);
         _feed.SetFastPolling(true);
         _hotspot.SetBadge(0);
+    }
+
+    /// <summary>
+    /// The wheel over the button changes the volume, as it does over Windows' own volume icon: each
+    /// notch presses the volume key once (2 %), so Windows shows its volume flyout and unmutes as usual.
+    /// A touchpad's small steps add up to whole notches.
+    /// </summary>
+    void ScrollVolume(int delta)
+    {
+        const byte VolumeUp = 0xAF, VolumeDown = 0xAE;
+        _wheel += delta;
+        int notches = _wheel / 120;
+        if (notches == 0) return;
+        _wheel -= notches * 120;
+        byte key = notches > 0 ? VolumeUp : VolumeDown;
+        for (int i = 0; i < Math.Min(Math.Abs(notches), 10); i++)
+        {
+            Native.keybd_event(key, 0, 0, UIntPtr.Zero);
+            Native.keybd_event(key, 0, 2 /* KEYEVENTF_KEYUP */, UIntPtr.Zero);
+        }
     }
 
     public void Dispose()

@@ -63,8 +63,11 @@ public sealed class SeekRenderer : FrameworkElement
 
     double _lastFrame = -1;
     double _lastPx = -1;
-    double _lastPlayingTime = -1;
     bool _dirty = true;
+
+    // The styles' own clock: the wall clock less the time it ran slow (or stood) while paused.
+    const double IdleSpeed = 0.3;
+    double _lastTick = -1, _pace = 1, _lag;
 
     public SeekRenderer()
     {
@@ -75,6 +78,12 @@ public sealed class SeekRenderer : FrameworkElement
 
     /// <summary>Source of live audio; null makes the music-driven styles move on their own.</summary>
     public AudioMeter? Audio { get; set; }
+
+    /// <summary>
+    /// Paused, the animated styles keep drifting in place, slower and calmer, instead of standing
+    /// still. The owner should keep ticking (at a lower rate is fine).
+    /// </summary>
+    public bool IdleMotion { get; set; } = true;
 
     public SeekStyle Look
     {
@@ -229,6 +238,14 @@ public sealed class SeekRenderer : FrameworkElement
     public void Tick()
     {
         double now = Now;
+        double dt = _lastTick < 0 ? 0 : Math.Clamp(now - _lastTick, 0, 0.5);
+        _lastTick = now;
+        // Playing, the styles move with the wall clock; paused, they ease down to a slow drift (or
+        // to a stop without idle motion) over about half a second, and back up when it plays again.
+        double pace = _playing ? 1 : IdleMotion && IsAnimated(_style) ? IdleSpeed : 0;
+        _pace += (pace - _pace) * (1 - Math.Exp(-dt * 5));
+        _lag += dt * (1 - _pace);
+
         var audio = Audio;
         _liveAudio = audio is { IsCapturing: true };
         if (_liveAudio)
@@ -236,15 +253,19 @@ public sealed class SeekRenderer : FrameworkElement
             audio!.CopyBands(_bands);
             _level = audio.Level;
         }
-        else
+        else if (_playing)
         {
             Synthesize(now);
+        }
+        else
+        {
+            Breathe(now - _lag, dt);
         }
 
         if (_style == SeekStyle.Waveform) RecordWaveform();
 
         bool fading = now - _colorStart < ColorFade;
-        bool animating = (IsAnimated(_style) && _playing) || fading;
+        bool animating = (IsAnimated(_style) && (_playing || IdleMotion || _pace > 0.01)) || fading;
         double px = _progress * Run;
         if (animating)
         {
@@ -270,6 +291,22 @@ public sealed class SeekRenderer : FrameworkElement
         _level = (float)(0.45 + 0.25 * Noise(t * 1.7) + beat * 0.3);
     }
 
+    /// <summary>
+    /// Paused: the music-driven styles settle from wherever the music left them to a low, slow
+    /// breath, so they idle in place instead of dancing to nothing.
+    /// </summary>
+    void Breathe(double t, double dt)
+    {
+        double k = 1 - Math.Exp(-dt * 2.5);
+        for (int b = 0; b < _bands.Length; b++)
+        {
+            double calm = 0.1 + 0.07 * Noise(t * 0.45 + b * 0.37) + 0.03 * Math.Sin(t * 0.9 + b * 0.5);
+            _bands[b] += (float)((calm - _bands[b]) * k);
+        }
+        double level = 0.16 + 0.05 * Math.Sin(t * 0.8) + 0.04 * Noise(t * 0.5);
+        _level += (float)((level - _level) * k);
+    }
+
     // ------------------------------------------------------------------ rendering
 
     protected override void OnRender(DrawingContext dc)
@@ -286,7 +323,7 @@ public sealed class SeekRenderer : FrameworkElement
         _lastPx = x;
         var (a, b) = CurrentColors(now);
         var c = ColorUtil.ShiftHue(ColorUtil.Lerp(a, b, 0.5), 48, 0.04);
-        double t = _playing ? now : _lastPlayingTime < 0 ? now : _lastPlayingTime;
+        double t = now - _lag;
         var f = new Frame(dc, run, h, x, a, b, c, _intensity, _edgeAtTop, t, _level);
 
         // Quiet zones are in this element's units, so the mask goes on before any mirroring.
@@ -312,7 +349,6 @@ public sealed class SeekRenderer : FrameworkElement
                 break;
         }
         if (quiet) dc.Pop();
-        if (_playing) _lastPlayingTime = now;
     }
 
     /// <summary>One copy of the style, placed by <paramref name="place"/> and kept inside its own run.</summary>
@@ -519,7 +555,7 @@ public sealed class SeekRenderer : FrameworkElement
         for (int i = 0; i < n; i++)
         {
             double v = SampleBand(i / (double)(n - 1));
-            if (fall) _peaks[i] = (float)Math.Max(v, _peaks[i] - (_playing ? 0.012 : 0));
+            if (fall) _peaks[i] = (float)Math.Max(v, _peaks[i] - (_playing || IdleMotion ? 0.012 : 0));
             double bh = Math.Max(1.5, maxH * v);
             double bx = offset + i * (barWidth + gap);
             bool isPlayed = bx + barWidth / 2 <= f.X;

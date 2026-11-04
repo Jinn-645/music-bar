@@ -521,14 +521,14 @@
                             <StackPanel Orientation="Horizontal">
                                 <Slider Width="220" Minimum="5" Maximum="90" SmallChange="5" LargeChange="5" TickFrequency="5" IsSnapToTickEnabled="True"
                                         Value="{Binding FocusMinutes}" VerticalAlignment="Center" />
-                                <TextBlock Style="{StaticResource Value}" Text="{Binding FocusMinutes, StringFormat={}{0} min}" />
+                                <TextBlock Style="{StaticResource Value}"><Run Text="{Binding FocusMinutes, Mode=OneWay}" /> <Run Text="{l:Tr Set_MinutesUnit}" /></TextBlock>
                             </StackPanel>
                         </v:SettingCard>
                         <v:SettingCard Glyph="&#xE76E;" Header="{l:Tr Set_BreakMinutes}" Description="{l:Tr Set_BreakMinutes_Desc}">
                             <StackPanel Orientation="Horizontal">
                                 <Slider Width="220" Minimum="1" Maximum="30" SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
                                         Value="{Binding BreakMinutes}" VerticalAlignment="Center" />
-                                <TextBlock Style="{StaticResource Value}" Text="{Binding BreakMinutes, StringFormat={}{0} min}" />
+                                <TextBlock Style="{StaticResource Value}"><Run Text="{Binding BreakMinutes, Mode=OneWay}" /> <Run Text="{l:Tr Set_MinutesUnit}" /></TextBlock>
                             </StackPanel>
                         </v:SettingCard>
                         <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_FocusStart}" Description="{l:Tr Set_FocusStart_Desc}">
@@ -563,6 +563,9 @@
                                     Value="{Binding FillOpacity}" VerticalAlignment="Center" />
                             <TextBlock Style="{StaticResource Value}" Text="{Binding FillOpacity, StringFormat={}{0:P0}}" />
                         </StackPanel>
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE768;" Header="{l:Tr Set_IdleMotion}" Description="{l:Tr Set_IdleMotion_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding SeekIdleMotion}" />
                     </v:SettingCard>
                     <v:SettingCard Glyph="&#xE995;" Header="{l:Tr Set_AudioReactive}"
                                    Description="{l:Tr Set_AudioReactive_Desc}">
@@ -759,6 +762,9 @@
                     </v:SettingCard>
                     <v:SettingCard Glyph="&#xE774;" Header="{l:Tr Set_FetchOnline}" Description="{l:Tr Set_FetchOnline_Desc}">
                         <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding FetchOnline}" />
+                    </v:SettingCard>
+                    <v:SettingCard Glyph="&#xE8F1;" Header="{l:Tr Set_NetEase}" Description="{l:Tr Set_NetEase_Desc}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LyricsFromNetEase}" />
                     </v:SettingCard>
                     <v:SettingCard Glyph="&#xE968;" Header="{l:Tr Set_Proxy}" Description="{l:Tr Set_Proxy_Desc}">
                         <TextBox Width="260" Text="{Binding ProxyUrl, UpdateSourceTrigger=LostFocus}" />

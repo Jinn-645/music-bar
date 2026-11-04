@@ -349,8 +349,9 @@ public sealed class LyricsPresenter : Grid, ILyricsView
         return TimeSpan.FromSeconds(Math.Max(0.4, Math.Min(natural, estimate)));
     }
 
+    /// <summary>How much of the line is sung: by its words' times when it was synced word by word, otherwise estimated.</summary>
     static double Progress(LyricLine l, TimeSpan pos)
-        => Math.Clamp((pos - l.Start).TotalSeconds / Cap(l).TotalSeconds, 0, 1);
+        => l.WordProgress(pos) ?? Math.Clamp((pos - l.Start).TotalSeconds / Cap(l).TotalSeconds, 0, 1);
 
     // ------------------------------------------------------------------ slot construction
 

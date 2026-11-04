@@ -167,7 +167,7 @@ public partial class LyricsPanelWindow : Window
     void OnLyricsChanged()
     {
         if (!IsOpen) return;
-        if (SearchView.IsVisible) return;
+        if (SearchView.IsVisible || ShareView.IsVisible) return;
         Fill();
         _current = -2;
     }
@@ -179,7 +179,10 @@ public partial class LyricsPanelWindow : Window
     {
         var media = _host.Media;
         SongTitle.Text = media.Title.Length > 0 ? media.Title : media.AppName;
-        SongArtist.Text = media.Artist;
+        // Where the lyrics came from, after the artist.
+        var from = LyricsService.OriginOf(_host.Lyrics) is { } origin ? origin == "file" ? Loc.T("LyrP_FromFile") : origin : null;
+        SongArtist.Text = from == null || _host.Lyrics?.Lyrics == null ? media.Artist : Loc.T("LyrP_From", media.Artist, from);
+        ShareLink.Visibility = _host.LyricsSource.DraftFor(_host.Lyrics, _host.CurrentQuery()) != null ? Visibility.Visible : Visibility.Collapsed;
         CoverBrush.ImageSource = media.Thumbnail;
         Cover.Visibility = media.Thumbnail != null ? Visibility.Visible : Visibility.Collapsed;
         SearchBox.Text = $"{TitleCleaner.Clean(media.Artist, media.Title).Artist} {TitleCleaner.Clean(media.Artist, media.Title).Title}".Trim();
@@ -400,6 +403,8 @@ public partial class LyricsPanelWindow : Window
         _host.NudgeLyrics(ms);
         UpdateOffsetText();
         _current = -2;
+        // Corrected timing is worth sharing.
+        ShareLink.Visibility = _host.LyricsSource.DraftFor(_host.Lyrics, _host.CurrentQuery()) != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ------------------------------------------------------------------ search by hand
@@ -420,6 +425,7 @@ public partial class LyricsPanelWindow : Window
     void ShowLyricsView()
     {
         SearchView.Visibility = Visibility.Collapsed;
+        ShareView.Visibility = Visibility.Collapsed;
         LyricsView.Visibility = Visibility.Visible;
         Footer.Visibility = Visibility.Visible;
     }
@@ -443,7 +449,7 @@ public partial class LyricsPanelWindow : Window
         IReadOnlyList<LyricsCandidate> found;
         try
         {
-            found = await _host.LyricsSource.SearchAsync(SearchBox.Text, _host.Media.Duration, cts.Token);
+            found = await _host.LyricsSource.SearchAsync(SearchBox.Text, _host.CurrentQuery(), cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -469,7 +475,8 @@ public partial class LyricsPanelWindow : Window
         if (pick.Duration > TimeSpan.Zero) parts.Add(pick.Duration.ToString(pick.Duration.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss"));
         var detail = new TextBlock { Text = string.Join(" · ", parts), FontSize = 11.5, Opacity = 0.6, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) };
 
-        string kind = pick.Synced ? Loc.T("LyrP_Synced") : pick.Instrumental ? Loc.T("LyrP_NoWords") : Loc.T("LyrP_WordsOnly");
+        // NetEase songs only show whether they have synced lyrics once picked: they are marked by their source.
+        string kind = pick.From == "NetEase" ? "NetEase" : pick.Synced ? Loc.T("LyrP_Synced") : pick.Instrumental ? Loc.T("LyrP_NoWords") : Loc.T("LyrP_WordsOnly");
         var badge = new Border
         {
             CornerRadius = new CornerRadius(8),
@@ -502,16 +509,96 @@ public partial class LyricsPanelWindow : Window
         };
         row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
         row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
-        row.MouseLeftButtonUp += (_, _) =>
+        row.MouseLeftButtonUp += async (_, _) =>
         {
-            var result = _host.LyricsSource.Use(pick, _host.CurrentQuery());
-            Log.Info($"Lyrics picked by hand: '{pick.Artist} - {pick.Title}' ({result.Status})");
+            _work?.Cancel();
+            var cts = new CancellationTokenSource();
+            _work = cts;
+            LyricsResult? result;
+            try
+            {
+                result = await _host.LyricsSource.UseAsync(pick, _host.CurrentQuery(), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Fetching picked lyrics failed", ex);
+                SearchNote.Text = Loc.T("LyrP_SearchFailed");
+                return;
+            }
+            if (result == null)
+            {
+                SearchNote.Text = Loc.T("LyrP_NetEaseNone");
+                return;
+            }
+            Log.Info($"Lyrics picked by hand: '{pick.Artist} - {pick.Title}' from {pick.From} ({result.Status})");
             _host.UseLyrics(result);
             ShowLyricsView();
             Fill();
             _current = -2;
         };
         return row;
+    }
+
+    // ------------------------------------------------------------------ sharing on LRCLIB
+
+    LyricsDraft? _draft;
+
+    void Share_Click(object sender, RoutedEventArgs e)
+    {
+        _draft = _host.LyricsSource.DraftFor(_host.Lyrics, _host.CurrentQuery());
+        if (_draft == null) return;
+        LyricsView.Visibility = Visibility.Collapsed;
+        Footer.Visibility = Visibility.Collapsed;
+        ShareView.Visibility = Visibility.Visible;
+        ShareTitle.Text = _draft.Title;
+        ShareArtist.Text = _draft.Artist;
+        ShareAlbum.Text = _draft.Album;
+        var length = _draft.Duration.ToString(_draft.Duration.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss");
+        ShareFacts.Text = _draft.OffsetMs == 0
+            ? Loc.T("LyrS_Facts", _draft.Lines, length)
+            : Loc.T("LyrS_FactsOffset", _draft.Lines, length, (_draft.OffsetMs / 1000.0).ToString("+0.00;-0.00"));
+        ShareStatus.Visibility = Visibility.Collapsed;
+        ShareButton.IsEnabled = true;
+    }
+
+    async void Send_Click(object sender, RoutedEventArgs e)
+    {
+        if (_draft == null) return;
+        var draft = _draft with { Title = ShareTitle.Text.Trim(), Artist = ShareArtist.Text.Trim(), Album = ShareAlbum.Text.Trim() };
+        ShareStatus.Visibility = Visibility.Visible;
+        ShareStatus.Foreground = Brushes.White;
+        if (LyricsService.Problem(draft) is { } problem)
+        {
+            ShareStatus.Text = Loc.T(problem);
+            ShareStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xA8, 0x96));
+            return;
+        }
+        _work?.Cancel();
+        var cts = new CancellationTokenSource();
+        _work = cts;
+        ShareButton.IsEnabled = false;
+        var stage = new Progress<string>(s => ShareStatus.Text = Loc.T("LyrS_Stage_" + s));
+        try
+        {
+            await _host.LyricsSource.PublishAsync(draft, stage, cts.Token);
+            ShareStatus.Text = Loc.T("LyrS_Done");
+            ShareStatus.Foreground = _accent;
+        }
+        catch (OperationCanceledException)
+        {
+            ShareButton.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Sharing lyrics on LRCLIB failed", ex);
+            ShareStatus.Text = Loc.T("LyrS_Failed");
+            ShareStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xA8, 0x96));
+            ShareButton.IsEnabled = true;
+        }
     }
 
     void Close_Click(object sender, RoutedEventArgs e) => Dismiss();

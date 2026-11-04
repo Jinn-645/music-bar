@@ -157,6 +157,10 @@ public sealed class AppSettings : ObservableObject
     bool _audioReactive = true;
     public bool AudioReactive { get => _audioReactive; set => Set(ref _audioReactive, value); }
 
+    /// <summary>Paused, the animated styles keep drifting slowly in place instead of standing still.</summary>
+    bool _seekIdleMotion = true;
+    public bool SeekIdleMotion { get => _seekIdleMotion; set => Set(ref _seekIdleMotion, value); }
+
     double _fillOpacity = 0.34;
     public double FillOpacity { get => _fillOpacity; set => Set(ref _fillOpacity, Math.Clamp(value, 0.05, 1)); }
 
@@ -311,6 +315,10 @@ public sealed class AppSettings : ObservableObject
 
     bool _fetchOnline = true;
     public bool FetchOnline { get => _fetchOnline; set => Set(ref _fetchOnline, value); }
+
+    /// <summary>Ask NetEase Cloud Music (an unofficial source) when LRCLIB has no synced lyrics.</summary>
+    bool _lyricsFromNetEase;
+    public bool LyricsFromNetEase { get => _lyricsFromNetEase; set => Set(ref _lyricsFromNetEase, value); }
 
     string _proxyUrl = "";
     public string ProxyUrl { get => _proxyUrl; set => Set(ref _proxyUrl, (value ?? "").Trim()); }

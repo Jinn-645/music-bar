@@ -18,7 +18,7 @@ public static partial class TitleCleaner
     const string NoiseWords = @"official|video|audio|lyrics?|lyric video|mv|m/v|visuali[sz]er|hd|hq|4k|remaster(ed)?|live session|performance video|color coded|vietsub|engsub|karaoke|beat|instrumental version|album|full album|ep|single|prod\.?|produced by|o\.?s\.?t|soundtrack|nhạc phim|teaser|dance practice|track ?\d+";
 
     // The same for a whole segment between dashes or pipes; stricter, since a song may start with "Single" or "Video".
-    const string SegmentWords = @"album|full album|official|mv|m/v|lyrics?|lyric video|music video|vietsub|engsub|prod\.?|produced by|o\.?s\.?t|soundtrack|nhạc phim|teaser|karaoke|visuali[sz]er|performance video|dance practice|color coded|4k|hd|track ?\d+";
+    const string SegmentWords = @"album|full album|official|mv|m/v|lyrics?|lyric video|music video|vietsub|engsub|prod\.?|produced by|o\.?s\.?t|soundtrack|nhạc phim|teaser|karaoke|visuali[sz]er|performance video|dance practice|color coded|4k|hd|track ?\d+|(\d{4} )?remaster(ed)?|radio edit|(single|album) version|mono|stereo";
 
     [GeneratedRegex(@"\s*[\(\[【「『][^\)\]】」』]*\b(" + NoiseWords + @")(\b|(?=\W))[^\)\]】」』]*[\)\]】」』]", RegexOptions.IgnoreCase)]
     private static partial Regex Noise();
@@ -120,7 +120,12 @@ public static partial class TitleCleaner
             if (!list.Any(v => Loose(v.Artist) == Loose(ar) && Loose(v.Title) == Loose(ti))) list.Add((ar.Trim(), ti));
         }
 
-        if (!matched) Add(parts[0], parts[1]);
+        // Segments none could be told apart as the artist: "Artist - Song" is the usual order, "Song - Artist" the other.
+        if (!matched)
+        {
+            Add(parts[0], parts[1]);
+            Add(parts[1], parts[0]);
+        }
         var plain = AnyBracket().Replace(t, "").Trim();
         Add(a, plain);
         var head = SoftSeparator().Split(plain)[0];
@@ -138,6 +143,26 @@ public static partial class TitleCleaner
         if (s.Length == 0 || x.Length == 0) return false;
         return s == x || (s.Length >= 3 && x.Contains(s)) || (x.Length >= 3 && s.Contains(x)) || Similarity(segment, artist) >= 0.6;
     }
+
+    /// <summary>
+    /// How well a credit matches an artist, 0 to 1: the best of the whole names and of each name in
+    /// them, so "Đen, Phương Anh Đào" matches "Đen" fully.
+    /// </summary>
+    public static double ArtistMatch(string credit, string artist)
+    {
+        double best = Similarity(credit, artist);
+        // A name in brackets is another spelling ("BTS (防弹少年团)"): each side is compared without it too.
+        foreach (var a in Artists(credit).Concat(Artists(AnyBracket().Replace(credit, ""))))
+            foreach (var b in Artists(artist).Concat(Artists(AnyBracket().Replace(artist, ""))))
+                best = Math.Max(best, Similarity(a, b));
+        return best;
+    }
+
+    /// <summary>
+    /// Below this, a credit is someone else: "DJ Pardon The Bts" is not BTS, though one name holds
+    /// the other; "Đen" in "Đen, Phương Anh Đào" or "Sơn Tùng M-TP" against "Son Tung MTP" pass easily.
+    /// </summary>
+    public const double SameArtistAt = 0.45;
 
     /// <summary>Every name in a credit such as "A, B & C feat. D".</summary>
     public static IEnumerable<string> Artists(string artist)

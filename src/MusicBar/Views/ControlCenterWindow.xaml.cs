@@ -28,6 +28,8 @@ public partial class ControlCenterWindow : Window
     readonly DispatcherTimer _volumePoll = new() { Interval = TimeSpan.FromMilliseconds(300) };
     int _token;
     bool _syncing;
+    // Wheel travel over the volume row not yet a whole step (a touchpad scrolls in small bits).
+    int _wheel;
     enum SideKind { None, Outputs, Project, Cast, WiFi, Bluetooth }
 
     SideKind _side;
@@ -246,6 +248,18 @@ public partial class ControlCenterWindow : Window
         if (_audio.Muted) _audio.Muted = false;
         _audio.Volume = (float)(e.NewValue / 100);
         ShowVolume(e.NewValue, false);
+    }
+
+    /// <summary>The wheel over the volume row: 2 a notch, as over Windows' own volume flyout.</summary>
+    void Volume_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+        if (!VolumeSlider.IsEnabled) return;
+        _wheel += e.Delta;
+        int notches = _wheel / 120;
+        if (notches == 0) return;
+        _wheel -= notches * 120;
+        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + notches * 2, 0, 100);
     }
 
     void Mute_Click(object sender, RoutedEventArgs e)

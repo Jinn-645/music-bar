@@ -18,7 +18,39 @@ public sealed class LyricLine
 
     /// <summary>A second line shown under this one instead of the next line (its romanization).</summary>
     public string? Sub { get; init; }
+
+    /// <summary>When each word starts, for lyrics someone synced word by word; null for line timing only.</summary>
+    public IReadOnlyList<LyricWord>? Words { get; init; }
+
+    /// <summary>
+    /// How much of the line is sung at <paramref name="position"/> by its words' own times, 0 to 1 as
+    /// a share of its letters: the words already reached, and the part of the current one its time
+    /// says. Null when the line has no word timing (the singing is then estimated from the line's length).
+    /// </summary>
+    public double? WordProgress(TimeSpan position)
+    {
+        if (Words is not { Count: > 0 } words) return null;
+        double total = 0, sung = 0;
+        foreach (var w in words) total += w.Text.Length;
+        if (total <= 0) return null;
+        for (int i = 0; i < words.Count; i++)
+        {
+            var w = words[i];
+            if (position < w.Start) break;
+            // A word lasts until the next one starts; the last one, until the line ends (at most a couple of seconds).
+            var end = i + 1 < words.Count ? words[i + 1].Start : Min(End, w.Start + TimeSpan.FromSeconds(2));
+            double part = end > w.Start ? Math.Clamp((position - w.Start).TotalSeconds / (end - w.Start).TotalSeconds, 0, 1) : 1;
+            sung += w.Text.Length * part;
+            if (part < 1) break;
+        }
+        return Math.Clamp(sung / total, 0, 1);
+    }
+
+    static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
 }
+
+/// <summary>One word of a word-synced line, with any space after it, and when it starts.</summary>
+public sealed record LyricWord(TimeSpan Start, string Text);
 
 public sealed class SyncedLyrics
 {
@@ -59,10 +91,19 @@ public enum LyricsStatus { None, Loading, Synced, PlainOnly, Instrumental, NotFo
 
 public sealed record LyricsResult(LyricsStatus Status, SyncedLyrics? Lyrics, string Source, string? FilePath);
 
-/// <summary>One song LRCLIB offers for a search typed by hand.</summary>
+/// <summary>One song a lyrics source offers for a search typed by hand.</summary>
 public sealed record LyricsCandidate(string Title, string Artist, string Album, TimeSpan Duration, bool Synced, bool Instrumental)
 {
-    internal Services.LyricsService.LrclibTrack Track { get; init; } = null!;
+    /// <summary>"LRCLIB" or "NetEase".</summary>
+    public string From { get; init; } = "LRCLIB";
+
+    internal Services.LyricsService.LrclibTrack? Track { get; init; }
+
+    /// <summary>The song's id on NetEase; its lyrics are fetched when it is picked.</summary>
+    internal long NetEaseId { get; init; }
 }
+
+/// <summary>Lyrics ready to be shared on LRCLIB: what song they belong to, and the text with its times.</summary>
+public sealed record LyricsDraft(string Title, string Artist, string Album, TimeSpan Duration, string Synced, string Plain, int Lines, int OffsetMs);
 
 public sealed record TrackQuery(string Title, string Artist, string Album, TimeSpan Duration, string AppId);

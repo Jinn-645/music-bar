@@ -42,8 +42,9 @@ public static class LyricRomanization
             var line = lyrics.Lines[i];
             var r = roman[i];
             if (!below && r != null && Partial(r)) r = null;
+            // The original line keeps its word times; a romanized one has other words.
             var copy = below || r == null
-                ? new LyricLine(line.Start, line.Text) { Sub = below ? r ?? "" : null }
+                ? new LyricLine(line.Start, line.Text) { Sub = below ? r ?? "" : null, Words = line.Words }
                 : new LyricLine(line.Start, r);
             copy.End = line.End;
             lines.Add(copy);

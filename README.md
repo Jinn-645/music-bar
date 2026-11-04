@@ -2,9 +2,12 @@
 
 Thanh taskbar nằm im ba mươi năm rồi. Cho nó hát đi.
 
-**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.4.0-Setup.exe)
-hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.4.0-portable.zip)
+**Tải về:** [bản cài đặt](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.5.0-Setup.exe)
+hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/download/MusicBar-1.5.0-portable.zip)
 (Windows 10 2004 trở lên hoặc Windows 11, 64-bit, không cần cài .NET).
+
+**Hướng dẫn dùng:** [wiki tiếng Việt](https://github.com/lvt1693/music-bar/wiki), có ảnh từng tab cài
+đặt và phần hỏi đáp.
 
 - [x] **04/11** Bản 1.0 lên GitHub: 14 bộ áo cho thanh tiến trình, karaoke đủ dấu, taskbar
   Windows 11 trong suốt, trung tâm điều khiển riêng, installer, bản portable và một video
@@ -26,6 +29,14 @@ hoặc [bản portable](https://github.com/lvt1693/music-bar/releases/latest/dow
   Trung, tìm lyrics cho title YouTube dài ngoằng tốt hơn hẳn, tổng kết năm âm nhạc kiểu Wrapped,
   và cái mặt được trả lại cái mic, thêm mũ kính, đổi mũ theo mùa lễ, hẹn giờ Pomodoro, biết đi
   dạo và để ý cái máy. Xóa tất cả thông báo giờ xóa thật.
+- [x] **05/11** Bản 1.5: karaoke chạy đúng từng chữ với bài có dữ liệu từng chữ trên LRCLIB, gửi lời
+  (hoặc bản đã chỉnh giờ) lên LRCLIB ngay trong app, NetEase làm nguồn lời dự phòng (tự bật),
+  tìm lyrics phải đúng nghệ sĩ nên hết nhầm bài trùng tên, lăn chuột trên nút loa hoặc trong
+  Control Center để chỉnh âm lượng, thanh tiến trình vẫn trôi nhẹ khi tạm dừng.
+
+Thấy MusicBar hữu ích, muốn mời mình ly cà phê thì quét mã này nhé (VPBank · 178971468 · LE VAN TRUC).
+
+<img src="docs/donate.png" width="220" alt="Mã QR chuyển khoản VPBank, LE VAN TRUC, 178971468">
 
 ![Thanh taskbar ngủ gật, tiếng cào đĩa, icon MusicBar rơi xuống và đèn sân khấu bật sáng](docs/wake-up.gif)
 
@@ -112,15 +123,17 @@ phải → Kiểu thanh tiến trình.
 | Ô LED | Ma trận ô vuông lấp lánh, cột đầu phát kiêm đồng hồ mức âm |
 | Cổ điển | Phủ màu và quầng sáng ở đầu phát |
 
-Kiểu động vẽ 30 khung / giây khi đang phát (các kiểu trôi chậm 20 khung), đứng yên khi tạm dừng.
+Kiểu động vẽ 30 khung / giây khi đang phát (các kiểu trôi chậm 20 khung). Tạm dừng thì chúng trôi
+chậm tại chỗ ở 15 khung / giây, phần nhún theo nhạc lắng xuống thành nhịp thở nhẹ; muốn đứng im hẳn
+thì tắt **Vẫn chuyển động khi tạm dừng** ở Cài đặt → Thanh tiến trình.
 
 ## Cài
 
-- **Bản cài đặt** (`MusicBar-1.4.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
+- **Bản cài đặt** (`MusicBar-1.5.0-Setup.exe`): cài cho riêng tài khoản của bạn vào
   `%LOCALAPPDATA%\Programs\MusicBar`, không hỏi quyền admin, có mục trong Start và gỡ được
   trong Cài đặt → Ứng dụng. Cài đè hay gỡ đi thì MusicBar được báo thoát trước, để trả taskbar
   và khay về đúng như Windows sắp xếp.
-- **Bản portable** (`MusicBar-1.4.0-portable.zip`): giải nén ra đâu cũng được, chạy
+- **Bản portable** (`MusicBar-1.5.0-portable.zip`): giải nén ra đâu cũng được, chạy
   `MusicBar.exe`.
 
 **Cập nhật:** từ bản 1.4, MusicBar tự xem GitHub mỗi lần chạy (và mỗi ngày một lần khi đang
@@ -187,7 +200,8 @@ mở bảng của MusicBar, từ trên xuống:
   tắt vị trí thì MusicBar mở thẳng danh sách Wi-Fi của Windows.
 - **Bluetooth:** thiết bị đã ghép đôi và thiết bị ở gần. Ghép đôi (mã PIN hiện ngay trong bảng),
   kết nối / ngắt tai nghe và loa, gỡ thiết bị, cũng có menu chuột phải.
-- **Âm lượng** và **thiết bị phát**: danh sách loa trượt ra, chọn là đổi ngay.
+- **Âm lượng** và **thiết bị phát**: danh sách loa trượt ra, chọn là đổi ngay. Lăn chuột trên hàng
+  âm lượng, hoặc ngay trên nút mạng / loa ở taskbar, là tăng giảm 2 % mỗi nấc như Windows.
 
 Bảng gốc của Windows vẫn ở đó: Win+A và Win+N. Tắt tính năng hoặc thoát MusicBar là khay về
 nguyên như Windows sắp xếp.
@@ -229,8 +243,21 @@ Anh em xem video giới thiệu thích cái mặt quá, nên giờ nó ở hẳn
 
 Tìm theo thứ tự: file `.lrc` trong thư mục lời (`%LOCALAPPDATA%\MusicBar\Lyrics`, tên
 `Ca sĩ - Tên bài.lrc`, tự thả file của mình vào cũng được), rồi tới LRCLIB theo tên bài, ca sĩ,
-album và thời lượng. Bài không có lời được nhớ 3 ngày để khỏi hỏi lại. Mạng cần proxy thì điền
-ở **Cài đặt → Lời bài hát → Proxy**.
+album và thời lượng, rồi tới NetEase nếu bạn bật. Bài không có lời được nhớ 3 ngày để khỏi hỏi lại.
+Mạng cần proxy thì điền ở **Cài đặt → Lời bài hát → Proxy**.
+
+- **Đúng nghệ sĩ:** bài trùng tên mà khác ca sĩ thì bị loại, trừ khi dài đúng bằng bài đang phát
+  (cùng bản, chỉ là tên ca sĩ viết kiểu khác). Thà báo không có còn hơn hiện lời của bài khác.
+- **Karaoke đúng từng chữ:** LRCLIB giờ lưu được thời gian của từng chữ. Bài nào có thì chữ được
+  tô đúng lúc ca sĩ hát nó, thay vì ước lượng theo độ dài câu. Hiện chưa nhiều bài có.
+- **Gửi lời lên LRCLIB:** có file `.lrc` của mình mà LRCLIB chưa có, hoặc đã chỉnh lời bị lệch,
+  thì trong bảng lời bấm *Gửi lên LRCLIB*. Sửa tên bài, ca sĩ nếu cần, bấm *Gửi*. MusicBar tự giải
+  bài toán chống spam của LRCLIB (vài giây) rồi gửi; bản đã chỉnh giờ thành bản mới của đúng bài
+  đó trên LRCLIB, không đẻ thêm bài trùng. Từ đó ai dùng LRCLIB cũng có.
+- **NetEase dự phòng:** bật ở **Cài đặt → Lời bài hát → Tìm thêm trên NetEase**. Khi LRCLIB không
+  có lời chạy theo nhạc (hay đang sập), MusicBar hỏi NetEase Cloud Music, mạnh nhạc Hàn, Hoa,
+  Nhật. Chỉ nhận đúng ca sĩ, đúng độ dài, không lấy bản live / remix / cover. Kết quả NetEase cũng
+  hiện trong ô tìm tay. Đây là nguồn không chính thức nên mặc định tắt.
 
 - **Title YouTube dài cỡ nào cũng dọn được:** kiểu "HIEUTHUHAI - Không Thể Say (prod. by
   Kewtiie) | Album 'Ai Cũng Phải Bắt Đầu Từ Đâu Đó'" được tách theo dấu `-` và `|`, bỏ phần
@@ -267,7 +294,7 @@ C++") cho module taskbar Windows 11.
 ```powershell
 dotnet build src/MusicBar/MusicBar.csproj
 dotnet run --project src/MusicBar -- --demo
-.\installer\build.ps1 -Version 1.4.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
+.\installer\build.ps1 -Version 1.5.0     # ra artifacts\: Setup.exe (Inno Setup 6) và portable.zip
 ```
 
 ## Bên trong
@@ -279,6 +306,9 @@ src/MusicBar/
   Services/MediaService.cs      theo dõi session, nội suy vị trí phát, điều khiển
   Services/LyricsService.cs     cache .lrc + LRCLIB;  LrcParser.cs đọc LRC
   Services/TitleCleaner.cs      dọn title YouTube, các cách gọi tên bài để thử dần
+  Services/Lyricsfile.cs        đọc Lyricsfile của LRCLIB (thời gian từng chữ)
+  Services/NetEaseLyrics.cs     NetEase Cloud Music làm nguồn lời dự phòng
+  Services/WallpaperTone.cs     độ sáng hình nền sau taskbar, để chữ tự đổi màu
   Services/Romanizer.cs         phiên âm Hàn / Nhật / Trung (pinyin từ dữ liệu Unihan)
   Services/ListeningStats.cs    đếm giờ nghe cho tổng kết năm;  YearRecap.cs tính tổng kết
   Services/UpdateService.cs     xem bản mới trên GitHub, tải, kiểm tra SHA-256, cài êm
@@ -334,6 +364,9 @@ từ ElevenLabs. Muốn dựng lại: vào `promo/`, `npx hyperframes preview`.
   giải mã). Gặp trường lạ là MusicBar không ghi.
 - Click lên taskbar thì Windows kéo taskbar lên trên cùng. MusicBar đặt lại thứ tự ngay, và
   kiểm tra lại mỗi 250 ms.
+- NetEase là nguồn không chính thức. Gọi nhiều quá thì NetEase trả về toàn bài không liên quan;
+  MusicBar khi đó báo không có lời chứ không hiện lời sai, nhưng cũng có nghĩa là có lúc NetEase
+  "ngủ" một thời gian. Gửi lời lên LRCLIB mới là cách lâu dài để kho lời V-pop đầy đủ.
 - Phiên âm tiếng Trung đọc mỗi chữ một âm cố định, nên chữ đa âm (长, 地, 得, 行…) có lúc đọc
   sai. Kanji tiếng Nhật cần Windows có cài tiếng Nhật (máy làm app không có, nên phần này mới
   thử bằng dữ liệu giả).
@@ -383,6 +416,11 @@ fully usable) and adds:
 - a year-in-music recap card (top songs and artists, golden hour, streaks, what kind of
   listener you are) to save or copy as a 1080 × 1350 picture, offered from Christmas Eve to
   January 7, counted on your computer only;
+- lyrics that must be by the right artist, word-by-word karaoke from LRCLIB's word timing,
+  sharing lyrics (or corrected timing) back to LRCLIB from the app, and NetEase Cloud Music as an
+  opt-in fallback source;
+- the scroll wheel changes the volume over the tray's volume button and in the control center,
+  and the animated progress styles keep drifting gently while paused;
 - update notices: from 1.4 on, MusicBar checks GitHub at start and daily, and installs a new
   release quietly after checking its SHA-256;
 - light and dark backgrounds, following Windows' mode by default.

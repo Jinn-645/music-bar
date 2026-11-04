@@ -55,8 +55,11 @@ public static partial class LrcParser
                 continue;
             }
 
-            var content = WordTag().Replace(line[pos..], "").Trim();
-            foreach (var t in times) lines.Add(new LyricLine(t, content));
+            var body = line[pos..];
+            var content = WordTag().Replace(body, "").Trim();
+            // Enhanced LRC: "<mm:ss.xx>" before each word gives the words their own times.
+            var words = times.Count == 1 ? Words(body, times[0]) : null;
+            foreach (var t in times) lines.Add(new LyricLine(t, content) { Words = words });
         }
 
         var sorted = lines.OrderBy(l => l.Start).ToList();
@@ -64,6 +67,48 @@ public static partial class LrcParser
             sorted[i].End = i + 1 < sorted.Count ? sorted[i + 1].Start : sorted[i].Start + TimeSpan.FromSeconds(6);
 
         return new SyncedLyrics(sorted) { Offset = offset, IsInstrumental = instrumental };
+    }
+
+    /// <summary>The words of an enhanced-LRC line with their times, or null when it has no word tags.</summary>
+    static List<LyricWord>? Words(string body, TimeSpan lineStart)
+    {
+        var tags = WordTag().Matches(body);
+        if (tags.Count == 0) return null;
+        var words = new List<LyricWord>(tags.Count + 1);
+        // Anything before the first tag is sung from the line's start.
+        if (tags[0].Index > 0 && body[..tags[0].Index].Trim().Length > 0) words.Add(new LyricWord(lineStart, body[..tags[0].Index].TrimStart()));
+        for (int i = 0; i < tags.Count; i++)
+        {
+            int from = tags[i].Index + tags[i].Length;
+            int to = i + 1 < tags.Count ? tags[i + 1].Index : body.Length;
+            var text = body[from..to];
+            if (text.Length == 0) continue;
+            var t = TimeTag().Match("[" + tags[i].Value[1..^1] + "]");
+            if (t.Success) words.Add(new LyricWord(ToTime(t), text));
+        }
+        return words.Count > 0 ? words : null;
+    }
+
+    /// <summary>The ID tags of an LRC document ("ti", "ar", "al", "length", "id"…), lower-cased keys.</summary>
+    public static Dictionary<string, string> Tags(string text)
+    {
+        var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            var m = MetaTag().Match(raw.Trim());
+            if (m.Success) tags[m.Groups[1].Value.ToLowerInvariant()] = m.Groups[2].Value.Trim();
+        }
+        return tags;
+    }
+
+    /// <summary>"[mm:ss.xx]" for a line, "&lt;mm:ss.xxx&gt;" (finer) for a word.</summary>
+    public static string Stamp(TimeSpan t, bool word = false)
+    {
+        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
+        int min = (int)t.TotalMinutes;
+        return word
+            ? $"<{min:00}:{t.Seconds:00}.{t.Milliseconds:000}>"
+            : $"[{min:00}:{t.Seconds:00}.{t.Milliseconds / 10:00}]";
     }
 
     static TimeSpan ToTime(Match m)

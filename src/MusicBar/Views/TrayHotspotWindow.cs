@@ -66,6 +66,12 @@ internal sealed class TrayHotspotWindow : Window
             _highlight.Background = IsMouseOver ? Hover : Idle;
             Clicked?.Invoke();
         };
+        // The covered volume icon changes the volume with the wheel; the cover has to pass that on.
+        MouseWheel += (_, e) =>
+        {
+            Scrolled?.Invoke(e.Delta);
+            e.Handled = true;
+        };
 
         SourceInitialized += (_, _) =>
         {
@@ -78,6 +84,9 @@ internal sealed class TrayHotspotWindow : Window
     public IntPtr Hwnd { get; private set; }
 
     public event Action? Clicked;
+
+    /// <summary>The scroll wheel turned over the button (the wheel's delta, 120 a notch).</summary>
+    public event Action<int>? Scrolled;
 
     public void SetBadge(int count)
     {
