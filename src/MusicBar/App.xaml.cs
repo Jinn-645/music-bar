@@ -26,6 +26,7 @@ public partial class App : Application
     SettingsService? _settings;
     MediaService? _media;
     LyricsService? _lyrics;
+    YouTubeCaptionBridge? _youtube;
     TaskbarOverlays? _bars;
     SettingsWindow? _settingsWindow;
     TrayIcon? _tray;
@@ -118,8 +119,11 @@ public partial class App : Application
         };
 
         _media = new MediaService(settings);
-        _lyrics = new LyricsService(settings);
+        _youtube = new YouTubeCaptionBridge();
+        _youtube.Start();
+        _lyrics = new LyricsService(settings, _youtube);
         _bars = new TaskbarOverlays(settings, _media, _lyrics);
+        _youtube.CaptionsUpdated += (_, _) => Dispatcher.BeginInvoke(() => _bars?.Main.ReloadLyricsFromBridge());
         _bars.Start();
 
         _tray = new TrayIcon(() => ShowSettings(), _bars.Main.ShowMenu);
@@ -286,6 +290,7 @@ public partial class App : Application
         _stats?.Dispose();
         _settingsWindow?.Close();
         _bars?.Dispose();
+        _youtube?.Dispose();
         _tray?.Dispose();
         _tray = null;
         _showSignal?.Set();

@@ -1199,6 +1199,8 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         if (_popup.IsOpen) _popup.SetContent(BuildCard());
     }
 
+    public void ReloadLyricsFromBridge() => LoadLyrics(force: true);
+
     /// <summary>Messages already on the bar are re-said in the new language; menus pick it up when next built.</summary>
     void OnLanguageChanged()
     {

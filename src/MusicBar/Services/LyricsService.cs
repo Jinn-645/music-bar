@@ -54,13 +54,15 @@ public sealed partial class LyricsService
     readonly object _missLock = new();
     readonly Dictionary<string, HttpClient> _http = new();
     readonly NetEaseLyrics _netEase;
+    readonly YouTubeCaptionBridge? _youtube;
     string? _httpProxy;
     Dictionary<string, DateTime>? _misses;
 
-    public LyricsService(AppSettings settings)
+    public LyricsService(AppSettings settings, YouTubeCaptionBridge? youtube = null)
     {
         _settings = settings;
         _netEase = new NetEaseLyrics(Client);
+        _youtube = youtube;
     }
 
     public string Folder => string.IsNullOrWhiteSpace(_settings.LyricsFolder) ? AppPaths.DefaultLyricsDir : _settings.LyricsFolder;
@@ -77,6 +79,9 @@ public sealed partial class LyricsService
         Directory.CreateDirectory(Folder);
         var (artist, title) = TitleCleaner.Clean(q.Artist, q.Title);
         var key = MissKey(artist, title);
+
+        if (_youtube?.TryGet(q, out var youtubeLyrics) == true)
+            return new LyricsResult(LyricsStatus.Synced, youtubeLyrics, "YouTube captions", null);
 
         if (!force)
         {
