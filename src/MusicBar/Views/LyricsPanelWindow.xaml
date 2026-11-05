@@ -133,10 +133,11 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel x:Name="OffsetPanel" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource CardIconButton}" Content="&#xE738;" ToolTip="{l:Tr LyrP_Later}" Click="Later_Click" />
-                        <TextBlock x:Name="OffsetText" FontSize="12" MinWidth="64" TextAlignment="Center" VerticalAlignment="Center"
+                        <!-- Minus is earlier and plus later, as the text reads; holding a button keeps going. -->
+                        <Button x:Name="EarlierButton" Style="{StaticResource CardIconButton}" Content="&#xE738;" ToolTip="{l:Tr LyrP_Earlier}" Click="Earlier_Click" />
+                        <TextBlock x:Name="OffsetText" FontSize="12" MinWidth="64" TextAlignment="Center" VerticalAlignment="Center" Margin="2,0"
                                    Opacity="0.8" ToolTip="{l:Tr LyrP_OffsetTip}" Cursor="Hand" MouseLeftButtonUp="OffsetText_Click" />
-                        <Button Style="{StaticResource CardIconButton}" Content="&#xE710;" ToolTip="{l:Tr LyrP_Earlier}" Click="Earlier_Click" />
+                        <Button x:Name="LaterButton" Style="{StaticResource CardIconButton}" Content="&#xE710;" ToolTip="{l:Tr LyrP_Later}" Click="Later_Click" />
                     </StackPanel>
                     <ToggleButton x:Name="RomanChip" Grid.Column="1" Style="{StaticResource CardChip}" HorizontalAlignment="Center"
                                   VerticalAlignment="Center" Content="{l:Tr LyrP_Romanize}" Click="RomanChip_Click" />

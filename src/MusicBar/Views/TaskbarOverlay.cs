@@ -52,6 +52,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     DateTime _quietLostAt = DateTime.MinValue;
     // Only on the main taskbar, where the tray is.
     readonly ControlCenter? _controlCenter;
+    readonly WindowsModeSync? _windowsMode;
 
     Palette? _artPalette;
     CancellationTokenSource? _lyricsCts;
@@ -112,7 +113,9 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         _face = new Face.FaceWindow(settings, media, audio);
         _widget.MenuRequested += ShowMenu;
         _widget.InfoRequested += ShowInfo;
-        _widget.InfoDismissed += _popup.Dismiss;
+        // The card stays while the pointer travels up to it, so its timeline can be reached.
+        _widget.InfoDismissed += _popup.RequestDismiss;
+        _popup.SeekRequested += target => _ = _media.SeekAsync(target);
         _widget.ExpandToggled += () => _s.LyricsExpanded = !_s.LyricsExpanded;
         _widget.LyricsClicked += ShowLyricsPanel;
         _widget.LyricsWheel += delta =>
@@ -120,7 +123,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
             if (_lyricsResult?.Lyrics == null) return;
             NudgeOffset(delta > 0 ? 250 : -250);
             int ms = (int)_lyricsResult.Lyrics.Offset.TotalMilliseconds;
-            Say(ms == 0 ? Loc.T("LyrP_InTime") : Loc.T("LyrP_Offset", (ms / 1000.0).ToString("+0.00;-0.00")), "", 1.6);
+            Say(LyricsService.DescribeTiming(ms), "", 1.6);
         };
 
         if (monitorDevice == null)
@@ -129,6 +132,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
             _controlCenter.TrayRearranged += _tracker.Rescan;
             // A new playback device: start listening to it instead of the old one.
             _controlCenter.OutputChanged += _audio.Restart;
+            _windowsMode = new WindowsModeSync(settings);
         }
 
         _tracker.LayoutChanged += Reposition;
@@ -163,6 +167,8 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         {
             if (value == _showsBar) return;
             _showsBar = value;
+            // The tray icons only need Windows' mode changed while the bar is behind them.
+            if (_windowsMode != null) ApplyAppearance();
             Reposition();
         }
     }
@@ -267,6 +273,13 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         UpdateLyricsSurface(animate: false);
         _widget.SetPlaying(_media.IsPlaying, animate: false);
         OnSessionStateChanged();
+        // An overlay made while a song plays (a second screen picked or plugged in) never hears
+        // that song begin: it takes the song, its lyrics and cover now, or its player stays blank.
+        if (_media.HasSession)
+        {
+            OnTrackChanged();
+            if (_media.Thumbnail != null) OnThumbnailChanged();
+        }
         _controlCenter?.Start();
         _tracker.Start();
         _watch.Start();
@@ -356,6 +369,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         _media.TrackChanged -= OnMediaTrackChanged;
         _media.ThumbnailChanged -= OnMediaThumbnailChanged;
         _controlCenter?.Dispose();
+        _windowsMode?.Release();
         if (_clearedTaskbar != IntPtr.Zero) RestoreTransparency();
         SetRendering(false);
         _watch.Stop();
@@ -756,9 +770,9 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         CheckTheme();
         bool idle = _s.HideWhenIdle && _noSessionSince != DateTime.MinValue
                     && (DateTime.Now - _noSessionSince).TotalSeconds > 2;
-        bool fullscreen = _s.HideInFullscreen && IsForegroundFullscreen();
+        bool fullscreen = TaskbarCovered();
         // Listen to the speakers only while a music-driven style is actually on screen and playing.
-        _audio.Want(this, _s.AudioReactive && _layerShown && _media.IsPlaying && SeekRenderer.UsesAudio(_s.SeekStyle));
+        _audio.Want(this, _s.AudioReactive && _layerShown && _media.IsPlaying && (SeekRenderer.UsesAudio(_s.SeekStyle) || _layer.Skinned));
         UpdateFramePace();
         if (idle != _idle || fullscreen != _fullscreen || (_layerShown && IsOverMode != _styledOver))
         {
@@ -768,13 +782,14 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         }
     }
 
-    bool IsForegroundFullscreen()
+    /// <summary>
+    /// A window fills this taskbar's screen and sits over the taskbar (a game, a video, a slide show
+    /// in full screen): MusicBar steps aside exactly when the taskbar itself is out of sight. The
+    /// shell's "busy" state is not asked: it also reads busy for a full-screen window on another
+    /// screen or behind others, which hid MusicBar for good on some PCs.
+    /// </summary>
+    bool TaskbarCovered()
     {
-        // The shell's own verdict (what makes the taskbar step aside for games and videos).
-        if (Native.SHQueryUserNotificationState(out int state) == 0
-            && state is Native.QUNS_BUSY or Native.QUNS_RUNNING_D3D_FULL_SCREEN or Native.QUNS_PRESENTATION_MODE)
-            return true;
-
         var monitor = _tracker.Monitor;
         var fg = Native.GetForegroundWindow();
         if (fg == IntPtr.Zero || monitor == null) return false;
@@ -786,7 +801,10 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         if (Native.MonitorFromWindow(fg, Native.MONITOR_DEFAULTTONULL) != monitor.Handle) return false;
         if (!Native.GetWindowRect(fg, out var r)) return false;
         var b = monitor.Bounds;
-        return r.Left <= b.Left && r.Top <= b.Top && r.Right >= b.Right && r.Bottom >= b.Bottom;
+        if (r.Left > b.Left || r.Top > b.Top || r.Right < b.Right || r.Bottom < b.Bottom) return false;
+        // Windows lowers the taskbar under a full-screen window; while the taskbar stays on top
+        // (a screen-sized window that isn't full screen to Windows), it is still in sight.
+        return _tracker.Handle == IntPtr.Zero || !Native.IsAbove(_tracker.Handle, fg);
     }
 
     // ------------------------------------------------------------------ frame loop
@@ -794,29 +812,48 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     /// <summary>
     /// A paced timer instead of CompositionTarget.Rendering: subscribing to the
     /// latter keeps WPF composing at the display's refresh rate even when
-    /// nothing changes. 30 Hz while something moves, 4 Hz otherwise.
+    /// nothing changes. 30 Hz while something moves, 4 Hz otherwise; on every
+    /// display frame only while spectrum bars dance to the music.
     /// </summary>
     void SetRendering(bool on)
     {
         if (on == _rendering) return;
         _rendering = on;
-        if (on)
-        {
-            UpdateFramePace();
-            _frameTimer.Start();
-        }
-        else
-        {
-            _frameTimer.Stop();
-        }
+        if (on) _frameTimer.Start();
+        else _frameTimer.Stop();
+        UpdateFramePace();
     }
+
+    // Ticking on every display frame (CompositionTarget.Rendering) instead of on the timer.
+    bool _everyFrame;
 
     void UpdateFramePace()
     {
         bool moving = _media.IsPlaying && (_s.SeekStyle != SeekStyle.Classic || _s.LyricsExpanded);
         // Paused, an animated style drifts slowly in place: half the frame rate is smooth enough.
         bool drifting = !_media.IsPlaying && _media.HasSession && _layerShown && _s.SeekIdleMotion && _s.SeekStyle != SeekStyle.Classic;
-        var interval = TimeSpan.FromMilliseconds(moving ? 33 : drifting ? 66 : 250);
+        // Bars jumping with the beat stutter at the timer's pace, which also drifts against the display's.
+        // That costs about twice the CPU, so a laptop on its battery keeps the timer's 30 fps.
+        bool beatDriven = SeekRenderer.WantsEveryFrame(_s.SeekStyle) || _layer.Skinned;
+        bool everyFrame = _rendering && moving && _layerShown && beatDriven && _s.AudioReactive && !SystemSense.OnBattery;
+        if (everyFrame != _everyFrame)
+        {
+            _everyFrame = everyFrame;
+            if (everyFrame)
+            {
+                _frameTimer.Stop();
+                CompositionTarget.Rendering += OnFrame;
+            }
+            else
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                if (_rendering) _frameTimer.Start();
+            }
+        }
+        // The timer fires on Windows' 15.6 ms ticks: 33 ms comes out as 47 (21 fps), which suits the slow
+        // styles; spectrum bars left on the timer ask for 30 and get 31 (32 fps).
+        bool bars = moving && beatDriven;
+        var interval = TimeSpan.FromMilliseconds(bars ? 30 : moving ? 33 : drifting ? 66 : 250);
         if (_frameTimer.Interval != interval) _frameTimer.Interval = interval;
     }
 
@@ -899,7 +936,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
                 UpdateTransparency();
                 Reposition();
                 break;
-            case nameof(AppSettings.ControlCenter):
+            case nameof(AppSettings.ControlCenter) or nameof(AppSettings.WinAOpensControlCenter):
                 _controlCenter?.Tick();
                 break;
             case nameof(AppSettings.LyricsExpanded) or nameof(AppSettings.LyricsPlacement):
@@ -915,7 +952,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
                 ApplyAppearance();
                 Watch();
                 break;
-            case nameof(AppSettings.HideWhenIdle) or nameof(AppSettings.HideInFullscreen) or nameof(AppSettings.AudioReactive):
+            case nameof(AppSettings.HideWhenIdle) or nameof(AppSettings.AudioReactive):
                 Watch();
                 break;
             case nameof(AppSettings.LyricsEnabled) or nameof(AppSettings.FetchOnline) or nameof(AppSettings.LyricsFolder):
@@ -930,10 +967,10 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
                 PresentLyrics();
                 break;
             case nameof(AppSettings.PinnedAppId) or nameof(AppSettings.StartWithWindows)
-                or nameof(AppSettings.ProxyUrl) or nameof(AppSettings.LyricsOffsetMs)
+                or nameof(AppSettings.ProxyUrl) or nameof(AppSettings.LyricsOffsetMs) or nameof(AppSettings.LyricsDelayMs)
                 or nameof(AppSettings.LyricsPanelRomanized) or nameof(AppSettings.KeepListeningStats)
                 or nameof(AppSettings.RecapDoneYear) or nameof(AppSettings.RecapAskedOn)
-                or nameof(AppSettings.CheckForUpdates) or nameof(AppSettings.SkippedVersion)
+                or nameof(AppSettings.CheckForUpdates) or nameof(AppSettings.SkippedVersion) or nameof(AppSettings.WindowsModeBefore)
                 or nameof(AppSettings.FocusMinutes) or nameof(AppSettings.BreakMinutes) or nameof(AppSettings.LyricsFromNetEase):
                 break;
             default:
@@ -947,10 +984,12 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     DateTime _themeCheckedAt = DateTime.Now;
 
     /// <summary>The background actually painted: Auto becomes Dark or Light with Windows' taskbar mode.</summary>
-    BarBackground EffectiveBackground => _s.Background switch
+    BarBackground EffectiveBackground => BackgroundFor(_windowsLight);
+
+    BarBackground BackgroundFor(bool windowsLight) => _s.Background switch
     {
-        BarBackground.Auto => _windowsLight ? BarBackground.Light : BarBackground.Dark,
-        BarBackground.AutoTinted => _windowsLight ? BarBackground.LightTinted : BarBackground.Tinted,
+        BarBackground.Auto => windowsLight ? BarBackground.Light : BarBackground.Dark,
+        BarBackground.AutoTinted => windowsLight ? BarBackground.LightTinted : BarBackground.Tinted,
         _ => _s.Background,
     };
 
@@ -966,23 +1005,37 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     /// wallpaper shows through a see-through taskbar (a faint background mixed in), or, until the
     /// wallpaper is known, on a clear taskbar while Windows is in light mode.
     /// </summary>
-    bool LightBar
+    bool LightBar => LightBarFor(_windowsLight, remember: true);
+
+    /// <summary>Whether the bar would look light with Windows' taskbar in the given mode.</summary>
+    bool LightBarFor(bool windowsLight, bool remember = false)
     {
-        get
+        var background = BackgroundFor(windowsLight);
+        bool lightBase = background is BarBackground.Light or BarBackground.LightTinted;
+        if (WallpaperShows && _backdrop.Lightness is double behind)
         {
-            var background = EffectiveBackground;
-            bool lightBase = background is BarBackground.Light or BarBackground.LightTinted;
-            if (WallpaperShows && _backdrop.Lightness is double behind)
-            {
-                // What the eye sees: the bar's own color over the picture, as solid as its opacity.
-                double cover = background == BarBackground.Transparent ? 0 : _s.BackgroundOpacity;
-                double seen = (lightBase ? 96 : 4) * cover + behind * (1 - cover);
-                // Some give either way, so a moving wallpaper near the middle doesn't flip the text back and forth.
-                _wallpaperLight = _wallpaperLight ? seen > 52 : seen > 62;
-                return _wallpaperLight;
-            }
-            return background == BarBackground.Transparent ? _windowsLight : lightBase;
+            // What the eye sees: the bar's own color over the picture, as solid as its opacity.
+            double cover = background == BarBackground.Transparent ? 0 : _s.BackgroundOpacity;
+            double seen = (lightBase ? 96 : 4) * cover + behind * (1 - cover);
+            // Some give either way, so a moving wallpaper near the middle doesn't flip the text back and forth.
+            bool light = _wallpaperLight ? seen > 52 : seen > 62;
+            if (remember) _wallpaperLight = light;
+            return light;
         }
+        return background == BarBackground.Transparent ? windowsLight : lightBase;
+    }
+
+    /// <summary>
+    /// Windows' own icons on the taskbar (tray, clock, Wi-Fi, volume) follow Windows' mode, not the bar:
+    /// the main taskbar's overlay sets the mode to match the bar behind them, judged against the mode
+    /// the user chose, so the Auto background still follows the user's Windows.
+    /// </summary>
+    void SyncWindowsMode()
+    {
+        if (_windowsMode == null) return;
+        if (_disposed || !_showsBar || !_s.MatchWindowsMode) _windowsMode.Release();
+        else _windowsMode.Want(LightBarFor(_windowsMode.UserLight));
+        _windowsLight = ColorUtil.WindowsTaskbarIsLight();
     }
 
     readonly WallpaperTone _backdrop = new();
@@ -1008,6 +1061,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
 
     void ApplyAppearance()
     {
+        SyncWindowsMode();
         double h = _styledThickness > 0 ? _styledThickness : 30;
         bool over = _styledThickness > 0 ? _styledOver : IsOverMode;
         var background = EffectiveBackground;
@@ -1249,6 +1303,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
     {
         if (!_s.ShowInfoPopup || !_media.HasSession || !_widgetShown || _tracker.Monitor == null) return;
         _popup.SetContent(BuildCard());
+        _popup.CanSeek = _media.CanSeek;
         _popup.SetProgress(_media.GetPosition(), _media.Duration);
         _popup.ShowAt(_widget.CoverCenterOnScreen(), _tracker.Edge, _tracker.Rect, _tracker.Monitor.Bounds);
     }
@@ -1386,9 +1441,25 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         var seek = new MenuItem { Header = Loc.T("Menu_SeekStyle"), Icon = Glyph("") };
         foreach (var option in SettingsOptions.SeekStyles)
         {
-            var item = new MenuItem { Header = option.Label, IsChecked = _s.SeekStyle == option.Value };
+            var item = new MenuItem { Header = option.Label, IsChecked = _s.Skin.Length == 0 && _s.SeekStyle == option.Value };
             var value = option.Value;
-            item.Click += (_, _) => _s.SeekStyle = value;
+            item.Click += (_, _) =>
+            {
+                _s.SeekStyle = value;
+                _s.Skin = "";
+            };
+            seek.Items.Add(item);
+        }
+        seek.Items.Add(new Separator());
+        foreach (var option in SettingsOptions.Visualizers)
+        {
+            var item = new MenuItem { Header = option.Label, IsChecked = _s.Skin.Length == 0 && _s.SeekStyle == option.Value };
+            var value = option.Value;
+            item.Click += (_, _) =>
+            {
+                _s.SeekStyle = value;
+                _s.Skin = "";
+            };
             seek.Items.Add(item);
         }
         seek.Items.Add(new Separator());

@@ -10,14 +10,18 @@
 //   2. Inside Explorer, the DLL connects to Explorer's XAML through the public
 //      diagnostics API (InitializeXamlDiagnosticsEx, what Visual Studio's Live
 //      Visual Tree uses), which keeps it loaded; MusicBar then drops the hook.
-//      Older builds draw the taskbar with system XAML (Windows.UI.Xaml); newer
-//      ones (26H2) with WinUI 3, whose diagnostics entry lives in
-//      Microsoft.Internal.FrameworkUdk.dll. Both are tried.
+//      The taskbar is system XAML (Windows.UI.Xaml) up to at least 26H2; WinUI 3,
+//      whose diagnostics entry lives in Microsoft.Internal.FrameworkUdk.dll, is
+//      used only where system XAML's entry is missing.
 //   3. As a XAML diagnostics "TAP", it watches the visual tree for the taskbar's
 //      background rectangles (BackgroundFill and BackgroundStroke inside each
-//      TaskbarFrame) and swaps their Fill for a transparent brush, keeping the
-//      original to put back. Everything goes through the diagnostics service's
-//      generic property calls, so the same code serves both XAML frameworks.
+//      TaskbarFrame) and hides them (opacity 0), putting their own opacity back
+//      later. Their brushes are never touched: a brush swapped out and put back
+//      stops following light and dark mode, and when the taskbar re-adds the
+//      rectangles on a light/dark switch, the clear brush was taken for the
+//      taskbar's own and "put back", leaving it clear until Explorer restarted.
+//      Everything goes through the diagnostics service's generic property calls,
+//      so the same code serves both XAML frameworks.
 //
 // MusicBar names the taskbars it wants clear in a small shared-memory list: only
 // those lose their background (a taskbar on another monitor, with nothing of
@@ -36,6 +40,7 @@
 #include <windows.ui.xaml.hosting.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 #include <map>
@@ -54,24 +59,29 @@ static const CLSID CLSID_TaskbarTap = { 0x391fc26b, 0x9159, 0x4921, { 0x8a, 0x61
 // Written by MusicBar (Interop/XamlTaskbar.cs): the taskbar windows to keep clear.
 static const wchar_t TargetsName[] = L"Local\\MusicBar.TaskbarClear.v2";
 // Versioned: a newer helper attaches even while an older one is still loaded in this Explorer.
-static const wchar_t ReadyPrefix[] = L"Local\\MusicBar.TaskbarTap.Ready.v3.";
+static const wchar_t ReadyPrefix[] = L"Local\\MusicBar.TaskbarTap.Ready.v11.";
 // Exists while this helper watches the taskbar's XAML. Explorer lets one helper watch at a
 // time, so a helper loaded next to an older one that never steps aside sees nothing.
-static const wchar_t WatchingPrefix[] = L"Local\\MusicBar.TaskbarTap.Watching.v3.";
+static const wchar_t WatchingPrefix[] = L"Local\\MusicBar.TaskbarTap.Watching.v11.";
 // Set by a newer MusicBar: this helper gives the taskbars back and stops watching, so the
 // newer helper can watch without Explorer restarting.
-static const wchar_t RetireEvent[] = L"Local\\MusicBar.TaskbarTap.Retire.v3";
+static const wchar_t RetireEvent[] = L"Local\\MusicBar.TaskbarTap.Retire.v11";
 
 struct TargetList
 {
     UINT32 count;
-    UINT32 reserved;
+    // The Windows taskbar mode to put back should MusicBar end without doing it: 0 none, 1 dark, 2 light.
+    UINT32 putBack;
     UINT64 windows[16];
 };
 static const wchar_t PumpClass[] = L"MusicBar.TaskbarTap.Pump";
 static const UINT WM_APPLY = WM_APP + 1;
 
 static HMODULE g_module;
+// Some connection has shown a taskbar background, so the search for the taskbar's XAML can stop.
+static std::atomic<bool> g_sawTaskbar{ false };
+// Connections that have walked their XAML tree, so the next is only made once the last has looked.
+static std::atomic<int> g_walks{ 0 };
 
 namespace
 {
@@ -88,8 +98,10 @@ namespace
             t.wHour, t.wMinute, t.wSecond, t.wMilliseconds, GetCurrentProcessId());
         va_list args;
         va_start(args, format);
-        n += vswprintf_s(line + n, _countof(line) - n - 2, format, args);
+        // Cut short rather than overflow: the secure printf family ends the process otherwise, and this is Explorer.
+        _vsnwprintf_s(line + n, _countof(line) - n - 2, _TRUNCATE, format, args);
         va_end(args);
+        n += static_cast<int>(wcslen(line + n));
         line[n++] = L'\r';
         line[n++] = L'\n';
         char utf8[1024];
@@ -113,20 +125,43 @@ namespace
     }
 
     // The taskbars MusicBar wants clear, sorted; empty when MusicBar asks for none or is gone.
-    std::vector<HWND> WantedTaskbars()
+    // <present> says whether MusicBar is there at all, <putBack> what it would want put back if not.
+    std::vector<HWND> WantedTaskbars(bool& present, UINT32& putBack)
     {
         std::vector<HWND> wanted;
+        present = false;
+        putBack = 0;
         HANDLE map = OpenFileMappingW(FILE_MAP_READ, FALSE, TargetsName);
         if (!map) return wanted;
+        present = true;
         if (auto list = static_cast<const TargetList*>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, sizeof(TargetList))))
         {
             UINT32 n = list->count < 16 ? list->count : 16;
             for (UINT32 i = 0; i < n; i++) wanted.push_back(reinterpret_cast<HWND>(static_cast<UINT_PTR>(list->windows[i])));
+            putBack = list->putBack;
             UnmapViewOfFile(list);
         }
         CloseHandle(map);
         std::sort(wanted.begin(), wanted.end());
         return wanted;
+    }
+
+    // MusicBar ended without putting Windows' taskbar mode back (ended from Task Manager, or a
+    // crash): done here instead, the way Settings does it.
+    void PutBackMode(UINT32 code)
+    {
+        DWORD light = code == 2 ? 1 : 0;
+        HKEY key;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0,
+                KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
+        DWORD now = 0, size = sizeof(now);
+        bool differs = RegQueryValueExW(key, L"SystemUsesLightTheme", nullptr, nullptr, reinterpret_cast<BYTE*>(&now), &size) != ERROR_SUCCESS
+            || now != light;
+        if (differs) RegSetValueExW(key, L"SystemUsesLightTheme", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&light), sizeof(light));
+        RegCloseKey(key);
+        if (!differs) return;
+        SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"ImmersiveColorSet"), SMTO_ABORTIFHUNG, 1000, nullptr);
+        Trace(L"MusicBar ended without putting Windows' mode back: set it to %s", light ? L"light" : L"dark");
     }
 
     int TaskbarWindows()
@@ -142,17 +177,37 @@ namespace
         return s.size() >= n && s.compare(s.size() - n, n, tail) == 0;
     }
 
+    // How a hidden rectangle's own opacity comes back: the local value it had (as text, the way
+    // the diagnostics service reads and writes values), or none at all.
+    struct Own
+    {
+        bool local = false;
+        std::wstring value;
+    };
+
+    // Shared by every connection this helper makes: two of them can reach the same XAML, and only
+    // one may handle each rectangle, or the second takes the first one's zero for its own opacity.
+    struct Shared
+    {
+        std::mutex lock;
+        std::map<InstanceHandle, const void*> owner;
+        // The rectangles hidden now, by element. Kept when the taskbar takes one out of the tree and
+        // puts it back (it does on a light/dark switch), so the zero set here is never taken for its own.
+        std::map<InstanceHandle, Own> hidden;
+    };
+    Shared g_shared;
+
     // One background rectangle. Only touched on its own XAML thread.
     struct Surface
     {
         InstanceHandle element = 0;
         DWORD thread = 0;
-        unsigned int fill = 0;
-        std::wstring brushType;
-        InstanceHandle original = 0;
-        InstanceHandle clear = 0;
-        ComPtr<IInspectable> keepOriginal;
-        ComPtr<IInspectable> keepClear;
+        unsigned int opacity = 0;
+        std::wstring valueType;
+        InstanceHandle zero = 0;
+        // The last error hiding it, so a lasting one is logged once rather than every second.
+        HRESULT failed = S_OK;
+        ComPtr<IInspectable> keepZero;
         // The taskbar window it belongs to, once found.
         HWND taskbar = nullptr;
         bool reportedUnknown = false;
@@ -234,26 +289,38 @@ public:
             if (mutation == Remove)
             {
                 _nodes.erase(element.Handle);
-                _surfaces.erase(element.Handle);
                 _sources.erase(element.Handle);
+                if (!_surfaces.erase(element.Handle)) return S_OK;
+            }
+            else
+            {
+                _nodes[element.Handle] = Node { relation.Parent, type, name };
+                if (EndsWith(type, L"Hosting.DesktopWindowXamlSource")) _sources.insert(element.Handle);
+                if (!EndsWith(type, L".Xaml.Shapes.Rectangle") || (name != L"BackgroundFill" && name != L"BackgroundStroke")) return S_OK;
+                if (!InsideTaskbarFrame(relation.Parent)) return S_OK;
+                wanted = _wanted;
+            }
+        }
+        {
+            std::lock_guard<std::mutex> guard(g_shared.lock);
+            auto owner = g_shared.owner.find(element.Handle);
+            if (mutation == Remove)
+            {
+                if (owner != g_shared.owner.end() && owner->second == this) g_shared.owner.erase(owner);
                 return S_OK;
             }
-            _nodes[element.Handle] = Node { relation.Parent, type, name };
-            if (EndsWith(type, L"Hosting.DesktopWindowXamlSource")) _sources.insert(element.Handle);
-            if (!EndsWith(type, L".Xaml.Shapes.Rectangle") || (name != L"BackgroundFill" && name != L"BackgroundStroke")) return S_OK;
-            if (!InsideTaskbarFrame(relation.Parent)) return S_OK;
-            wanted = _wanted;
+            // Another connection to the same XAML has it already.
+            if (owner != g_shared.owner.end() && owner->second != this) return S_OK;
+            g_shared.owner[element.Handle] = this;
         }
 
         auto surface = std::make_shared<Surface>();
         surface->element = element.Handle;
         surface->thread = GetCurrentThreadId();
-        // Same namespace as the rectangle: Windows.UI.Xaml or Microsoft.UI.Xaml.
-        surface->brushType = type.substr(0, type.size() - wcslen(L"Shapes.Rectangle")) + L"Media.SolidColorBrush";
-        HRESULT hr = FindProperty(element.Handle, L"Fill", surface->fill);
+        HRESULT hr = FindProperty(element.Handle, L"Opacity", surface->opacity);
         if (FAILED(hr))
         {
-            Trace(L"Found taskbar %s but no Fill property: 0x%08X", name.c_str(), hr);
+            Trace(L"Found taskbar %s but no Opacity property: 0x%08X", name.c_str(), hr);
             return S_OK;
         }
         EnsurePump();
@@ -261,7 +328,8 @@ public:
             std::lock_guard<std::mutex> guard(_lock);
             _surfaces[element.Handle] = surface;
         }
-        Trace(L"Found taskbar %s (%s)", name.c_str(), type.c_str());
+        Trace(L"Found taskbar %s (%s): %s", name.c_str(), type.c_str(), Describe(element.Handle).c_str());
+        g_sawTaskbar = true;
         if (!wanted.empty())
         {
             int taskbars = -1;
@@ -293,19 +361,92 @@ private:
         HRESULT hr = _tree->GetPropertyIndex(element, property, &index);
         if (SUCCEEDED(hr)) return hr;
 
+        bool found = false;
+        hr = ForEachValue(element, [&](const PropertyChainValue& value, const PropertyChainSource*)
+        {
+            if (found || !value.PropertyName || wcscmp(value.PropertyName, property) != 0) return;
+            index = value.Index;
+            found = true;
+        });
+        if (FAILED(hr)) return hr;
+        return found ? S_OK : HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    }
+
+    // XAML thread: what the rectangle's opacity is made of, so hiding it can be undone exactly.
+    Own ReadOwnOpacity(Surface& s)
+    {
+        Own own;
+        ForEachValue(s.element, [&](const PropertyChainValue& value, const PropertyChainSource* source)
+        {
+            if (!value.PropertyName || wcscmp(value.PropertyName, L"Opacity") != 0) return;
+            if (s.valueType.empty() && value.ValueType) s.valueType = value.ValueType;
+            if (own.local || !source || source->Source != BaseValueSourceLocal) return;
+            // A zero is never the taskbar's own but a helper's leftover: putting it back would keep the background hidden.
+            if (!value.Value || wcstod(value.Value, nullptr) == 0) return;
+            own.local = true;
+            own.value = value.Value ? value.Value : L"";
+        });
+        if (s.valueType.empty()) s.valueType = L"Windows.Foundation.Double";
+        return own;
+    }
+
+    // For the log: the effective Fill and Opacity, where each comes from (BaseValueSource), and the brush's color.
+    std::wstring Describe(InstanceHandle element)
+    {
+        std::wstring text;
+        InstanceHandle brush = 0;
+        ForEachValue(element, [&](const PropertyChainValue& value, const PropertyChainSource* source)
+        {
+            if (value.Overridden || !value.PropertyName) return;
+            bool fill = wcscmp(value.PropertyName, L"Fill") == 0;
+            if (!fill && wcscmp(value.PropertyName, L"Opacity") != 0) return;
+            if (fill && (value.MetadataBits & IsValueHandle) && value.Value) brush = _wcstoui64(value.Value, nullptr, 10);
+            wchar_t part[200];
+            _snwprintf_s(part, _countof(part), _TRUNCATE, L"%s%s=%.60s (%.60s, source %d)", text.empty() ? L"" : L", ",
+                value.PropertyName, value.Value ? value.Value : L"", value.ValueType ? value.ValueType : L"",
+                source ? static_cast<int>(source->Source) : -1);
+            text += part;
+        });
+        if (brush)
+        {
+            ForEachValue(brush, [&](const PropertyChainValue& value, const PropertyChainSource*)
+            {
+                if (value.Overridden || !value.PropertyName || wcscmp(value.PropertyName, L"Color") != 0) return;
+                text += L", brush color ";
+                text += value.Value ? value.Value : L"?";
+            });
+        }
+        return text;
+    }
+
+    HRESULT Create(const std::wstring& type, const std::wstring& value, InstanceHandle& out)
+    {
+        BSTR typeName = SysAllocString(type.c_str());
+        BSTR text = SysAllocString(value.c_str());
+        HRESULT hr = _tree->CreateInstance(typeName, text, &out);
+        SysFreeString(typeName);
+        SysFreeString(text);
+        if (FAILED(hr))
+        {
+            Trace(L"Creating %s %s failed: 0x%08X", type.c_str(), value.c_str(), hr);
+            out = 0;
+        }
+        return hr;
+    }
+
+    // Every value in the element's property chain, with the source it comes from.
+    template <typename Visit>
+    HRESULT ForEachValue(InstanceHandle element, Visit visit)
+    {
         unsigned int sourceCount = 0, valueCount = 0;
         PropertyChainSource* sources = nullptr;
         PropertyChainValue* values = nullptr;
-        hr = _tree->GetPropertyValuesChain(element, &sourceCount, &sources, &valueCount, &values);
+        HRESULT hr = _tree->GetPropertyValuesChain(element, &sourceCount, &sources, &valueCount, &values);
         if (FAILED(hr)) return hr;
-        bool found = false;
+        for (unsigned int i = 0; i < valueCount; i++)
+            visit(values[i], values[i].PropertyChainIndex < sourceCount ? &sources[values[i].PropertyChainIndex] : nullptr);
         for (unsigned int i = 0; i < valueCount; i++)
         {
-            if (!found && values[i].PropertyName && wcscmp(values[i].PropertyName, property) == 0)
-            {
-                index = values[i].Index;
-                found = true;
-            }
             SysFreeString(values[i].Type);
             SysFreeString(values[i].DeclaringType);
             SysFreeString(values[i].ValueType);
@@ -322,7 +463,7 @@ private:
         }
         CoTaskMemFree(values);
         CoTaskMemFree(sources);
-        return found ? S_OK : HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+        return S_OK;
     }
 
     static bool IsFrame(const Node& node)
@@ -429,40 +570,68 @@ private:
         return taskbars == 1;
     }
 
-    // XAML thread: swaps the rectangle's brush (or puts the taskbar's own back).
+    // XAML thread: hides the rectangle, or gives it its own opacity back. Its brush stays the
+    // taskbar's, so it keeps up with light and dark mode while hidden.
     void Apply(Surface& s, bool clear)
     {
-        InstanceHandle current = 0;
-        if (FAILED(_tree->GetProperty(s.element, s.fill, &current))) return;
+        bool hidden;
+        Own own;
+        {
+            std::lock_guard<std::mutex> guard(g_shared.lock);
+            auto found = g_shared.hidden.find(s.element);
+            hidden = found != g_shared.hidden.end();
+            if (hidden) own = found->second;
+        }
         if (!clear)
         {
-            if (s.original && current == s.clear) _tree->SetProperty(s.element, s.original, s.fill);
+            if (!hidden) return;
+            {
+                std::lock_guard<std::mutex> guard(g_shared.lock);
+                g_shared.hidden.erase(s.element);
+            }
+            InstanceHandle value = 0;
+            HRESULT hr = !own.local ? _tree->ClearProperty(s.element, s.opacity)
+                : SUCCEEDED(Create(s.valueType, own.value, value)) ? _tree->SetProperty(s.element, value, s.opacity)
+                : E_FAIL;
+            if (FAILED(hr)) Trace(L"Giving the taskbar its opacity back failed: 0x%08X", hr);
+            else Trace(L"Taskbar background %llu back: %s", static_cast<unsigned long long>(s.element), Describe(s.element).c_str());
             return;
         }
-        if (s.clear && current == s.clear) return;
-        // Not drawn yet: wait for the taskbar to give it a brush first.
-        if (!current) return;
-        // Whatever the taskbar put there (first time, or after a theme change) is what comes back later.
-        s.original = current;
-        s.keepOriginal.Reset();
-        _diagnostics->GetIInspectableFromHandle(current, &s.keepOriginal);
-        if (!s.clear)
+        if (!hidden) own = ReadOwnOpacity(s);
+        else if (s.valueType.empty()) ReadOwnOpacity(s);
+        if (!s.zero)
         {
-            BSTR type = SysAllocString(s.brushType.c_str());
-            BSTR value = SysAllocString(L"#00000000");
-            HRESULT hr = _tree->CreateInstance(type, value, &s.clear);
-            SysFreeString(type);
-            SysFreeString(value);
-            if (FAILED(hr))
-            {
-                Trace(L"Creating %s failed: 0x%08X", s.brushType.c_str(), hr);
-                s.clear = 0;
-                return;
-            }
-            _diagnostics->GetIInspectableFromHandle(s.clear, &s.keepClear);
+            if (FAILED(Create(s.valueType, L"0", s.zero))) return;
+            _diagnostics->GetIInspectableFromHandle(s.zero, &s.keepZero);
         }
-        HRESULT hr = _tree->SetProperty(s.element, s.clear, s.fill);
-        if (FAILED(hr)) Trace(L"Setting Fill failed: 0x%08X", hr);
+        // Repeated every second while clear, in case Explorer sets an opacity of its own meanwhile.
+        HRESULT hr = _tree->SetProperty(s.element, s.zero, s.opacity);
+        if (hr == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
+        {
+            // The taskbar built a new background (unannounced when the tree can't be watched).
+            Trace(L"Taskbar background %llu is gone", static_cast<unsigned long long>(s.element));
+            {
+                std::lock_guard<std::mutex> guard(_lock);
+                _surfaces.erase(s.element);
+                _lost = true;
+            }
+            std::lock_guard<std::mutex> guard(g_shared.lock);
+            g_shared.hidden.erase(s.element);
+            g_shared.owner.erase(s.element);
+            return;
+        }
+        if (FAILED(hr))
+        {
+            if (hr != s.failed) Trace(L"Setting Opacity failed: 0x%08X", hr);
+            s.failed = hr;
+            return;
+        }
+        if (hidden) return;
+        {
+            std::lock_guard<std::mutex> guard(g_shared.lock);
+            g_shared.hidden[s.element] = own;
+        }
+        Trace(L"Hid taskbar background %llu: %s", static_cast<unsigned long long>(s.element), Describe(s.element).c_str());
     }
 
     // XAML thread: applies MusicBar's request to the surfaces living on this thread.
@@ -518,10 +687,24 @@ private:
     {
         HRESULT hr = _tree->AdviseVisualTreeChange(this);
         Trace(L"AdviseVisualTreeChange: 0x%08X", hr);
+        g_walks++;
         // Tells MusicBar the helper is in place (and that this Explorer needs no second one),
         // and whether it actually sees the taskbar.
         _ready = CreateEventW(nullptr, TRUE, TRUE, ReadyEventName().c_str());
-        if (FAILED(hr)) return;
+        // Taking over from an earlier helper, the tree is walked and then the call fails
+        // (E_UNEXPECTED): the backgrounds found on the way are still there to work with, but
+        // changes are not announced, so a background the taskbar replaces is looked for again.
+        bool blind = FAILED(hr);
+        if (blind)
+        {
+            size_t found;
+            {
+                std::lock_guard<std::mutex> guard(_lock);
+                found = _surfaces.size();
+            }
+            if (!found) return;
+            Trace(L"Going on with the %zu taskbar backgrounds found", found);
+        }
         _watching = CreateEventW(nullptr, TRUE, TRUE, (WatchingPrefix + std::to_wstring(GetCurrentProcessId())).c_str());
 
         for (int tick = 0;; tick++)
@@ -531,7 +714,35 @@ private:
                 Retire();
                 return;
             }
-            std::vector<HWND> wanted = WantedTaskbars();
+            bool lost;
+            size_t known;
+            {
+                std::lock_guard<std::mutex> guard(_lock);
+                lost = _lost;
+                _lost = false;
+                known = _surfaces.size();
+            }
+            // Once when one goes, then every 5 seconds while none is known.
+            if (blind && (lost || (!known && tick % 20 == 0)))
+            {
+                hr = _tree->AdviseVisualTreeChange(this);
+                blind = FAILED(hr);
+                size_t found;
+                {
+                    std::lock_guard<std::mutex> guard(_lock);
+                    found = _surfaces.size();
+                }
+                Trace(L"Looked for the taskbar background again: 0x%08X, %zu found", hr, found);
+            }
+            bool present;
+            UINT32 putBack;
+            std::vector<HWND> wanted = WantedTaskbars(present, putBack);
+            if (present) _putBack = putBack;
+            else if (_putBack)
+            {
+                PutBackMode(_putBack);
+                _putBack = 0;
+            }
             std::vector<HWND> pumps;
             bool changed;
             size_t count;
@@ -540,7 +751,7 @@ private:
                 changed = wanted != _wanted;
                 _wanted = wanted;
                 count = _surfaces.size();
-                // While clear, look again every second: the taskbar replaces its brush on theme changes.
+                // While clear, look again every second, in case Explorer sets an opacity of its own.
                 if (changed || (!wanted.empty() && tick % 4 == 0))
                     for (auto& entry : _pumps) pumps.push_back(entry.second);
             }
@@ -561,6 +772,11 @@ private:
             for (auto& entry : _pumps) pumps.push_back(entry.second);
         }
         for (HWND pump : pumps) SendMessageTimeoutW(pump, WM_APPLY, 0, 0, SMTO_ABORTIFHUNG, 2000, nullptr);
+        {
+            std::lock_guard<std::mutex> guard(g_shared.lock);
+            for (auto it = g_shared.owner.begin(); it != g_shared.owner.end();)
+                it = it->second == this ? g_shared.owner.erase(it) : std::next(it);
+        }
         HRESULT hr = _tree->UnadviseVisualTreeChange(this);
         if (_watching) CloseHandle(_watching);
         _watching = nullptr;
@@ -580,6 +796,10 @@ private:
     std::set<InstanceHandle> _sources;
     std::map<DWORD, HWND> _pumps;
     std::vector<HWND> _wanted;
+    // A background went away while the tree couldn't be watched: walk it again to find the new one.
+    bool _lost = false;
+    // What MusicBar last asked to have put back if it ends (watcher thread only).
+    UINT32 _putBack = 0;
 };
 
 class Factory final : public IClassFactory
@@ -634,11 +854,12 @@ using InitFn = HRESULT(WINAPI*)(LPCWSTR, DWORD, LPCWSTR, LPCWSTR, CLSID, LPCWSTR
 
 // XAML names each of its instances in a process "VisualDiagConnection<n>", and the
 // connection has to name an existing one; "not found" means try the next number
-// (Windhawk's taskbar mods do the same). A successful connection pins this DLL.
+// (Windhawk's taskbar mods do the same). Starts at <number> and leaves it on the one
+// connected to. A successful connection pins this DLL.
 static HRESULT Connect(InitFn init, const wchar_t* path, int& number)
 {
     HRESULT hr = HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
-    for (number = 1; number <= 10000; number++)
+    for (int last = number + 100; number <= last; number++)
     {
         wchar_t connection[64];
         swprintf_s(connection, L"VisualDiagConnection%d", number);
@@ -649,46 +870,66 @@ static HRESULT Connect(InitFn init, const wchar_t* path, int& number)
 }
 
 // Runs in Explorer. The taskbar is system XAML (Windows.UI.Xaml) up to at least 26H2;
-// WinUI 3, whose entry point lives in Microsoft.Internal.FrameworkUdk.dll, is the
-// fallback should it move. XAML diagnostics initialises once per thread, so each
-// try runs on a fresh thread; while the taskbar is still starting nothing is found
-// yet, so it keeps trying for a while.
+// WinUI 3, whose entry point lives in Microsoft.Internal.FrameworkUdk.dll, is used only
+// where system XAML's is missing: here it reaches the very same instances, and two
+// connections watching one instance crashed Explorer. XAML diagnostics initialises once
+// per thread, so each try runs on a fresh thread. Explorer runs more than one XAML
+// instance, and right after it starts the taskbar's may not exist yet (the first one
+// found was once some other part of Explorer, and the taskbar was never seen): the
+// instances are connected to one at a time as they appear, each walked before the next,
+// until one of them shows a taskbar background.
 static DWORD WINAPI Install(void*)
 {
     wchar_t path[MAX_PATH];
     if (!GetModuleFileNameW(g_module, path, MAX_PATH)) return 1;
     Trace(L"Loaded into Explorer: %s", path);
 
-    struct Framework
-    {
-        const wchar_t* name;
-        InitFn init;
-    };
-    std::vector<Framework> frameworks;
+    const wchar_t* name = L"system XAML";
+    InitFn init = nullptr;
     if (HMODULE wux = LoadLibraryExW(L"Windows.UI.Xaml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))
-        if (auto init = reinterpret_cast<InitFn>(GetProcAddress(wux, "InitializeXamlDiagnosticsEx")))
-            frameworks.push_back({ L"system XAML", init });
-    if (HMODULE udk = GetModuleHandleW(L"Microsoft.Internal.FrameworkUdk.dll"))
-        if (auto init = reinterpret_cast<InitFn>(GetProcAddress(udk, "InitializeXamlDiagnosticsEx")))
-            frameworks.push_back({ L"WinUI 3", init });
-
-    for (int round = 1; round <= 30; round++)
+        init = reinterpret_cast<InitFn>(GetProcAddress(wux, "InitializeXamlDiagnosticsEx"));
+    if (!init)
     {
-        for (auto& f : frameworks)
+        name = L"WinUI 3";
+        if (HMODULE udk = GetModuleHandleW(L"Microsoft.Internal.FrameworkUdk.dll"))
+            init = reinterpret_cast<InitFn>(GetProcAddress(udk, "InitializeXamlDiagnosticsEx"));
+    }
+    if (!init)
+    {
+        Trace(L"No XAML diagnostics in this Explorer");
+        return 1;
+    }
+
+    int next = 1;
+    bool connected = false;
+    for (int round = 1; round <= 120 && !g_sawTaskbar; round++)
+    {
+        while (!g_sawTaskbar)
         {
             HRESULT hr = E_FAIL;
-            int number = 0;
-            std::thread([&] { hr = Connect(f.init, path, number); }).join();
-            if (SUCCEEDED(hr))
+            int number = next;
+            int walks = g_walks;
+            std::thread([&] { hr = Connect(init, path, number); }).join();
+            if (hr == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
             {
-                Trace(L"Connected to %s as VisualDiagConnection%d", f.name, number);
-                return 0;
+                if (round == 1 && !connected) Trace(L"%s: nothing to connect to yet", name);
+                break;
             }
-            if (round == 1 || round == 30) Trace(L"%s: 0x%08X (round %d)", f.name, hr, round);
+            next = number + 1;
+            if (FAILED(hr))
+            {
+                Trace(L"%s, VisualDiagConnection%d: 0x%08X", name, number, hr);
+                continue;
+            }
+            connected = true;
+            Trace(L"Connected to %s as VisualDiagConnection%d", name, number);
+            // Let it walk its tree before trying the next one.
+            for (int wait = 0; wait < 50 && g_walks == walks && !g_sawTaskbar; wait++) Sleep(100);
         }
-        Sleep(1000);
+        if (!g_sawTaskbar) Sleep(1000);
     }
-    return 1;
+    if (!g_sawTaskbar) Trace(L"No taskbar background in any XAML instance after two minutes");
+    return connected ? 0 : 1;
 }
 
 static bool InExplorer()

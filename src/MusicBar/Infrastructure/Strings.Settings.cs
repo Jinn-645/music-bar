@@ -30,8 +30,6 @@ public static partial class Strings
         d.Add("Set_StartWithWindows", ("Start with Windows", "Khởi động cùng Windows"));
         d.Add("Set_HideIdle", ("Hide when no music is playing", "Ẩn khi không có nhạc"));
         d.Add("Set_HideIdle_Desc", ("The taskbar goes back to normal; MusicBar shows up again when an app starts playing.", "Taskbar trở về như cũ; MusicBar tự hiện lại khi một ứng dụng bắt đầu phát."));
-        d.Add("Set_HideFullscreen", ("Hide when an app is full screen", "Ẩn khi có ứng dụng toàn màn hình"));
-        d.Add("Set_HideFullscreen_Desc", ("Games, full-screen video, presentations...", "Game, video toàn màn hình, trình chiếu..."));
         d.Add("Set_General_GroupSource", ("Music source", "Nguồn nhạc"));
         d.Add("Set_Source", ("Tracked app", "Ứng dụng được theo dõi"));
         d.Add("Set_Source_Desc", ("Automatic picks the app that's playing; pin an app to always show it.", "Tự động sẽ chọn ứng dụng đang phát; ghim một ứng dụng để luôn hiện nó."));
@@ -57,7 +55,9 @@ public static partial class Strings
         d.Add("Set_Transparent_DescTranslucentTB", ("TranslucentTB is running, so MusicBar leaves this to it.", "TranslucentTB đang chạy nên MusicBar để nó lo phần này."));
         d.Add("Set_Transparent_DescRestartExplorer", ("The taskbar helper from an older MusicBar is still loaded in Explorer and would clear every monitor's taskbar, so MusicBar is tinting over the taskbar for now. Restart Explorer (button below) to finish the update.", "Bộ phận làm trong suốt của bản MusicBar cũ vẫn đang nạp trong Explorer và sẽ xoá nền taskbar của mọi màn hình, nên tạm thời MusicBar phủ mờ lên taskbar. Bấm Khởi động lại Explorer (bên dưới) để hoàn tất cập nhật."));
         d.Add("Set_Background", ("Background under the progress bar", "Nền dưới thanh tiến trình"));
-        d.Add("Set_Background_Desc", ("Light suits Windows' light mode, where the taskbar icons are black. On a light background the lyrics and buttons turn dark too.", "Nền sáng hợp với chế độ sáng của Windows, khi icon taskbar màu đen. Trên nền sáng, lời bài hát và nút cũng chuyển sang màu tối."));
+        d.Add("Set_Background_Desc", ("On a light background the lyrics and buttons turn dark.", "Trên nền sáng, lời bài hát và nút chuyển sang màu tối."));
+        d.Add("Set_MatchWindowsMode", ("Windows' taskbar icons follow the background", "Icon taskbar của Windows đổi màu theo nền"));
+        d.Add("Set_MatchWindowsMode_Desc", ("Switches Windows' taskbar between light and dark mode to match, so the tray icons, Wi-Fi, volume and the clock stay readable. The Start menu follows too. Exit MusicBar or turn this off and Windows goes back to how you had it.", "Tự chuyển taskbar của Windows sang chế độ sáng hoặc tối cho khớp, để icon khay, Wi-Fi, loa và đồng hồ luôn dễ nhìn. Menu Start cũng đổi theo. Thoát MusicBar hoặc tắt mục này là Windows về lại như cũ."));
         d.Add("Set_BgOpacity", ("Background opacity", "Độ đậm nền"));
         d.Add("Set_BgOpacity_Desc", ("Doesn't apply to the transparent background. Capped at 35% when tinted over the taskbar.", "Không áp dụng cho nền trong suốt. Ở chế độ phủ mờ tối đa 35%."));
         d.Add("Set_LayerMode", ("MusicBar's layer and the taskbar icons", "Lớp MusicBar so với icon taskbar"));
@@ -91,6 +91,9 @@ public static partial class Strings
         d.Add("Set_Bar_GroupTray", ("System tray", "Khay hệ thống"));
         d.Add("Set_ControlCenter", ("MusicBar control center", "Trung tâm điều khiển MusicBar"));
         d.Add("Set_ControlCenter_Desc", ("The network / volume button (Windows 11) or the Control Center button (ExplorerPatcher) opens MusicBar's panel: notifications, quick settings, volume and speaker choice. On a Windows 10-style taskbar, the volume icon and the notification bell are folded into it. Exit MusicBar and everything goes back to how it was.", "Nút mạng / âm lượng (Windows 11) hoặc nút Control Center (ExplorerPatcher) mở bảng của MusicBar: thông báo, cài đặt nhanh, âm lượng và chọn loa. Trên taskbar kiểu Windows 10, icon âm lượng và chuông thông báo được gộp vào đó. Thoát MusicBar là mọi thứ trở lại như cũ."));
+
+        d.Add("Set_WinA", ("Win + A opens it", "Win + A mở trung tâm này"));
+        d.Add("Set_WinA_Desc", ("The shortcut for Windows' Quick Settings opens MusicBar's control center instead. Off: Win + A stays with Windows.", "Phím tắt mở Quick Settings của Windows sẽ mở trung tâm điều khiển của MusicBar. Tắt: Win + A vẫn là của Windows."));
 
         // ---- player page
         d.Add("Set_Player_Subtitle", ("The capsule on the taskbar with the cover and playback buttons. Right-click it for quick options.", "Viên nhỏ trên taskbar gồm ảnh bìa và nút điều khiển. Chuột phải lên nó để chỉnh nhanh."));
@@ -173,6 +176,48 @@ public static partial class Strings
         d.Add("Set_Progress_GroupStyle", ("Style", "Kiểu"));
         d.Add("Set_Progress_StyleHint", ("The previews run live with the colors of the song that's playing. Click one to choose it.", "Bản xem trước chạy thật với màu của bài đang phát. Bấm để chọn."));
         d.Add("Set_Progress_GroupMotion", ("Direction and motion", "Hướng và chuyển động"));
+        d.Add("Set_Face_GroupPictures", ("Pictures for your face", "Ảnh cho mặt của bạn"));
+        d.Add("Set_Face_PicturesHint", ("One picture per mood: PNG, JPG, GIF or WebP, animated ones too. They are kept to 256 pixels so the face stays light. Only Idle is needed; a mood without a picture borrows a close one.",
+            "Mỗi tâm trạng một ảnh: PNG, JPG, GIF hoặc WebP, ảnh động cũng được. Ảnh được giữ tối đa 256 px cho nhẹ máy. Chỉ cần ảnh Bình thường; tâm trạng chưa có ảnh sẽ mượn ảnh gần giống."));
+        d.Add("Set_Face_OpenFolder", ("Open the pictures folder", "Mở thư mục ảnh"));
+        d.Add("Set_Progress_GroupVisualizer", ("Visualizers", "Visualizer"));
+        d.Add("Set_Progress_VisualizerHint", ("Instead of the progress, the taskbar dances to the music itself: what your speakers play, read on this PC.",
+            "Thay cho thanh tiến trình, cả taskbar nhảy theo chính bản nhạc: đọc âm thanh loa đang phát, ngay trên máy bạn."));
+        d.Add("Set_Palette", ("Colors", "Bảng màu"));
+        d.Add("Set_Palette_Desc", ("Each style keeps its own: the song's colors, a palette, or three of your own.", "Mỗi kiểu nhớ màu riêng: theo bài hát, một bảng phối sẵn, hoặc ba màu của bạn."));
+        d.Add("Set_Palette_For", ("for {0}", "cho {0}"));
+        d.Add("Set_Progress_GroupSkins", ("Your skins", "Skin của bạn"));
+        d.Add("Set_Progress_SkinsHint", ("A skin is a small shader file (.hlsl) that paints the bar on the graphics card. Make one yourself or ask an AI: the guide has everything it needs.",
+            "Skin là một file shader nhỏ (.hlsl) vẽ thanh bằng card đồ họa. Tự viết, hoặc nhờ AI viết: trong hướng dẫn có đủ những gì nó cần."));
+        d.Add("Set_Skin_Import", ("Import a skin…", "Nhập skin…"));
+        d.Add("Set_Skin_Samples", ("Add the sample skins", "Thêm skin mẫu"));
+        d.Add("Set_Skin_Folder", ("Open the skins folder", "Mở thư mục skin"));
+        d.Add("Set_Skin_Guide", ("How to make one (for you or an AI)", "Cách làm skin (cho bạn hoặc AI)"));
+        d.Add("Set_Skin_None", ("No skins yet. Add the samples to see what one can do.", "Chưa có skin nào. Thêm skin mẫu để xem skin làm được gì."));
+        d.Add("Set_Skin_KindVisualizer", ("Visualizer skin", "Skin visualizer"));
+        d.Add("Set_Skin_KindProgress", ("Progress skin", "Skin thanh tiến trình"));
+        d.Add("Set_Skin_Broken", ("Doesn't compile: {0}", "Chưa chạy được: {0}"));
+        d.Add("Set_Skin_Delete", ("Delete this skin", "Xóa skin này"));
+        d.Add("Set_Skin_DeleteAsk", ("Delete the skin \"{0}\"?", "Xóa skin \"{0}\"?"));
+        d.Add("Set_Skin_Filter", ("MusicBar skins", "Skin MusicBar"));
+        d.Add("Set_Skin_Imported", ("Added \"{0}\".", "Đã thêm \"{0}\"."));
+        d.Add("Set_Skin_ImportFailed", ("{0} doesn't compile, so it wasn't added: {1}", "{0} chưa chạy được nên chưa thêm: {1}"));
+        d.Add("Set_Skin_SamplesAdded", ("Added {0} sample skins.", "Đã thêm {0} skin mẫu."));
+        d.Add("Set_Skin_SamplesThere", ("The sample skins are already here.", "Các skin mẫu đã có sẵn rồi."));
+        d.Add("Pal_Song", ("The song's", "Theo bài hát"));
+        d.Add("Pal_Custom", ("Your own", "Tự chọn"));
+        d.Add("Pal_CustomHint", ("Three colors (#RRGGBB):", "Ba màu (#RRGGBB):"));
+        d.Add("Pal_Sunset", ("Sunset", "Hoàng hôn"));
+        d.Add("Pal_Ocean", ("Ocean", "Đại dương"));
+        d.Add("Pal_Aurora", ("Aurora", "Cực quang"));
+        d.Add("Pal_Neon", ("Neon", "Neon"));
+        d.Add("Pal_Candy", ("Candy", "Kẹo bông"));
+        d.Add("Pal_Sakura", ("Sakura", "Anh đào"));
+        d.Add("Pal_Forest", ("Forest", "Rừng xanh"));
+        d.Add("Pal_Ember", ("Ember", "Than hồng"));
+        d.Add("Pal_Gold", ("Gold", "Vàng kim"));
+        d.Add("Pal_Glacier", ("Glacier", "Băng tuyết"));
+        d.Add("Pal_Mono", ("Silver", "Bạc"));
         d.Add("Set_SeekDirection", ("Direction", "Hướng chạy"));
         d.Add("Set_SeekDirection_Desc", ("Which way the progress grows along the taskbar.", "Thanh tiến trình chạy theo hướng nào dọc taskbar."));
         d.Add("Set_FillOpacity", ("Opacity", "Độ đậm"));
@@ -203,7 +248,7 @@ public static partial class Strings
         d.Add("Set_NextLine", ("Show the next line", "Hiện dòng kế tiếp"));
         d.Add("Set_NextLine_Desc", ("Needs a taskbar at least 40 px tall (medium icons), or a vertical one.", "Cần taskbar cao từ 40 px (icon cỡ thường), hoặc taskbar dọc."));
         d.Add("Set_Offset", ("Global timing offset", "Độ lệch thời gian chung"));
-        d.Add("Set_Offset_Desc", ("Positive values show lyrics earlier. Each song can be adjusted on its own: the scroll wheel over the lyrics, or the lyrics panel.", "Số dương: lời hiện sớm hơn. Từng bài chỉnh riêng được: lăn chuột trên lyrics, hoặc trong bảng lyrics."));
+        d.Add("Set_Offset_Desc", ("Plus shows lyrics later, minus earlier, like a subtitle delay. Each song can be adjusted on its own: the scroll wheel over the lyrics, or the lyrics panel.", "Số dương: lời hiện trễ hơn, số âm: sớm hơn, như chỉnh phụ đề phim. Từng bài chỉnh riêng được: lăn chuột trên lyrics, hoặc trong bảng lyrics."));
         d.Add("Set_Romanization", ("Romanization", "Phiên âm"));
         d.Add("Set_Romanization_Desc", ("Korean, Japanese and Chinese songs in Latin letters. Japanese kanji need Japanese installed in Windows.", "Bài Hàn, Nhật, Trung hiện bằng chữ La-tinh. Kanji tiếng Nhật cần Windows có cài tiếng Nhật."));
         d.Add("Set_LyricsPanel", ("The whole song's lyrics", "Lời cả bài"));

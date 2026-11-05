@@ -181,13 +181,6 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern bool UnhookWinEvent(IntPtr hook);
 
-    public const int QUNS_BUSY = 2;
-    public const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
-    public const int QUNS_PRESENTATION_MODE = 4;
-
-    [DllImport("shell32.dll")]
-    public static extern int SHQueryUserNotificationState(out int state);
-
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(IntPtr hWnd, int cmd);
 

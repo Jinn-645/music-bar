@@ -341,13 +341,8 @@ public sealed class LyricsPresenter : Grid, ILyricsView
         return -1;
     }
 
-    /// <summary>How long the line is actually sung: next line start, capped by a length-based estimate.</summary>
-    static TimeSpan Cap(LyricLine l)
-    {
-        double natural = (l.End - l.Start).TotalSeconds * 0.95;
-        double estimate = 0.9 + l.Text.Length * 0.17;
-        return TimeSpan.FromSeconds(Math.Max(0.4, Math.Min(natural, estimate)));
-    }
+    /// <summary>How long the line is actually sung: until the next line, at most its syllables' worth.</summary>
+    static TimeSpan Cap(LyricLine l) => l.Sung;
 
     /// <summary>How much of the line is sung: by its words' times when it was synced word by word, otherwise estimated.</summary>
     static double Progress(LyricLine l, TimeSpan pos)

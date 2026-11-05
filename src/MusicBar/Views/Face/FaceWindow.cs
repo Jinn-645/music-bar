@@ -112,12 +112,18 @@ public sealed class FaceWindow : Window
     public void ApplyStyle(AppSettings s, bool lightBar)
     {
         _view.Look = s.FaceStyle;
+        // The user's pictures, read again whenever they change them (FacePackStamp moves).
+        if (s.FaceStyle != FaceStyle.Custom) _view.Pack = null;
+        else if (_view.Pack == null || _packStamp != s.FacePackStamp) _view.Pack = new Services.FacePack();
+        _packStamp = s.FacePackStamp;
         _view.Ink = lightBar ? LyricStyle.Ink : Color.FromRgb(0xFF, 0xFD, 0xF6);
         _shadow.Color = lightBar ? Colors.White : Colors.Black;
         _view.Brain.FollowsClock = s.FaceFollowsClock;
         _view.Brain.ReactsToMusic = s.FaceReactsToMusic;
         _view.Brain.HoldsMic = s.FaceHoldsMic;
     }
+
+    long _packStamp;
 
     public void SetAccent(Color accent) => _view.Accent = accent;
 

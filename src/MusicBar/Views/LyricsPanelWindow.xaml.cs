@@ -82,6 +82,9 @@ public partial class LyricsPanelWindow : Window
         InitializeComponent();
         Resources["Accent"] = _accent;
         _clock.Tick += (_, _) => Tick();
+        _repeat.Tick += Repeat_Tick;
+        WireRepeat(EarlierButton, +250);
+        WireRepeat(LaterButton, -250);
         _host.LyricsChanged += OnLyricsChanged;
         Deactivated += (_, _) => Dismiss();
         Closed += (_, _) =>
@@ -385,12 +388,50 @@ public partial class LyricsPanelWindow : Window
     void UpdateOffsetText()
     {
         int ms = (int)(_host.Lyrics?.Lyrics?.Offset.TotalMilliseconds ?? 0);
-        OffsetText.Text = ms == 0 ? Loc.T("LyrP_InTime") : Loc.T("LyrP_Offset", (ms / 1000.0).ToString("+0.00;-0.00"));
+        OffsetText.Text = LyricsService.DescribeTiming(ms);
     }
 
-    void Earlier_Click(object sender, RoutedEventArgs e) => Nudge(+250);
+    void Earlier_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_held) Nudge(+250);
+        _held = false;
+    }
 
-    void Later_Click(object sender, RoutedEventArgs e) => Nudge(-250);
+    void Later_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_held) Nudge(-250);
+        _held = false;
+    }
+
+    // Holding a nudge button repeats it, slowly at first and then faster, so a big correction
+    // takes one press instead of a dozen clicks.
+    readonly DispatcherTimer _repeat = new();
+    int _repeatStep, _repeatCount;
+    // The press turned into a hold: the click that ends it adds nothing more.
+    bool _held;
+
+    void WireRepeat(Button button, int step)
+    {
+        button.PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            _held = false;
+            _repeatStep = step;
+            _repeatCount = 0;
+            _repeat.Interval = TimeSpan.FromMilliseconds(420);
+            _repeat.Start();
+        };
+        button.PreviewMouseLeftButtonUp += (_, _) => _repeat.Stop();
+        button.MouseLeave += (_, _) => _repeat.Stop();
+        button.LostMouseCapture += (_, _) => _repeat.Stop();
+    }
+
+    void Repeat_Tick(object? sender, EventArgs e)
+    {
+        _held = true;
+        _repeatCount++;
+        _repeat.Interval = TimeSpan.FromMilliseconds(_repeatCount < 6 ? 140 : _repeatCount < 16 ? 90 : 55);
+        Nudge(_repeatStep);
+    }
 
     void OffsetText_Click(object sender, MouseButtonEventArgs e)
     {
@@ -560,7 +601,7 @@ public partial class LyricsPanelWindow : Window
         var length = _draft.Duration.ToString(_draft.Duration.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss");
         ShareFacts.Text = _draft.OffsetMs == 0
             ? Loc.T("LyrS_Facts", _draft.Lines, length)
-            : Loc.T("LyrS_FactsOffset", _draft.Lines, length, (_draft.OffsetMs / 1000.0).ToString("+0.00;-0.00"));
+            : Loc.T("LyrS_FactsOffset", _draft.Lines, length, LyricsService.DescribeTiming(_draft.OffsetMs));
         ShareStatus.Visibility = Visibility.Collapsed;
         ShareButton.IsEnabled = true;
     }
@@ -595,7 +636,8 @@ public partial class LyricsPanelWindow : Window
         catch (Exception ex)
         {
             Log.Error("Sharing lyrics on LRCLIB failed", ex);
-            ShareStatus.Text = Loc.T("LyrS_Failed");
+            // LRCLIB says why it turned the lyrics down; anything else is the connection.
+            ShareStatus.Text = ex is LyricsService.RefusedException refused ? Loc.T("LyrS_Refused", refused.Reason) : Loc.T("LyrS_Failed");
             ShareStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xA8, 0x96));
             ShareButton.IsEnabled = true;
         }

@@ -19,16 +19,20 @@ namespace MusicBar.Interop;
 /// where it attaches to Explorer's XAML through the public diagnostics API and
 /// stays (the approach TranslucentTB takes). The helper clears exactly the
 /// taskbars listed in a small shared-memory block; if MusicBar exits or crashes,
-/// the block goes away and every taskbar gets its own background back.
+/// the block goes away and every taskbar gets its own background back (and
+/// Windows its own light or dark mode, when MusicBar had changed it).
 /// </summary>
 internal static class XamlTaskbar
 {
-    // Must match the helper (TaskbarTap.cpp): a count, then up to 16 window handles.
+    // Must match the helper (TaskbarTap.cpp): a count, the Windows mode to put back, then up to 16 window handles.
     const string TargetsName = @"Local\MusicBar.TaskbarClear.v2";
     const int MaxTargets = 16;
     // Must match the helper; bumped whenever the helper changes, so a newer one gets loaded.
-    const string ReadyPrefix = @"Local\MusicBar.TaskbarTap.Ready.v3.";
-    const string WatchingPrefix = @"Local\MusicBar.TaskbarTap.Watching.v3.";
+    const int HelperVersion = 11;
+    static readonly string ReadyPrefix = $@"Local\MusicBar.TaskbarTap.Ready.v{HelperVersion}.";
+    static readonly string WatchingPrefix = $@"Local\MusicBar.TaskbarTap.Watching.v{HelperVersion}.";
+    // From v3 (MusicBar 1.2) on, a helper steps aside when a newer one asks, so updating needs no Explorer restart.
+    const int FirstRetiringVersion = 3;
     // The helper of MusicBar 1.0-1.1 keeps Explorer's XAML tree until Explorer restarts, so a
     // newer helper loaded beside it sees nothing. It only knows "clear every taskbar, or none".
     const string LegacyReadyPrefix = @"Local\MusicBar.TaskbarTap.Ready.v2.";
@@ -135,13 +139,35 @@ internal static class XamlTaskbar
         string key = string.Join(",", windows);
         if (key == _published) return;
         _published = key;
+        var view = View();
+        for (int i = 0; i < windows.Count; i++) view.Write(8 + 8 * i, (long)windows[i]);
+        view.Write(0, (uint)windows.Count);
+    }
+
+    static MemoryMappedViewAccessor View()
+    {
         if (_view == null)
         {
             _targets = MemoryMappedFile.CreateOrOpen(TargetsName, 8 + 8 * MaxTargets);
             _view = _targets.CreateViewAccessor();
         }
-        for (int i = 0; i < windows.Count; i++) _view.Write(8 + 8 * i, (long)windows[i]);
-        _view.Write(0, (uint)windows.Count);
+        return _view;
+    }
+
+    /// <summary>
+    /// The Windows taskbar mode the helper puts back should MusicBar end without doing it (ended
+    /// from Task Manager, or a crash): null for none. The helper notices the block going away.
+    /// </summary>
+    public static void PutBackOnEnd(bool? light)
+    {
+        try
+        {
+            View().Write(4, light switch { null => 0u, false => 1u, true => 2u });
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Telling the taskbar helper the mode to put back failed", ex);
+        }
     }
 
     static bool IsLoaded(uint pid)
@@ -162,6 +188,7 @@ internal static class XamlTaskbar
         try
         {
             string dll = WriteHelper();
+            RetirePrevious(pid);
             var module = LoadLibrary(dll);
             var proc = module == IntPtr.Zero ? IntPtr.Zero : GetProcAddress(module, "TapHookProc");
             uint thread = Native.GetWindowThreadProcessId(taskbar, out _);
@@ -197,6 +224,26 @@ internal static class XamlTaskbar
         finally
         {
             if (hook != IntPtr.Zero) UnhookWindowsHookEx(hook);
+        }
+    }
+
+    /// <summary>
+    /// Asks an older helper still watching in this Explorer to give the taskbars back and stop
+    /// (Explorer lets one helper watch at a time, and two would fight over the same taskbar), and
+    /// waits until it has. The 1.2-1.5 helper swapped the taskbar's brush, which could go stale.
+    /// </summary>
+    static void RetirePrevious(uint pid)
+    {
+        for (int version = FirstRetiringVersion; version < HelperVersion; version++)
+        {
+            string watching = $@"Local\MusicBar.TaskbarTap.Watching.v{version}.{pid}";
+            if (!Exists(watching)) continue;
+            using var retire = new EventWaitHandle(false, EventResetMode.ManualReset, $@"Local\MusicBar.TaskbarTap.Retire.v{version}");
+            retire.Set();
+            var waited = System.Diagnostics.Stopwatch.StartNew();
+            while (Exists(watching) && waited.Elapsed < TimeSpan.FromSeconds(5)) Thread.Sleep(100);
+            if (Exists(watching)) Log.Error($"The taskbar helper v{version} did not step aside");
+            else Log.Info($"The taskbar helper v{version} stepped aside in {waited.ElapsedMilliseconds} ms");
         }
     }
 

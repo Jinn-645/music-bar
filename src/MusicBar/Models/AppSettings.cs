@@ -20,7 +20,15 @@ public enum BarBackground { Dark, Tinted, Transparent, Light, LightTinted, Auto,
 public enum AccentSource { AlbumArt, App, SystemAccent, Custom }
 
 /// <summary>How the playback progress is drawn across the taskbar.</summary>
-public enum SeekStyle { Classic, Aurora, Liquid, Neon, Spectrum, Waveform, Ribbon, Cinema, Mosaic, Mesh, Silk, Holo, Bokeh, Ink }
+/// <summary>
+/// How the taskbar's layer is drawn: the progress styles first, then the visualizers (from
+/// Equalizer on), which only dance to the music and show no progress.
+/// </summary>
+public enum SeekStyle
+{
+    Classic, Aurora, Liquid, Neon, Spectrum, Waveform, Ribbon, Cinema, Mosaic, Mesh, Silk, Holo, Bokeh, Ink,
+    Equalizer, Oscilloscope, Horizon, Aura, Fireflies, Led,
+}
 
 /// <summary>
 /// Which way the progress runs: from the start of the taskbar (left, or the bottom of a
@@ -67,6 +75,10 @@ public sealed class AppSettings : ObservableObject
     bool _transparentTaskbar = true;
     public bool TransparentTaskbar { get => _transparentTaskbar; set => Set(ref _transparentTaskbar, value); }
 
+    /// <summary>Win + A opens MusicBar's control center (while it is on) instead of Windows' Quick Settings.</summary>
+    bool _winAOpensControlCenter = true;
+    public bool WinAOpensControlCenter { get => _winAOpensControlCenter; set => Set(ref _winAOpensControlCenter, value); }
+
     /// <summary>Fold the tray's volume icon and notification button into MusicBar's control center.</summary>
     bool _controlCenter = true;
     public bool ControlCenter { get => _controlCenter; set => Set(ref _controlCenter, value); }
@@ -98,9 +110,6 @@ public sealed class AppSettings : ObservableObject
     bool _hideWhenIdle = true;
     public bool HideWhenIdle { get => _hideWhenIdle; set => Set(ref _hideWhenIdle, value); }
 
-    bool _hideInFullscreen = true;
-    public bool HideInFullscreen { get => _hideInFullscreen; set => Set(ref _hideInFullscreen, value); }
-
     bool _startWithWindows;
     public bool StartWithWindows { get => _startWithWindows; set => Set(ref _startWithWindows, value); }
 
@@ -131,6 +140,14 @@ public sealed class AppSettings : ObservableObject
     BarBackground _background = BarBackground.Auto;
     public BarBackground Background { get => _background; set => Set(ref _background, value); }
 
+    /// <summary>Windows' taskbar mode follows the bar, so the tray icons and the clock stay readable on it.</summary>
+    bool _matchWindowsMode = true;
+    public bool MatchWindowsMode { get => _matchWindowsMode; set => Set(ref _matchWindowsMode, value); }
+
+    /// <summary>The user's own Windows taskbar mode while MusicBar has changed it (1 light, 0 dark), -1 when untouched.</summary>
+    int _windowsModeBefore = -1;
+    public int WindowsModeBefore { get => _windowsModeBefore; set => Set(ref _windowsModeBefore, value); }
+
     double _backgroundOpacity = 0.86;
     public double BackgroundOpacity { get => _backgroundOpacity; set => Set(ref _backgroundOpacity, Math.Clamp(value, 0, 1)); }
 
@@ -149,6 +166,14 @@ public sealed class AppSettings : ObservableObject
 
     SeekStyle _seekStyle = SeekStyle.Aurora;
     public SeekStyle SeekStyle { get => _seekStyle; set => Set(ref _seekStyle, value); }
+
+    /// <summary>A skin's file in the Skins folder, drawn instead of <see cref="SeekStyle"/>; empty for none.</summary>
+    string _skin = "";
+    public string Skin { get => _skin; set => Set(ref _skin, value ?? ""); }
+
+    /// <summary>Colors each look keeps instead of the song's (see Services.StylePalettes), by style name or "skin:file".</summary>
+    System.Collections.Generic.Dictionary<string, string> _palettes = [];
+    public System.Collections.Generic.Dictionary<string, string> Palettes { get => _palettes; set => Set(ref _palettes, value ?? []); }
 
     SeekDirection _seekDirection = SeekDirection.FromStart;
     public SeekDirection SeekDirection { get => _seekDirection; set => Set(ref _seekDirection, value); }
@@ -207,6 +232,10 @@ public sealed class AppSettings : ObservableObject
 
     Views.Face.FaceStyle _faceStyle = Views.Face.FaceStyle.Classic;
     public Views.Face.FaceStyle FaceStyle { get => _faceStyle; set => Set(ref _faceStyle, value); }
+
+    /// <summary>Moves on whenever the face's pictures change, so every face reads them again.</summary>
+    long _facePackStamp;
+    public long FacePackStamp { get => _facePackStamp; set => Set(ref _facePackStamp, value); }
 
     FacePlacement _facePlacement = FacePlacement.BesidePlayer;
     public FacePlacement FacePlacement { get => _facePlacement; set => Set(ref _facePlacement, value); }
@@ -303,8 +332,20 @@ public sealed class AppSettings : ObservableObject
     LyricsAlign _lyricsAlign = LyricsAlign.Left;
     public LyricsAlign LyricsAlign { get => _lyricsAlign; set => Set(ref _lyricsAlign, value); }
 
+    /// <summary>Global timing in LRC's sense: positive shows lyrics earlier.</summary>
     int _lyricsOffsetMs;
-    public int LyricsOffsetMs { get => _lyricsOffsetMs; set => Set(ref _lyricsOffsetMs, Math.Clamp(value, -5000, 5000)); }
+    public int LyricsOffsetMs
+    {
+        get => _lyricsOffsetMs;
+        set
+        {
+            if (Set(ref _lyricsOffsetMs, Math.Clamp(value, -5000, 5000))) OnPropertyChanged(nameof(LyricsDelayMs));
+        }
+    }
+
+    /// <summary>The same timing as people read it, a subtitle delay: positive shows lyrics later. Not saved.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int LyricsDelayMs { get => -_lyricsOffsetMs; set => LyricsOffsetMs = -value; }
 
     Romanization _romanization = Romanization.Off;
     public Romanization Romanization { get => _romanization; set => Set(ref _romanization, value); }

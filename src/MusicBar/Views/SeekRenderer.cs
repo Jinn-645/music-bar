@@ -12,9 +12,9 @@ namespace MusicBar.Views;
 
 /// <summary>
 /// Draws the playback progress across the whole taskbar in one of several
-/// styles. Everything is drawn with DrawingContext (GPU), redrawn ~30 times a
-/// second only while an animated style is playing, otherwise only when the
-/// playhead moves a fraction of a pixel.
+/// styles. Everything is drawn with DrawingContext (GPU), redrawn 20-30 times a
+/// second (spectrum bars 60) only while an animated style is playing, otherwise
+/// only when the playhead moves a fraction of a pixel.
 /// </summary>
 public sealed class SeekRenderer : FrameworkElement
 {
@@ -30,6 +30,8 @@ public sealed class SeekRenderer : FrameworkElement
 
     readonly Stopwatch _clock = Stopwatch.StartNew();
     readonly float[] _bands = new float[AudioMeter.BandCount];
+    readonly float[] _wave = new float[AudioMeter.WaveCount];
+    float _beat;
 
     SeekStyle _style = SeekStyle.Aurora;
     SeekDirection _direction = SeekDirection.FromStart;
@@ -61,7 +63,11 @@ public sealed class SeekRenderer : FrameworkElement
 
     readonly List<(double Left, double Right)> _quietZones = [];
 
-    double _lastFrame = -1;
+    // When the last redraw was asked for. Measured from the ask, not from the render, which comes a
+    // little later: measured from the render, a tick right on time fell just short and was skipped.
+    double _askedAt = -1;
+    const double FrameSlack = 0.006;
+    double _peaksAt = -1;
     double _lastPx = -1;
     bool _dirty = true;
 
@@ -120,11 +126,24 @@ public sealed class SeekRenderer : FrameworkElement
 
     public static bool UsesAudio(SeekStyle s) => s is not (SeekStyle.Classic or SeekStyle.Ribbon or SeekStyle.Cinema);
 
+    /// <summary>The styles that only dance to the music, showing no progress.</summary>
+    public static bool IsVisualizer(SeekStyle s) => s >= SeekStyle.Equalizer;
+
+    /// <summary>Styles drawn on every display frame while playing: anything jumping with the beat.</summary>
+    public static bool WantsEveryFrame(SeekStyle s) => s == SeekStyle.Spectrum || IsVisualizer(s);
+
     static bool IsAnimated(SeekStyle s) => s != SeekStyle.Classic;
 
-    /// <summary>Slow, drifting styles look the same at 20 fps and cost a third less.</summary>
-    static double FrameIntervalFor(SeekStyle s) =>
-        s is SeekStyle.Cinema or SeekStyle.Ribbon or SeekStyle.Mesh or SeekStyle.Ink ? 1 / 20.0 : FrameInterval;
+    /// <summary>
+    /// Slow, drifting styles look the same at 20 fps and cost a third less. Spectrum bars jump with
+    /// every beat and look stuttery below 60 (its owner then ticks on every display frame).
+    /// </summary>
+    public static double FrameIntervalFor(SeekStyle s) => s switch
+    {
+        SeekStyle.Cinema or SeekStyle.Ribbon or SeekStyle.Mesh or SeekStyle.Ink => 1 / 20.0,
+        _ when WantsEveryFrame(s) => 1 / 60.0,
+        _ => FrameInterval,
+    };
 
     public void SetState(double progress, bool timeline, bool playing)
     {
@@ -151,16 +170,31 @@ public sealed class SeekRenderer : FrameworkElement
         }
     }
 
-    public void SetColors(Color primary, Color secondary, bool animate)
+    /// <param name="third">A palette's third color; without one it is drawn from the other two.</param>
+    public void SetColors(Color primary, Color secondary, bool animate, Color? third = null)
     {
         double now = Now;
         var (a, b) = CurrentColors(now);
+        var c = CurrentThird(now, a, b);
         _fromA = animate ? a : primary;
         _fromB = animate ? b : secondary;
+        _fromC = animate ? c : third ?? DerivedThird(primary, secondary);
         _toA = primary;
         _toB = secondary;
+        _toC = third ?? DerivedThird(primary, secondary);
         _colorStart = animate ? now : -10;
         _dirty = true;
+    }
+
+    Color _fromC = ColorUtil.Brand, _toC = ColorUtil.Brand;
+
+    static Color DerivedThird(Color a, Color b) => ColorUtil.ShiftHue(ColorUtil.Lerp(a, b, 0.5), 48, 0.04);
+
+    Color CurrentThird(double now, Color a, Color b)
+    {
+        double k = Math.Clamp((now - _colorStart) / ColorFade, 0, 1);
+        k = k * k * (3 - 2 * k);
+        return ColorUtil.Lerp(_fromC, _toC, k);
     }
 
     /// <summary>Album art for the Ribbon and Cinema styles.</summary>
@@ -234,6 +268,34 @@ public sealed class SeekRenderer : FrameworkElement
         return (ColorUtil.Lerp(_fromA, _toA, k), ColorUtil.Lerp(_fromB, _toB, k));
     }
 
+    // ------------------------------------------------------------------ for a skin
+    // With a skin on, this keeps the clock, the audio and the colors and draws nothing itself.
+
+    /// <summary>A skin draws instead: no redraws are asked for.</summary>
+    public bool Skinned { get; set; }
+
+    internal (Color A, Color B, Color C) ColorsNow()
+    {
+        double now = Now;
+        var (a, b) = CurrentColors(now);
+        return (a, b, CurrentThird(now, a, b));
+    }
+
+    /// <summary>The styles' own clock: seconds, running slow while paused.</summary>
+    internal double StyleTime => Now - _lag;
+    internal double ProgressNow => _timeline ? _progress : 0;
+    internal float LevelNow => _level;
+    internal float BeatNow => _beat;
+    internal bool PlayingNow => _playing;
+    internal bool EdgeAtTop => _edgeAtTop;
+    internal float[] WaveNow => _wave;
+
+    /// <summary>The spectrum at a point from 0 (the lowest notes) to 1 (the highest).</summary>
+    internal double Band(double frac) => SampleBand(frac);
+
+    /// <summary>The mask that keeps text readable where lyrics sit, for a skin to wear too; null without lyrics on the bar.</summary>
+    internal Brush? QuietMaskFor(double width) => _quietZones.Count > 0 && width > 0 ? QuietMask(width) : null;
+
     /// <summary>Called every frame by the owner; decides whether a redraw is due.</summary>
     public void Tick()
     {
@@ -251,7 +313,9 @@ public sealed class SeekRenderer : FrameworkElement
         if (_liveAudio)
         {
             audio!.CopyBands(_bands);
+            audio.CopyWave(_wave);
             _level = audio.Level;
+            _beat = audio.Beat;
         }
         else if (_playing)
         {
@@ -261,15 +325,21 @@ public sealed class SeekRenderer : FrameworkElement
         {
             Breathe(now - _lag, dt);
         }
+        if (IsVisualizer(_style)) StepVisualizer(now - _lag, dt);
 
         if (_style == SeekStyle.Waveform) RecordWaveform();
+        if (Skinned) return;
 
         bool fading = now - _colorStart < ColorFade;
         bool animating = (IsAnimated(_style) && (_playing || IdleMotion || _pace > 0.01)) || fading;
         double px = _progress * Run;
         if (animating)
         {
-            if (now - _lastFrame >= FrameIntervalFor(_style)) InvalidateVisual();
+            if (now - _askedAt >= FrameIntervalFor(_style) - FrameSlack)
+            {
+                _askedAt = now;
+                InvalidateVisual();
+            }
         }
         else if (_dirty || Math.Abs(px - _lastPx) >= 1)
         {
@@ -289,6 +359,13 @@ public sealed class SeekRenderer : FrameworkElement
             _bands[b] = (float)Math.Clamp(v * tilt + 0.05, 0, 1);
         }
         _level = (float)(0.45 + 0.25 * Noise(t * 1.7) + beat * 0.3);
+        // A beat at 114 bpm, and a voice-like trace: a few partials drifting against each other.
+        _beat = (float)Math.Pow(Math.Max(0, Math.Cos(t * Math.PI * 1.9)), 24);
+        for (int i = 0; i < _wave.Length; i++)
+        {
+            double x = i / (double)_wave.Length * Math.PI * 2;
+            _wave[i] = (float)(0.55 * Math.Sin(x * 3 + t * 2.1) + 0.25 * Math.Sin(x * 7.3 - t * 3.7) + 0.12 * Math.Sin(x * 13 + t * 5.3)) * (0.6f + _level * 0.4f);
+        }
     }
 
     /// <summary>
@@ -305,6 +382,13 @@ public sealed class SeekRenderer : FrameworkElement
         }
         double level = 0.16 + 0.05 * Math.Sin(t * 0.8) + 0.04 * Noise(t * 0.5);
         _level += (float)((level - _level) * k);
+        _beat *= (float)Math.Exp(-dt * 6);
+        // The trace settles to a slow, shallow swell.
+        for (int i = 0; i < _wave.Length; i++)
+        {
+            double calm = 0.18 * Math.Sin(i / (double)_wave.Length * Math.PI * 4 + t * 0.9);
+            _wave[i] += (float)((calm - _wave[i]) * k);
+        }
     }
 
     // ------------------------------------------------------------------ rendering
@@ -312,17 +396,16 @@ public sealed class SeekRenderer : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         double now = Now;
-        _lastFrame = now;
         _dirty = false;
         double w = ActualWidth, h = ActualHeight;
         if (w < 4 || h < 4) return;
         _renderPass++;
 
-        double run = Run;
+        double run = IsVisualizer(_style) ? w : Run;
         double x = _timeline ? _progress * run : 0;
         _lastPx = x;
         var (a, b) = CurrentColors(now);
-        var c = ColorUtil.ShiftHue(ColorUtil.Lerp(a, b, 0.5), 48, 0.04);
+        var c = CurrentThird(now, a, b);
         double t = now - _lag;
         var f = new Frame(dc, run, h, x, a, b, c, _intensity, _edgeAtTop, t, _level);
 
@@ -330,8 +413,9 @@ public sealed class SeekRenderer : FrameworkElement
         bool quiet = _quietZones.Count > 0;
         if (quiet) dc.PushOpacityMask(QuietMask(w));
         // Every style draws from x = 0 rightwards; the other directions are that drawing
-        // mirrored, or two half-width copies of it back to back.
-        switch (_direction)
+        // mirrored, or two half-width copies of it back to back. A visualizer has no progress
+        // to run from anywhere: it takes the whole width, once.
+        switch (IsVisualizer(_style) ? SeekDirection.FromStart : _direction)
         {
             case SeekDirection.FromStart:
                 DrawStyle(f);
@@ -379,6 +463,12 @@ public sealed class SeekRenderer : FrameworkElement
             case SeekStyle.Holo: DrawHolo(f); break;
             case SeekStyle.Bokeh: DrawBokeh(f); break;
             case SeekStyle.Ink: DrawInk(f); break;
+            case SeekStyle.Equalizer: DrawEqualizer(f); break;
+            case SeekStyle.Oscilloscope: DrawOscilloscope(f); break;
+            case SeekStyle.Horizon: DrawHorizon(f); break;
+            case SeekStyle.Aura: DrawAura(f); break;
+            case SeekStyle.Fireflies: DrawFireflies(f); break;
+            case SeekStyle.Led: DrawLed(f); break;
         }
     }
 
@@ -548,24 +638,68 @@ public sealed class SeekRenderer : FrameworkElement
 
         var played = Vertical(baseY, baseY - (f.Top ? 1 : -1) * maxH,
             (f.B, 0.5 + f.F * 0.5, 0), (f.A, 0.6 + f.F * 0.5, 0.55), (ColorUtil.Lerp(f.A, White, 0.35), 0.75 + f.F * 0.3, 1));
-        var rest = Solid(White, 0.1);
-        var peakPlayed = Solid(White, 0.65);
-        var peakRest = Solid(White, 0.14);
+        // Caps fall at a steady speed whatever the frame rate.
+        double now = Now;
+        double fallen = fall && _peaksAt >= 0 && (_playing || IdleMotion) ? 0.36 * Math.Clamp(now - _peaksAt, 0, 0.1) : 0;
+        if (fall) _peaksAt = now;
 
-        for (int i = 0; i < n; i++)
+        // Every bar of a kind goes into one geometry: four draw calls a frame instead of two per bar.
+        var playedBars = new StreamGeometry();
+        var restBars = new StreamGeometry();
+        var playedCaps = new StreamGeometry();
+        var restCaps = new StreamGeometry();
+        using (var pb = playedBars.Open())
+        using (var rb = restBars.Open())
+        using (var pc = playedCaps.Open())
+        using (var rc = restCaps.Open())
         {
-            double v = SampleBand(i / (double)(n - 1));
-            if (fall) _peaks[i] = (float)Math.Max(v, _peaks[i] - (_playing || IdleMotion ? 0.012 : 0));
-            double bh = Math.Max(1.5, maxH * v);
-            double bx = offset + i * (barWidth + gap);
-            bool isPlayed = bx + barWidth / 2 <= f.X;
-            var rect = f.Top ? new Rect(bx, f.H - bh, barWidth, bh) : new Rect(bx, 0, barWidth, bh);
-            dc.DrawRoundedRectangle(isPlayed ? played : rest, null, rect, 1.6, 1.6);
+            for (int i = 0; i < n; i++)
+            {
+                double v = SampleBand(i / (double)(n - 1));
+                if (fall) _peaks[i] = (float)Math.Max(v, _peaks[i] - fallen);
+                double bh = Math.Max(1.5, maxH * v);
+                double bx = offset + i * (barWidth + gap);
+                bool isPlayed = bx + barWidth / 2 <= f.X;
+                AddBar(isPlayed ? pb : rb, bx, barWidth, baseY, f.Top ? f.H - bh : bh, 1.6);
 
-            double ph = Math.Max(2, maxH * _peaks[i]) + 2;
-            var cap = f.Top ? new Rect(bx, f.H - ph - 1.5, barWidth, 1.5) : new Rect(bx, ph, barWidth, 1.5);
-            dc.DrawRectangle(isPlayed ? peakPlayed : peakRest, null, cap);
+                double ph = Math.Max(2, maxH * _peaks[i]) + 2;
+                double capY = f.Top ? f.H - ph - 1.5 : ph;
+                AddRect(isPlayed ? pc : rc, bx, capY, barWidth, 1.5);
+            }
         }
+        dc.DrawGeometry(played, null, Frozen(playedBars));
+        dc.DrawGeometry(Solid(White, 0.1), null, Frozen(restBars));
+        dc.DrawGeometry(Solid(White, 0.65), null, Frozen(playedCaps));
+        dc.DrawGeometry(Solid(White, 0.14), null, Frozen(restCaps));
+    }
+
+    static StreamGeometry Frozen(StreamGeometry g)
+    {
+        g.Freeze();
+        return g;
+    }
+
+    /// <summary>A bar standing on the screen edge at <paramref name="baseY"/>, its free end rounded.</summary>
+    static void AddBar(StreamGeometryContext g, double x, double width, double baseY, double endY, double radius)
+    {
+        double r = Math.Min(radius, Math.Min(width / 2, Math.Abs(baseY - endY) / 2));
+        // Up from a bottom edge or down from a top one: the corners turn the other way.
+        double toward = endY < baseY ? 1 : -1;
+        var sweep = toward > 0 ? SweepDirection.Clockwise : SweepDirection.Counterclockwise;
+        g.BeginFigure(new Point(x, baseY), true, true);
+        g.LineTo(new Point(x, endY + toward * r), false, false);
+        g.ArcTo(new Point(x + r, endY), new Size(r, r), 0, false, sweep, false, false);
+        g.LineTo(new Point(x + width - r, endY), false, false);
+        g.ArcTo(new Point(x + width, endY + toward * r), new Size(r, r), 0, false, sweep, false, false);
+        g.LineTo(new Point(x + width, baseY), false, false);
+    }
+
+    static void AddRect(StreamGeometryContext g, double x, double y, double width, double height)
+    {
+        g.BeginFigure(new Point(x, y), true, true);
+        g.LineTo(new Point(x + width, y), false, false);
+        g.LineTo(new Point(x + width, y + height), false, false);
+        g.LineTo(new Point(x, y + height), false, false);
     }
 
     double SampleBand(double frac)
@@ -1092,6 +1226,315 @@ public sealed class SeekRenderer : FrameworkElement
     }
 
     /// <summary>A cover colour pushed toward something that glows on a dark bar.</summary>
+    // ------------------------------------------------------------------ visualizers
+    // They only dance to the music: no progress, the whole width, a frame for every display frame.
+
+    // Falling peak caps (Equalizer, LED) and the fireflies, carried from frame to frame.
+    float[] _vizPeaks = [];
+    double _vizPeaksAt = -1;
+    readonly List<Firefly> _flies = [];
+    readonly Random _rng = new(7);
+    double _spawnDebt;
+    float _lastBeat;
+    readonly Dictionary<(Color, int), Brush> _glows = [];
+
+    sealed class Firefly
+    {
+        // Y is the height above the screen edge.
+        public double X, Y, Vx, Vy, Age, Life, Size, Phase;
+        public int Hue;
+    }
+
+    /// <summary>Advances what lives from frame to frame: the fireflies' flight.</summary>
+    void StepVisualizer(double t, double dt)
+    {
+        if (_style != SeekStyle.Fireflies)
+        {
+            _flies.Clear();
+            return;
+        }
+        double w = ActualWidth, h = ActualHeight;
+        if (w < 4 || h < 4) return;
+        // New ones rise with the music: steadily with its loudness, in a burst on each beat.
+        _spawnDebt += dt * (4 + 46 * _level) * (_playing ? 1 : 0.15);
+        if (_beat > 0.85f && _lastBeat <= 0.85f) _spawnDebt += 7 + 10 * _level;
+        _lastBeat = _beat;
+        while (_spawnDebt >= 1 && _flies.Count < 180)
+        {
+            _spawnDebt -= 1;
+            // Low notes rise near the middle, high ones toward the ends, each as busy as its band.
+            double band = _rng.NextDouble();
+            double side = _rng.Next(2) == 0 ? -1 : 1;
+            _flies.Add(new Firefly
+            {
+                X = w / 2 + side * band * w / 2 + (_rng.NextDouble() - 0.5) * 30,
+                Vx = (_rng.NextDouble() - 0.5) * 14,
+                Vy = h * (0.45 + 0.8 * _rng.NextDouble()) * (0.6 + SampleBand(band)),
+                Life = 1.1 + 1.6 * _rng.NextDouble(),
+                Size = 0.8 + 1.5 * _rng.NextDouble(),
+                Phase = _rng.NextDouble() * 10,
+                Hue = _rng.Next(3),
+            });
+        }
+        _spawnDebt = Math.Min(_spawnDebt, 1);
+        for (int i = _flies.Count - 1; i >= 0; i--)
+        {
+            var fly = _flies[i];
+            fly.Age += dt;
+            if (fly.Age >= fly.Life)
+            {
+                _flies.RemoveAt(i);
+                continue;
+            }
+            fly.Y += fly.Vy * dt;
+            fly.X += (fly.Vx + 10 * Math.Sin(t * 2.3 + fly.Phase)) * dt;
+            fly.Vy *= Math.Exp(-dt * 0.6);
+        }
+    }
+
+    /// <summary>Peak caps fall at a steady speed whatever the frame rate.</summary>
+    double FallPeaks(int count, double speed)
+    {
+        if (_vizPeaks.Length != count) _vizPeaks = new float[count];
+        double now = Now;
+        double fallen = _vizPeaksAt >= 0 ? speed * Math.Clamp(now - _vizPeaksAt, 0, 0.1) : 0;
+        _vizPeaksAt = now;
+        return fallen;
+    }
+
+    /// <summary>The spectrum folded around the middle: 0 at the centre (the bass) to 1 at either end (the treble).</summary>
+    static double FromMiddle(int i, int count) => Math.Abs((i + 0.5) / count * 2 - 1);
+
+    // 15. Equalizer: bars standing on the screen edge, the bass in the middle and the treble out
+    // to both ends, balanced around a taskbar's centred icons.
+    void DrawEqualizer(Frame f)
+    {
+        var dc = f.Dc;
+        const double barWidth = 3.2, gap = 2.4;
+        int n = (int)((f.W + gap) / (barWidth + gap)) & ~1;
+        if (n < 4) return;
+        double fallen = FallPeaks(n, 0.55);
+        double offset = (f.W - (n * (barWidth + gap) - gap)) / 2;
+        double baseY = f.Top ? f.H : 0, toward = f.Top ? -1 : 1;
+        double maxH = f.H * 0.92;
+        double lift = 1 + _beat * 0.08;
+
+        var bars = new StreamGeometry();
+        var caps = new StreamGeometry();
+        using (var g = bars.Open())
+        using (var c = caps.Open())
+        {
+            for (int i = 0; i < n; i++)
+            {
+                double v = Math.Clamp(Math.Pow(SampleBand(FromMiddle(i, n)), 0.85) * lift, 0, 1);
+                _vizPeaks[i] = (float)Math.Max(v, _vizPeaks[i] - fallen);
+                double bh = Math.Max(1.5, maxH * v);
+                double bx = offset + i * (barWidth + gap);
+                AddBar(g, bx, barWidth, baseY, baseY + toward * bh, barWidth / 2);
+                double ph = Math.Max(2, maxH * _vizPeaks[i]) + 2.5;
+                AddRect(c, bx, f.Top ? f.H - ph - 1.6 : ph, barWidth, 1.6);
+            }
+        }
+        // A soft bloom off the screen edge, a little brighter on the beat.
+        dc.DrawRectangle(Vertical(baseY, baseY + toward * f.H, (f.A, 0.1 + 0.16 * _beat, 0), (f.A, 0, 1)), null, new Rect(0, 0, f.W, f.H));
+        dc.DrawGeometry(Vertical(baseY, baseY + toward * maxH,
+            (f.B, 0.6 + f.F * 0.4, 0), (f.A, 0.85 + f.F * 0.15, 0.5), (ColorUtil.Lerp(f.C, White, 0.35), 1, 1)), null, Frozen(bars));
+        dc.DrawGeometry(Solid(White, 0.75), null, Frozen(caps));
+    }
+
+    // 16. Oscilloscope: the sound itself, a glowing trace across the bar, its ends pinned to the middle.
+    void DrawOscilloscope(Frame f)
+    {
+        var dc = f.Dc;
+        double mid = f.H / 2;
+        double amp = f.H * 0.42 * (0.35 + 0.65 * Math.Min(1, _level * 1.3));
+        int n = _wave.Length;
+        Point At(int i)
+        {
+            double u = i / (double)(n - 1);
+            return new Point(u * f.W, mid - _wave[i] * amp * Math.Pow(Math.Sin(Math.PI * u), 0.35));
+        }
+        var trace = new StreamGeometry();
+        using (var g = trace.Open())
+        {
+            g.BeginFigure(At(0), false, false);
+            // Through the midpoints between samples: a smooth curve rather than a zigzag.
+            var points = new List<Point>(2 * n);
+            for (int i = 1; i < n - 1; i++)
+            {
+                Point p = At(i), q = At(i + 1);
+                points.Add(p);
+                points.Add(new Point((p.X + q.X) / 2, (p.Y + q.Y) / 2));
+            }
+            g.PolyQuadraticBezierTo(points, true, true);
+        }
+        trace.Freeze();
+        dc.DrawRectangle(Horizontal(0, f.W, (White, 0, 0), (White, 0.07, 0.5), (White, 0, 1)), null, new Rect(0, Math.Round(mid), f.W, 1));
+        var ink = Horizontal(0, f.W, (f.B, 1, 0), (f.A, 1, 0.5), (f.C, 1, 1));
+        foreach (var (alpha, width) in new[] { (0.12 + 0.1 * _beat, 7.0), (0.32, 3.2), (0.95, 1.4) })
+        {
+            dc.PushOpacity(alpha);
+            dc.DrawGeometry(null, new Pen(ink, width) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, trace);
+            dc.Pop();
+        }
+    }
+
+    // 17. Horizon: the spectrum as a smooth ridge mirrored on the bar's middle line, the bass at the centre.
+    void DrawHorizon(Frame f)
+    {
+        var dc = f.Dc;
+        double mid = f.H / 2, amp = f.H * 0.47;
+        const int count = 72;
+        var top = new Point[count];
+        var bottom = new Point[count];
+        for (int i = 0; i < count; i++)
+        {
+            double u = i / (double)(count - 1);
+            double d = Math.Abs(u * 2 - 1);
+            // Tapered at the ends, so the ridge meets the line instead of stopping in mid-air.
+            double v = SampleBand(d) * Math.Pow(1 - d, 0.3) * (1 + _beat * 0.12);
+            double y = Math.Max(0.5, v * amp);
+            top[i] = new Point(u * f.W, mid - y);
+            bottom[count - 1 - i] = new Point(u * f.W, mid + y);
+        }
+        var body = new StreamGeometry();
+        using (var g = body.Open())
+        {
+            g.BeginFigure(top[0], true, true);
+            AddSmooth(g, top);
+            g.LineTo(bottom[0], true, true);
+            AddSmooth(g, bottom);
+        }
+        body.Freeze();
+        var edge = new StreamGeometry();
+        using (var g = edge.Open())
+        {
+            g.BeginFigure(top[0], false, false);
+            AddSmooth(g, top);
+            g.BeginFigure(bottom[0], false, false);
+            AddSmooth(g, bottom);
+        }
+        edge.Freeze();
+        dc.DrawGeometry(Vertical(mid - amp, mid + amp,
+            (f.B, 0.1, 0), (f.A, 0.55 + f.F * 0.35, 0.42), (ColorUtil.Lerp(f.A, White, 0.25), 0.95, 0.5),
+            (f.A, 0.55 + f.F * 0.35, 0.58), (f.B, 0.1, 1)), null, body);
+        dc.DrawGeometry(null, MakePen(ColorUtil.Lerp(f.C, White, 0.4), 0.7, 1), edge);
+        dc.DrawRectangle(Horizontal(0, f.W, (f.C, 0, 0), (White, 0.55 + 0.3 * _beat, 0.5), (f.C, 0, 1)), null, new Rect(0, mid - 0.5, f.W, 1));
+    }
+
+    /// <summary>A smooth curve on through <paramref name="points"/> (Catmull-Rom), from the first, already reached.</summary>
+    static void AddSmooth(StreamGeometryContext g, IReadOnlyList<Point> points)
+    {
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            Point p0 = points[Math.Max(0, i - 1)], p1 = points[i], p2 = points[i + 1], p3 = points[Math.Min(points.Count - 1, i + 2)];
+            var c1 = new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6);
+            var c2 = new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6);
+            g.BezierTo(c1, c2, p2, true, true);
+        }
+    }
+
+    // 18. Aura: soft lights rising off the screen edge, each swelling with its part of the music:
+    // the bass in the middle, the treble at the ends. A sheen crosses the bar on the beat.
+    void DrawAura(Frame f)
+    {
+        var dc = f.Dc;
+        double[] at = [0.5, 0.33, 0.67, 0.16, 0.84, 0.02, 0.98];
+        double[] part = [0.03, 0.24, 0.3, 0.52, 0.58, 0.82, 0.88];
+        var colors = new[] { f.A, f.B, f.C, f.C, f.A, f.B, f.C };
+        double cy = f.Top ? f.H : 0;
+        for (int i = 0; i < at.Length; i++)
+        {
+            double e = SampleBand(part[i]);
+            double cx = at[i] * f.W + Math.Sin(f.T * (0.21 + 0.07 * i) + i * 1.7) * f.W * 0.025;
+            double rx = f.W * (0.06 + 0.12 * e) * (i == 0 ? 1.35 : 1);
+            double ry = f.H * (0.9 + 1.5 * e);
+            double a = Math.Min(1, (0.16 + 0.66 * e) * (0.75 + f.F * 0.75));
+            var c = colors[i];
+            dc.DrawRectangle(Radial(cx, cy, rx, ry, (ColorUtil.Lerp(c, White, 0.25 * e), a, 0), (c, a * 0.5, 0.4), (c, 0, 1)),
+                null, new Rect(cx - rx, cy - ry, 2 * rx, 2 * ry));
+        }
+        if (_beat > 0.02)
+            dc.DrawRectangle(Vertical(cy, f.H - cy, (White, 0.13 * _beat, 0), (White, 0, 1)), null, new Rect(0, 0, f.W, f.H));
+    }
+
+    // 19. Fireflies: sparks rising off the screen edge, more as the music gets louder and a burst on every beat.
+    void DrawFireflies(Frame f)
+    {
+        var dc = f.Dc;
+        double edge = f.Top ? f.H : 0;
+        dc.DrawRectangle(Vertical(edge, f.H - edge, (f.A, 0.1 + 0.18 * f.Level, 0), (f.A, 0, 1)), null, new Rect(0, 0, f.W, f.H));
+        var colors = new[] { f.A, f.B, ColorUtil.Lerp(f.C, White, 0.3) };
+        foreach (var fly in _flies)
+        {
+            double k = fly.Age / fly.Life;
+            double fade = Math.Min(1, k * 6) * (1 - Smooth(k));
+            double y = f.Top ? f.H - fly.Y : fly.Y;
+            if (y < -6 || y > f.H + 6 || fade <= 0.02) continue;
+            var c = colors[fly.Hue];
+            double r = fly.Size * (1 + 0.45 * Math.Sin(f.T * 9 + fly.Phase));
+            dc.DrawEllipse(Glow(c, fade), null, new Point(fly.X, y), r * 4, r * 4);
+            dc.DrawEllipse(Solid(ColorUtil.Lerp(c, White, 0.65), 0.9 * fade), null, new Point(fly.X, y), r * 0.75, r * 0.75);
+        }
+    }
+
+    /// <summary>A soft round glow in a color, at one of a few strengths (kept, not made anew every frame).</summary>
+    Brush Glow(Color c, double strength)
+    {
+        int step = (int)Math.Round(Math.Clamp(strength, 0, 1) * 8);
+        if (_glows.TryGetValue((c, step), out var brush)) return brush;
+        if (_glows.Count > 96) _glows.Clear();
+        var made = new RadialGradientBrush(ColorUtil.WithAlpha(c, 0.4 * step / 8), ColorUtil.WithAlpha(c, 0));
+        made.Freeze();
+        _glows[(c, step)] = made;
+        return made;
+    }
+
+    // 20. LED: a dot-matrix spectrum, cool by the screen edge and hot at the top, with held peaks.
+    void DrawLed(Frame f)
+    {
+        var dc = f.Dc;
+        const double cell = 3.4, gap = 1.6;
+        int cols = (int)((f.W + gap) / (cell + gap));
+        int rows = Math.Max(3, (int)((f.H * 0.92 + gap) / (cell + gap)));
+        if (cols < 2) return;
+        double fallen = FallPeaks(cols, 0.45);
+        double offset = (f.W - (cols * (cell + gap) - gap)) / 2;
+        var dark = new StreamGeometry();
+        var low = new StreamGeometry();
+        var middle = new StreamGeometry();
+        var high = new StreamGeometry();
+        var peak = new StreamGeometry();
+        using (var gd = dark.Open())
+        using (var gl = low.Open())
+        using (var gm = middle.Open())
+        using (var gh = high.Open())
+        using (var gp = peak.Open())
+        {
+            for (int col = 0; col < cols; col++)
+            {
+                double v = Math.Clamp(SampleBand(FromMiddle(col, cols)) * (1 + _beat * 0.1), 0, 1);
+                _vizPeaks[col] = (float)Math.Max(v, _vizPeaks[col] - fallen);
+                int lit = (int)Math.Round(v * rows);
+                int held = Math.Max(lit, (int)Math.Round(_vizPeaks[col] * rows)) - 1;
+                double x = offset + col * (cell + gap);
+                for (int row = 0; row < rows; row++)
+                {
+                    double y = f.Top ? f.H - 1 - (row + 1) * (cell + gap) + gap : 1 + row * (cell + gap);
+                    var target = row < lit ? (row < rows * 0.5 ? gl : row < rows * 0.8 ? gm : gh)
+                        : row == held && held >= lit ? gp
+                        : gd;
+                    AddRect(target, x, y, cell, cell);
+                }
+            }
+        }
+        dc.DrawGeometry(Solid(White, 0.05), null, Frozen(dark));
+        dc.DrawGeometry(Solid(f.B, 0.95), null, Frozen(low));
+        dc.DrawGeometry(Solid(f.A, 1), null, Frozen(middle));
+        dc.DrawGeometry(Solid(ColorUtil.Lerp(f.C, White, 0.3), 1), null, Frozen(high));
+        dc.DrawGeometry(Solid(White, 0.8), null, Frozen(peak));
+    }
+
     static Color Vivid(Color c)
     {
         ColorUtil.ToHsl(c, out var h, out var s, out var l);

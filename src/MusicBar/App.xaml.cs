@@ -87,10 +87,15 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
         {
             Log.Error("Fatal exception", ex.ExceptionObject as Exception);
-            // Do not leave the tray's volume icon and notification button hidden behind us.
+            // Do not leave the tray's volume icon and notification button hidden behind us, nor Windows in our mode.
             TrayMerge.Restore();
+            WindowsModeSync.PutBackNow();
         };
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => TrayMerge.Restore();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            TrayMerge.Restore();
+            WindowsModeSync.PutBackNow();
+        };
         TaskScheduler.UnobservedTaskException += (_, ex) =>
         {
             Log.Error("Unobserved task exception", ex.Exception);

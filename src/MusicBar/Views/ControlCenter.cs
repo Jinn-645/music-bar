@@ -82,6 +82,7 @@ internal sealed class ControlCenter : IDisposable
     public void Tick()
     {
         if (_disposed) return;
+        UpdateWinA();
         if (!_s.ControlCenter)
         {
             if (_merged)
@@ -134,6 +135,32 @@ internal sealed class ControlCenter : IDisposable
             Native.SetWindowPos(_hotspot.Hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, KeepPlace);
     }
 
+    /// <summary>Win + A opens this panel while it stands in for Windows' Quick Settings (and the user wants it so).</summary>
+    void UpdateWinA()
+    {
+        bool want = _s.ControlCenter && _s.WinAOpensControlCenter && Supported;
+        if (want == (_winA != null)) return;
+        if (want)
+        {
+            var ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            _winA = new WinAHook(() => ui.BeginInvoke(() =>
+            {
+                if (_disposed) return;
+                if (_panel.IsOpen) _panel.Dismiss();
+                else Toggle();
+            }));
+            Log.Info("Win + A opens MusicBar's control center");
+        }
+        else
+        {
+            _winA!.Dispose();
+            _winA = null;
+            Log.Info("Win + A left to Windows");
+        }
+    }
+
+    WinAHook? _winA;
+
     void HideHotspot()
     {
         if (!_hotspotShown) return;
@@ -183,6 +210,8 @@ internal sealed class ControlCenter : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _winA?.Dispose();
+        _winA = null;
         _feed.Stop();
         if (_merged) _tray.Release();
         _hotspot.Close();

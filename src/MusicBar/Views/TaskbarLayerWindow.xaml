@@ -14,5 +14,7 @@
         <Border x:Name="Surface" />
         <!-- Playback progress, drawn in the chosen style -->
         <v:SeekRenderer x:Name="Seek" />
+        <!-- A skin's shader paints here instead; the renderer above still keeps time and listens. -->
+        <v:SkinView x:Name="SkinHost" Visibility="Collapsed" />
     </Grid>
 </Window>

@@ -75,6 +75,19 @@ public static partial class Strings
         d.Add("Seek_Mosaic_Desc", ("A grid of squares sparkling in the song's palette", "Ma trận ô vuông lấp lánh theo bảng màu bài hát"));
         d.Add("Seek_Classic", ("Classic", "Cổ điển"));
         d.Add("Seek_Classic_Desc", ("A color fill with a glow at the playhead", "Phủ màu và quầng sáng ở đầu phát"));
+        // ---- visualizers: the music only, no progress
+        d.Add("Seek_Equalizer", ("Equalizer", "Cột sóng"));
+        d.Add("Seek_Equalizer_Desc", ("Bars across the taskbar, bass in the middle, treble at the ends", "Cột nhạc khắp taskbar, trầm ở giữa, bổng ra hai đầu"));
+        d.Add("Seek_Oscilloscope", ("Oscilloscope", "Dao động"));
+        d.Add("Seek_Oscilloscope_Desc", ("The sound wave itself, a glowing trace", "Chính sóng âm, một nét sáng chạy ngang"));
+        d.Add("Seek_Horizon", ("Horizon", "Chân trời"));
+        d.Add("Seek_Horizon_Desc", ("The spectrum as a ridge mirrored on a line of light", "Phổ âm thành dải núi soi bóng trên một đường sáng"));
+        d.Add("Seek_Aura", ("Aura", "Hào quang"));
+        d.Add("Seek_Aura_Desc", ("Soft lights that swell with their part of the music", "Những quầng sáng mềm phồng lên theo từng phần của bản nhạc"));
+        d.Add("Seek_Fireflies", ("Fireflies", "Đom đóm"));
+        d.Add("Seek_Fireflies_Desc", ("Sparks rising from the edge, a burst on every beat", "Đốm sáng bay lên từ mép màn hình, bùng lên theo từng nhịp"));
+        d.Add("Seek_Led", ("LED matrix", "Đèn LED"));
+        d.Add("Seek_Led_Desc", ("A dot-matrix spectrum, cool to hot, with held peaks", "Phổ âm bằng ma trận đèn, từ mát đến nóng, có vạch đỉnh"));
 
         // ---- lyric effects
         d.Add("Fx_SlideUp", ("Slide up", "Cuộn lên (Slide up)"));
@@ -128,6 +141,34 @@ public static partial class Strings
         d.Add("Face_Cat_Desc", ("Pointy ears, whiskers, :3", "Tai nhọn, ria mép, miệng :3"));
         d.Add("Face_Derp", ("Derp", "Ngáo"));
         d.Add("Face_Derp_Desc", ("Googly eyes and a toothy grin", "Mắt lệch, cười nhe răng"));
+        d.Add("Face_Custom", ("Your own", "Mặt của bạn"));
+        d.Add("Face_Custom_Desc", ("Your pictures, GIFs or WebPs, one for each mood", "Ảnh, GIF hoặc WebP của bạn cho từng tâm trạng"));
+        // The moods a face of pictures has a picture for (Services.FacePack.States).
+        d.Add("Face_State_idle", ("Idle", "Bình thường"));
+        d.Add("Face_State_idle_Desc", ("Required: used for any mood without a picture", "Bắt buộc: dùng cho mọi trạng thái chưa có ảnh"));
+        d.Add("Face_State_playing", ("Music playing", "Đang phát nhạc"));
+        d.Add("Face_State_playing_Desc", ("Singing along", "Đang hát theo"));
+        d.Add("Face_State_paused", ("Paused", "Tạm dừng"));
+        d.Add("Face_State_paused_Desc", ("Waiting for the music", "Chờ nhạc phát lại"));
+        d.Add("Face_State_sleeping", ("Asleep", "Ngủ"));
+        d.Add("Face_State_sleeping_Desc", ("Late at night, nothing going on", "Đêm khuya, không có gì xảy ra"));
+        d.Add("Face_State_bored", ("Bored", "Chán"));
+        d.Add("Face_State_bored_Desc", ("Nothing playing for a while", "Lâu không có nhạc"));
+        d.Add("Face_State_happy", ("Happy", "Vui"));
+        d.Add("Face_State_happy_Desc", ("Rubbed or double-clicked", "Được xoa hoặc bấm đúp"));
+        d.Add("Face_State_dizzy", ("Dizzy", "Chóng mặt"));
+        d.Add("Face_State_dizzy_Desc", ("Spun with the scroll wheel", "Bị lăn chuột cho xoay vòng"));
+        d.Add("Face_State_sad", ("Worried", "Lo lắng"));
+        d.Add("Face_State_sad_Desc", ("Offline, a hot CPU, or a low battery", "Mất mạng, máy nóng hoặc pin yếu"));
+        d.Add("Face_State_focus", ("Focused", "Tập trung"));
+        d.Add("Face_State_focus_Desc", ("The focus timer is running", "Đang chạy hẹn giờ tập trung"));
+        d.Add("Face_Pic_Choose", ("Choose…", "Chọn ảnh…"));
+        d.Add("Face_Pic_Remove", ("Remove", "Bỏ ảnh"));
+        d.Add("Face_Pic_None", ("No picture", "Chưa có ảnh"));
+        d.Add("Face_Pic_Kind", ("Pick a PNG, JPG, GIF or WebP picture.", "Hãy chọn ảnh PNG, JPG, GIF hoặc WebP."));
+        d.Add("Face_Pic_TooBig", ("That file is over 12 MB; a face needs far less.", "File này hơn 12 MB, cái mặt cần ít hơn nhiều."));
+        d.Add("Face_Pic_Unreadable", ("Windows can't read that picture.", "Windows không đọc được ảnh này."));
+        d.Add("Face_Pic_Filter", ("Pictures", "Ảnh"));
         d.Add("Opt_Player_Full", ("Player and lyrics", "Trình phát và lời bài hát"));
         d.Add("Opt_Player_LyricsOnly", ("Only the lyrics (hide the player)", "Chỉ lời bài hát (ẩn trình phát)"));
         d.Add("Opt_Player_Off", ("Neither, just the progress bar", "Ẩn cả hai, chỉ còn thanh tiến trình"));
@@ -168,6 +209,7 @@ public static partial class Strings
         d.Add("CC_Yesterday", ("Yesterday", "Hôm qua"));
         d.Add("CC_DayMonth", ("M/d", "dd/MM"));
         d.Add("CC_Mute", ("Mute / unmute", "Tắt / bật tiếng"));
+        d.Add("CC_Brightness", ("Screen brightness", "Độ sáng màn hình"));
         d.Add("CC_ChooseOutput", ("Choose a playback device", "Chọn thiết bị phát"));
         d.Add("CC_NoOutput", ("No playback device", "Không có thiết bị phát"));
         d.Add("CC_Outputs", ("Sound output", "Đầu ra âm thanh"));

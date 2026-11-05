@@ -47,6 +47,54 @@ public sealed class LyricLine
     }
 
     static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+    /// <summary>
+    /// How long the line is sung, for karaoke without word timing: its syllables at a singing pace
+    /// (about a third of a second each), never past the next line. Estimated by letters instead, a
+    /// line ran far slower than it is sung, so the fill crept on until the next line and looked late.
+    /// </summary>
+    public TimeSpan Sung
+    {
+        get
+        {
+            _syllables ??= Syllables(Text);
+            double natural = End > Start ? (End - Start).TotalSeconds * 0.95 : double.MaxValue;
+            double estimate = 0.35 + _syllables.Value * 0.32;
+            return TimeSpan.FromSeconds(Math.Max(0.4, Math.Min(natural, estimate)));
+        }
+    }
+
+    int? _syllables;
+
+    /// <summary>
+    /// Syllables, roughly: one per Chinese character, kana or Hangul block, and elsewhere one per
+    /// run of vowels (a Vietnamese word is one syllable, "người" included; English comes out close).
+    /// </summary>
+    public static int Syllables(string text)
+    {
+        int count = 0;
+        bool inVowels = false;
+        foreach (char c in text)
+        {
+            if (c is >= '぀' and <= 'ヿ' or >= '㐀' and <= '䶿' or >= '一' and <= '鿿' or >= '가' and <= '힣')
+            {
+                count++;
+                inVowels = false;
+                continue;
+            }
+            bool vowel = char.IsLetter(c) && IsVowel(c);
+            if (vowel && !inVowels) count++;
+            inVowels = vowel;
+        }
+        return Math.Max(1, count);
+    }
+
+    // The letter without its marks: ơ and ư are o and u, à and ế are a and e.
+    static bool IsVowel(char c)
+    {
+        char bare = char.ToLowerInvariant(c.ToString().Normalize(System.Text.NormalizationForm.FormD)[0]);
+        return bare is 'a' or 'e' or 'i' or 'o' or 'u' or 'y';
+    }
 }
 
 /// <summary>One word of a word-synced line, with any space after it, and when it starts.</summary>

@@ -338,18 +338,16 @@ public sealed class WordStackPresenter : Grid, ILyricsView
 
     /// <summary>
     /// How long line <paramref name="i"/> is actually sung: until its end (the next line's start
-    /// when the end is not usable), capped by a length-based estimate.
+    /// when the end is not usable), at most its syllables' worth.
     /// </summary>
     TimeSpan Cap(int i)
     {
         var lines = _lyrics!.Lines;
         var l = lines[i];
-        var end = l.End > l.Start ? l.End
-            : i + 1 < lines.Count ? lines[i + 1].Start
-            : l.Start + TimeSpan.FromSeconds(6);
+        if (l.End > l.Start) return l.Sung;
+        var end = i + 1 < lines.Count ? lines[i + 1].Start : l.Start + TimeSpan.FromSeconds(6);
         double natural = (end - l.Start).TotalSeconds * 0.95;
-        double estimate = 0.9 + l.Text.Length * 0.17;
-        return TimeSpan.FromSeconds(Math.Max(0.4, Math.Min(natural, estimate)));
+        return TimeSpan.FromSeconds(Math.Max(0.4, Math.Min(natural, l.Sung.TotalSeconds)));
     }
 
     // ------------------------------------------------------------------ slot construction

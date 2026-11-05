@@ -51,6 +51,7 @@ public partial class ControlCenterWindow : Window
             if (IsOpen) RenderNotifications();
         };
         _volumePoll.Tick += (_, _) => SyncVolume();
+        Closed += (_, _) => _brightness.Dispose();
         SourceInitialized += (_, _) =>
         {
             Hwnd = new WindowInteropHelper(this).Handle;
@@ -111,6 +112,7 @@ public partial class ControlCenterWindow : Window
         _fitted = false;
         SetSide(SideKind.None, animate: false);
         SyncVolume();
+        _ = SyncBrightnessAsync();
         SyncOutput();
         RenderTiles();
         RenderNotifications();
@@ -260,6 +262,59 @@ public partial class ControlCenterWindow : Window
         if (notches == 0) return;
         _wheel -= notches * 120;
         VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + notches * 2, 0, 100);
+    }
+
+    // ------------------------------------------------------------------ brightness
+
+    readonly ScreenBrightness _brightness = new();
+    bool _brightnessSyncing;
+    int _brightnessWheel;
+
+    /// <summary>Reads the screen's brightness off the UI thread; the row shows once something can be dimmed.</summary>
+    async System.Threading.Tasks.Task SyncBrightnessAsync()
+    {
+        int token = _token;
+        var monitor = Monitors.All().FirstOrDefault(m => m.Bounds.Same(_monitor))?.Handle ?? IntPtr.Zero;
+        int? level = await _brightness.ReadAsync(monitor);
+        if (token != _token || !IsOpen || BrightnessSlider.IsMouseCaptureWithin) return;
+        var shown = level != null ? Visibility.Visible : Visibility.Collapsed;
+        if (level is int value)
+        {
+            _brightnessSyncing = true;
+            BrightnessSlider.Value = value;
+            _brightnessSyncing = false;
+            ShowBrightness(value);
+        }
+        if (BrightnessRow.Visibility == shown) return;
+        BrightnessRow.Visibility = shown;
+        UpdateLayout();
+        FitToScreen();
+        Place();
+    }
+
+    void ShowBrightness(double value)
+    {
+        BrightnessText.Text = ((int)Math.Round(value)).ToString();
+        // The sun's rays turn a little with the level.
+        BrightnessTurn.Angle = value * 0.9;
+    }
+
+    void Brightness_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_brightnessSyncing) return;
+        _brightness.Set((int)Math.Round(e.NewValue));
+        ShowBrightness(e.NewValue);
+    }
+
+    /// <summary>The wheel over the brightness row: 2 a notch, like the volume.</summary>
+    void Brightness_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+        _brightnessWheel += e.Delta;
+        int notches = _brightnessWheel / 120;
+        if (notches == 0) return;
+        _brightnessWheel -= notches * 120;
+        BrightnessSlider.Value = Math.Clamp(BrightnessSlider.Value + notches * 2, 0, 100);
     }
 
     void Mute_Click(object sender, RoutedEventArgs e)

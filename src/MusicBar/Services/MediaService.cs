@@ -44,6 +44,11 @@ public sealed class MediaService : ObservableObject
     int _mediaRequest;
     int _pollTicks;
     string _trackKey = "";
+    // A browser's new track not taken yet: hovering a video on YouTube plays a preview through the
+    // same media session, and that is no reason to switch songs and lyrics.
+    string _pendingKey = "";
+    DateTime _pendingSince;
+    static readonly TimeSpan BrowserHold = TimeSpan.FromSeconds(2.5);
 
     // Position model: position = anchor + (now - anchorTime) * rate while playing.
     TimeSpan _anchorPos;
@@ -319,6 +324,7 @@ public sealed class MediaService : ObservableObject
         AppIcon = visual.Icon;
         AppColor = visual.Color;
         _trackKey = "";
+        _pendingKey = "";
         _lastTimelinePos = TimeSpan.MinValue;
         HasSession = true;
         UpdatePlaybackInfo();
@@ -390,11 +396,12 @@ public sealed class MediaService : ObservableObject
     {
         var s = _session;
         if (s == null) return;
-        GlobalSystemMediaTransportControlsSessionPlaybackInfo info;
+        GlobalSystemMediaTransportControlsSessionPlaybackInfo? info;
         try { info = s.GetPlaybackInfo(); }
         catch (Exception) { return; }
+        // A session going away answers null rather than failing.
+        if (info?.Controls is not { } c) return;
 
-        var c = info.Controls;
         CanPlayPause = c.IsPlayPauseToggleEnabled || c.IsPlayEnabled || c.IsPauseEnabled;
         CanNext = c.IsNextEnabled;
         CanPrevious = c.IsPreviousEnabled;
@@ -416,9 +423,12 @@ public sealed class MediaService : ObservableObject
     {
         var s = _session;
         if (s == null) return;
-        GlobalSystemMediaTransportControlsSessionTimelineProperties t;
+        // A browser preview's timeline would move the song's playhead.
+        if (_pendingKey.Length > 0 && !force) return;
+        GlobalSystemMediaTransportControlsSessionTimelineProperties? t;
         try { t = s.GetTimelineProperties(); }
         catch (Exception) { return; }
+        if (t == null) return;
 
         _timelineStart = t.StartTime;
         var duration = t.EndTime - t.StartTime;
@@ -459,6 +469,24 @@ public sealed class MediaService : ObservableObject
 
         var key = $"{AppId}\n{title}\n{artist}\n{album}";
         bool trackChanged = key != _trackKey;
+        if (!trackChanged)
+        {
+            // The browser came back to the song before the hold ran out: it was a preview.
+            if (_pendingKey.Length > 0) Log.Info("Browser preview ignored");
+            _pendingKey = "";
+        }
+        else if (_trackKey.Length > 0 && IsBrowser(AppId))
+        {
+            if (key != _pendingKey)
+            {
+                _pendingKey = key;
+                _pendingSince = DateTime.Now;
+                _ = LookAgainAsync(key);
+                return;
+            }
+            if (DateTime.Now - _pendingSince < BrowserHold) return;
+            _pendingKey = "";
+        }
         Title = title;
         Artist = artist;
         Album = album;
@@ -489,6 +517,26 @@ public sealed class MediaService : ObservableObject
             }
         }
     }
+
+    /// <summary>Once the hold is over, takes the browser's new track if it is still the one playing.</summary>
+    async Task LookAgainAsync(string key)
+    {
+        await Task.Delay(BrowserHold + TimeSpan.FromMilliseconds(100));
+        if (_pendingKey == key) await UpdateMediaAsync();
+    }
+
+    /// <summary>Browsers (and their installed web apps), whose one media session follows whatever tab plays last.</summary>
+    static bool IsBrowser(string appId)
+    {
+        var id = appId.ToLowerInvariant();
+        foreach (var name in Browsers)
+            if (id.Contains(name)) return true;
+        return false;
+    }
+
+    // Firefox's AppUserModelId is a hash of its install folder; this is the usual one.
+    static readonly string[] Browsers =
+        ["chrome", "msedge", "firefox", "308046b0af4a39cb", "opera", "brave", "vivaldi", "coccoc", "thorium", "yandex", "floorp", "librewolf"];
 
     static async Task<BitmapSource?> LoadThumbnailAsync(IRandomAccessStreamReference reference)
     {

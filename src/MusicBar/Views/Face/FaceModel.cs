@@ -5,7 +5,8 @@ using System.Windows.Media;
 namespace MusicBar.Views.Face;
 
 /// <summary>The look of the taskbar face. Every set draws the same expressions in its own way.</summary>
-public enum FaceStyle { Classic, ClassicGirl, AnimeGirl, AnimeBoy, Alien, Robot, Cat, Derp }
+/// <summary>The drawn faces, and Custom: the user's own pictures (Services.FacePack).</summary>
+public enum FaceStyle { Classic, ClassicGirl, AnimeGirl, AnimeBoy, Alien, Robot, Cat, Derp, Custom }
 
 /// <summary>What the eyes do. How far the lids are down is separate (<see cref="FaceFrame.LidLeft"/>).</summary>
 public enum EyeShape

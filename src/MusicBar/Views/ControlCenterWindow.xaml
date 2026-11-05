@@ -445,6 +445,28 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel Margin="14,14,14,10">
                     <UniformGrid x:Name="TileGrid" Columns="3" Margin="-4,0,-4,4" />
+                    <!-- Brightness, as Windows' Quick Settings has it: a laptop's own panel, or monitors
+                         that take DDC/CI. Only shown when there is something to dim; the wheel works on it too. -->
+                    <Grid x:Name="BrightnessRow" Background="Transparent" Margin="0,0,0,4" Visibility="Collapsed"
+                          MouseWheel="Brightness_MouseWheel" ToolTip="{l:Tr CC_Brightness}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="36" Height="36">
+                            <TextBlock x:Name="BrightnessGlyph" Text="&#xE706;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform x:Name="BrightnessTurn" />
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Border>
+                        <Slider x:Name="BrightnessSlider" Grid.Column="1" Style="{StaticResource VolumeSlider}" Margin="12,0,10,0"
+                                Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="Brightness_Changed" />
+                        <TextBlock x:Name="BrightnessText" Grid.Column="2" FontSize="13" MinWidth="26" TextAlignment="Right"
+                                   Typography.NumeralAlignment="Tabular" VerticalAlignment="Center" Margin="0,0,4,1" />
+                    </Grid>
                     <!-- The wheel anywhere on the volume row moves the volume. -->
                     <Grid Background="Transparent" MouseWheel="Volume_MouseWheel">
                         <Grid.ColumnDefinitions>

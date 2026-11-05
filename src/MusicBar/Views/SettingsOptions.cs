@@ -89,6 +89,7 @@ public static class SettingsOptions
         new(Face.FaceStyle.Robot, "Face_Robot", "Face_Robot_Desc"),
         new(Face.FaceStyle.Cat, "Face_Cat", "Face_Cat_Desc"),
         new(Face.FaceStyle.Derp, "Face_Derp", "Face_Derp_Desc"),
+        new(Face.FaceStyle.Custom, "Face_Custom", "Face_Custom_Desc"),
     ];
 
     public static IReadOnlyList<Option> FacePlacements { get; } =
@@ -165,6 +166,17 @@ public static class SettingsOptions
         new(SeekStyle.Waveform, "Seek_Waveform", "Seek_Waveform_Desc"),
         new(SeekStyle.Mosaic, "Seek_Mosaic", "Seek_Mosaic_Desc"),
         new(SeekStyle.Classic, "Seek_Classic", "Seek_Classic_Desc"),
+    ];
+
+    /// <summary>The styles that only dance to the music, in their own row of the gallery.</summary>
+    public static IReadOnlyList<SeekStyleOption> Visualizers { get; } =
+    [
+        new(SeekStyle.Equalizer, "Seek_Equalizer", "Seek_Equalizer_Desc"),
+        new(SeekStyle.Horizon, "Seek_Horizon", "Seek_Horizon_Desc"),
+        new(SeekStyle.Oscilloscope, "Seek_Oscilloscope", "Seek_Oscilloscope_Desc"),
+        new(SeekStyle.Aura, "Seek_Aura", "Seek_Aura_Desc"),
+        new(SeekStyle.Fireflies, "Seek_Fireflies", "Seek_Fireflies_Desc"),
+        new(SeekStyle.Led, "Seek_Led", "Seek_Led_Desc"),
     ];
 
     public static IReadOnlyList<Option> LyricEffects { get; } =

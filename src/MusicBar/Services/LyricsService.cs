@@ -390,6 +390,17 @@ public sealed partial class LyricsService
             synced.ToString().TrimEnd('\n'), plain.ToString().Trim('\n'), count, offset);
     }
 
+    /// <summary>
+    /// A song's timing correction in words: plus is later, as the subtitle delay of a video player.
+    /// Inside the file the [offset:] tag keeps LRC's own sense, where plus is earlier.
+    /// </summary>
+    public static string DescribeTiming(int offsetMs)
+    {
+        if (offsetMs == 0) return Loc.T("LyrP_InTime");
+        string amount = (Math.Abs(offsetMs) / 1000.0).ToString("0.00");
+        return Loc.T(offsetMs < 0 ? "LyrP_Late" : "LyrP_Early", amount);
+    }
+
     static TimeSpan? ParseLength(string text)
     {
         var parts = text.Split(':');
@@ -442,7 +453,8 @@ public sealed partial class LyricsService
         {
             trackName = d.Title.Trim(),
             artistName = d.Artist.Trim(),
-            albumName = d.Album.Trim(),
+            // LRCLIB wants an album, which a video often lacks; a single's album is its own name.
+            albumName = d.Album.Trim().Length > 0 ? d.Album.Trim() : d.Title.Trim(),
             duration = Math.Round(d.Duration.TotalSeconds),
             plainLyrics = d.Plain,
             syncedLyrics = d.Synced,
@@ -453,9 +465,31 @@ public sealed partial class LyricsService
         if (!published.IsSuccessStatusCode)
         {
             var reason = await published.Content.ReadAsStringAsync(ct);
-            throw new HttpRequestException($"LRCLIB refused the lyrics ({(int)published.StatusCode}): {reason}", null, published.StatusCode);
+            Log.Error($"LRCLIB refused the lyrics ({(int)published.StatusCode}): {reason}");
+            if ((int)published.StatusCode is >= 400 and < 500 and not 429) throw new RefusedException(ReasonOf(reason));
+            throw new HttpRequestException($"LRCLIB refused the lyrics ({(int)published.StatusCode})", null, published.StatusCode);
         }
         Log.Info($"Lyrics shared on LRCLIB: '{d.Artist} - {d.Title}' ({d.Lines} lines, offset {d.OffsetMs} ms folded in)");
+    }
+
+    /// <summary>LRCLIB turned the lyrics down and said why (its own words, in English).</summary>
+    public sealed class RefusedException(string reason) : Exception(reason)
+    {
+        public string Reason { get; } = reason;
+    }
+
+    /// <summary>The message of an LRCLIB error ({"message": "...", "name": "..."}), or the raw text.</summary>
+    static string ReasonOf(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("message", out var m) && m.GetString() is { Length: > 0 } message) return message;
+        }
+        catch (JsonException)
+        {
+        }
+        return body.Length > 160 ? body[..160] + "…" : body;
     }
 
     /// <summary>The proof of work: the first number (on any core) whose hash after the prefix is at most the target.</summary>

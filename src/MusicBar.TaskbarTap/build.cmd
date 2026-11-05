@@ -16,7 +16,7 @@ call "%VCVARS%" >nul 2>nul || exit /b 1
 
 cl /nologo /std:c++17 /EHsc /O2 /W3 /MT /LD /DUNICODE /D_UNICODE "%~dp0TaskbarTap.cpp" ^
    /Fo"%OUT%\\" /Fe"%OUT%\MusicBar.TaskbarTap.dll" ^
-   /link /DEF:"%~dp0TaskbarTap.def" ole32.lib oleaut32.lib user32.lib || exit /b 1
+   /link /DEF:"%~dp0TaskbarTap.def" ole32.lib oleaut32.lib user32.lib advapi32.lib || exit /b 1
 del "%OUT%\MusicBar.TaskbarTap.exp" "%OUT%\MusicBar.TaskbarTap.lib" "%OUT%\TaskbarTap.obj" 2>nul
 exit /b 0
 

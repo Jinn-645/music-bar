@@ -286,6 +286,11 @@ public partial class WidgetWindow : Window
         Put(CoverButton, 1);
         Put(ControlsShell, _anchorEnd ? 2 : 0);
 
+        // The track across the taskbar fills the pill, so cover and buttons sit in its middle; left
+        // to size itself, it kept to the content's height and pushed everything up on a 48 px taskbar.
+        PillGrid.RowDefinitions[0].Height = _vertical ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        PillGrid.ColumnDefinitions[0].Width = _vertical ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+
         var end = _anchorEnd;
         Pill.HorizontalAlignment = _vertical ? HorizontalAlignment.Stretch : end ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         Pill.VerticalAlignment = !_vertical ? VerticalAlignment.Stretch : end ? VerticalAlignment.Bottom : VerticalAlignment.Top;

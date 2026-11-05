@@ -69,6 +69,8 @@ static class Program
                 switch (args[0])
                 {
                     case "seek": Seek(args); break;
+            case "looks": await Looks(args); break;
+            case "settingsscroll": await SettingsScroll(args); break;
                     case "lyrics": await Lyrics(args); break;
                     case "panel": await Panel(args); break;
                     case "assets": Assets(args); break;
@@ -140,6 +142,160 @@ static class Program
         using var file = File.Create(path);
         encoder.Save(file);
     }
+
+    // ---------------------------------------------------------------- visualizers and skins
+
+    /// <summary>
+    /// looks &lt;out.png&gt; &lt;scale&gt; [skin.hlsl ...]: a sheet of the visualizers, each after two
+    /// seconds of made-up music, then each skin given. The visualizers are drawn offscreen; a
+    /// skin's shader only runs on the graphics card, so the skins are shown in a window off the
+    /// screen and grabbed from it with PrintWindow.
+    /// </summary>
+    static async Task Looks(string[] a)
+    {
+        string outPath = Path.GetFullPath(a[1]);
+        double scale = D(a[2]);
+        const double w = 960, h = 40, rowH = 60, labelW = 150;
+        Color ca = C("#FF5F6D"), cb = C("#47A9FF"), cc = C("#FFC371");
+        var rows = new List<(string Label, BitmapSource Image)>();
+
+        foreach (var style in new[] { SeekStyle.Equalizer, SeekStyle.Horizon, SeekStyle.Oscilloscope, SeekStyle.Aura, SeekStyle.Fireflies, SeekStyle.Led, SeekStyle.Spectrum })
+        {
+            double time = 0;
+            var seek = new SeekRenderer { Look = style, Intensity = 0.6, Width = w, Height = h, Clock = () => time };
+            seek.SetEdge(true);
+            seek.SetColors(ca, cb, animate: false, cc);
+            var stage = Stage(seek, w, h);
+            stage.UpdateLayout();
+            for (int i = 0; i < 120; i++)
+            {
+                time = 10 + i / 60.0;
+                seek.SetState(0.6, timeline: true, playing: true);
+                seek.Tick();
+            }
+            seek.InvalidateVisual();
+            rows.Add((style.ToString(), Snap(seek, scale)));
+            stage.Close();
+        }
+
+        foreach (var path in a.Skip(3))
+        {
+            var skin = SkinLibrary.Load(Path.GetFileName(path)) ?? throw new FileNotFoundException("Copy the skin into the Skins folder first", path);
+            double time = 0;
+            var engine = new SeekRenderer { Look = skin.Visualizer ? SeekStyle.Equalizer : SeekStyle.Classic, Skinned = true, Visibility = Visibility.Hidden, Clock = () => time };
+            engine.SetEdge(true);
+            engine.SetColors(ca, cb, animate: false, cc);
+            var view = new SkinView();
+            view.SetSkin(skin);
+            var grid = new Grid { Width = w, Height = h, Background = new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0F)) };
+            grid.Children.Add(engine);
+            grid.Children.Add(view);
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
+                Left = -20000, Top = -20000, SizeToContent = SizeToContent.WidthAndHeight, Content = grid,
+            };
+            window.Show();
+            for (int i = 0; i < 120; i++)
+            {
+                time = 10 + i / 60.0;
+                engine.SetState(0.6, timeline: true, playing: true);
+                engine.Tick();
+                view.Update(engine);
+            }
+            for (int i = 0; i < 20; i++)
+            {
+                time += 1 / 60.0;
+                engine.Tick();
+                view.Update(engine);
+                await Task.Delay(100);
+            }
+            rows.Add((skin.Name, Grab(window, scale)));
+            window.Close();
+        }
+
+        var sheet = new DrawingVisual();
+        using (var dc = sheet.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x1B, 0x1C, 0x21)), null, new Rect(0, 0, labelW + w + 20, rowH * rows.Count));
+            var face = new Typeface("Segoe UI");
+            for (int i = 0; i < rows.Count; i++)
+            {
+                double y = rowH * i + (rowH - h) / 2;
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0F)), null, new Rect(labelW, y, w, h));
+                dc.DrawImage(rows[i].Image, new Rect(labelW, y, w, h));
+                dc.DrawText(new FormattedText(rows[i].Label, Inv, FlowDirection.LeftToRight, face, 14, Brushes.White, 1.0), new Point(14, rowH * i + rowH / 2 - 10));
+            }
+        }
+        var rtb = new RenderTargetBitmap((int)((labelW + w + 20) * scale), (int)(rowH * rows.Count * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        rtb.Render(sheet);
+        SavePng(rtb, outPath);
+        Console.WriteLine($"{rows.Count} looks → {outPath}");
+    }
+
+    /// <summary>
+    /// settingsscroll &lt;out-dir&gt; &lt;language&gt; &lt;scale&gt; &lt;page&gt; &lt;offset&gt;...: one settings page
+    /// scrolled to each offset, in a window off the screen grabbed from the graphics card (so the
+    /// skins' shaders show too).
+    /// </summary>
+    static async Task SettingsScroll(string[] a)
+    {
+        string outDir = Directory.CreateDirectory(a[1]).FullName;
+        var language = Enum.Parse<AppLanguage>(a[2], true);
+        double scale = D(a[3]);
+        int page = int.Parse(a[4], Inv);
+        var settings = new AppSettings { Language = language };
+        MusicBar.Infrastructure.Loc.Instance.Language = language;
+        var window = new SettingsWindow(settings, new MediaService(settings), new LyricsService(settings))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000, Width = 1100, Height = 1000,
+            ShowActivated = false,
+        };
+        window.Show();
+        window.Page = page;
+        await Task.Delay(800);
+        var scroller = (ScrollViewer)window.FindName("PageScroll");
+        foreach (var offset in a.Skip(5).Select(D))
+        {
+            scroller.ScrollToVerticalOffset(offset);
+            await Task.Delay(900);
+            SavePng(Grab(window, scale), Path.Combine(outDir, $"page{page}-{offset:0}.png"));
+        }
+        window.Close();
+        Console.WriteLine($"page {page} → {outDir}");
+    }
+
+    /// <summary>What a window shows on the graphics card, as Windows composes it (PrintWindow with full content).</summary>
+    static BitmapSource Grab(Window window, double scale)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        GetWindowRect(hwnd, out var r);
+        int pw = r.Right - r.Left, ph = r.Bottom - r.Top;
+        var screen = GetDC(IntPtr.Zero);
+        var memory = CreateCompatibleDC(screen);
+        var bitmap = CreateCompatibleBitmap(screen, pw, ph);
+        var old = SelectObject(memory, bitmap);
+        PrintWindow(hwnd, memory, 2);
+        SelectObject(memory, old);
+        var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(bitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+        DeleteObject(bitmap);
+        DeleteDC(memory);
+        ReleaseDC(IntPtr.Zero, screen);
+        source.Freeze();
+        return source;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    struct WinRect { public int Left, Top, Right, Bottom; }
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out WinRect rect);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr dc, uint flags);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr hwnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr dc);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleBitmap(IntPtr dc, int w, int h);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr obj);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr dc);
 
     // ---------------------------------------------------------------- seekbar
 

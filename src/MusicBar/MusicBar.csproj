@@ -14,7 +14,7 @@
     <RootNamespace>MusicBar</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\MusicBar.ico</ApplicationIcon>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <Product>MusicBar</Product>
     <Description>Full-width music bar with seekbar and synced lyrics</Description>
     <!-- WPF0001: Fluent ThemeMode is still flagged experimental.
@@ -29,6 +29,8 @@
     <None Include="Assets\Fonts\licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Pinyin readings for the romanizer, from the Unicode Unihan database (kMandarin); its license ships too. -->
     <EmbeddedResource Include="Assets\Data\pinyin.txt.gz" LogicalName="MusicBar.pinyin.txt.gz" />
+    <!-- The sample skins (repo's skins folder), written out when the user asks for them. -->
+    <EmbeddedResource Include="..\..\skins\*.hlsl" LogicalName="MusicBar.Skins.%(Filename)%(Extension)" Visible="false" />
     <None Include="Assets\Data\licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -44,9 +46,11 @@
     <EmbeddedResource Include="$(TaskbarTapOut)\MusicBar.TaskbarTap.dll" LogicalName="MusicBar.TaskbarTap.dll" Visible="false" />
   </ItemGroup>
 
-  <Target Name="BuildTaskbarTap" BeforeTargets="PrepareForBuild"
-          Inputs="$(TaskbarTapSource)TaskbarTap.cpp;$(TaskbarTapSource)TaskbarTap.def;$(TaskbarTapSource)build.cmd"
-          Outputs="$(TaskbarTapOut)\MusicBar.TaskbarTap.dll">
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="10.0.14" />
+  </ItemGroup>
+
+  <Target Name="BuildTaskbarTap" BeforeTargets="PrepareForBuild" Inputs="$(TaskbarTapSource)TaskbarTap.cpp;$(TaskbarTapSource)TaskbarTap.def;$(TaskbarTapSource)build.cmd" Outputs="$(TaskbarTapOut)\MusicBar.TaskbarTap.dll">
     <Exec Command="&quot;$(TaskbarTapSource)build.cmd&quot; &quot;$(TaskbarTapOut)&quot;" />
   </Target>
 

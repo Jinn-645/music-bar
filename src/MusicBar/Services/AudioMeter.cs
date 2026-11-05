@@ -15,11 +15,17 @@ public sealed class AudioMeter : IDisposable
 {
     public const int BandCount = 48;
 
+    /// <summary>Points of the waveform the visualizers draw (the latest ~20 ms, -1 to 1, gain-levelled).</summary>
+    public const int WaveCount = 256;
+
     readonly object _gate = new();
     readonly float[] _bands = new float[BandCount];
     readonly float[] _published = new float[BandCount];
+    readonly float[] _wave = new float[WaveCount];
+    readonly float[] _publishedWave = new float[WaveCount];
     float _level;
     float _publishedLevel;
+    float _beat, _publishedBeat;
     Thread? _thread;
     volatile bool _run;
     // Bumped on every start: a capture thread from an earlier start ends even if capture was turned straight back on.
@@ -41,6 +47,20 @@ public sealed class AudioMeter : IDisposable
         lock (_gate) Array.Copy(_published, destination, Math.Min(destination.Length, BandCount));
     }
 
+    public void CopyWave(float[] destination)
+    {
+        lock (_gate) Array.Copy(_publishedWave, destination, Math.Min(destination.Length, WaveCount));
+    }
+
+    /// <summary>A kick or a strong onset just now: 1 on the hit, falling away over a quarter second.</summary>
+    public float Beat
+    {
+        get
+        {
+            lock (_gate) return _publishedBeat;
+        }
+    }
+
     public void SetActive(bool active)
     {
         if (active == _run) return;
@@ -48,7 +68,8 @@ public sealed class AudioMeter : IDisposable
         if (active)
         {
             int generation = ++_generation;
-            _thread = new Thread(() => Loop(generation)) { IsBackground = true, Name = "MusicBar.AudioMeter", Priority = ThreadPriority.BelowNormal };
+            // Light work every few milliseconds; below normal, a busy machine kept it waiting and the bars lagged the beat.
+            _thread = new Thread(() => Loop(generation)) { IsBackground = true, Name = "MusicBar.AudioMeter", Priority = ThreadPriority.AboveNormal };
             _thread.Start();
         }
         else
@@ -57,7 +78,9 @@ public sealed class AudioMeter : IDisposable
             lock (_gate)
             {
                 Array.Clear(_published);
+                Array.Clear(_publishedWave);
                 _publishedLevel = 0;
+                _publishedBeat = 0;
             }
         }
     }
@@ -145,7 +168,7 @@ public sealed class AudioMeter : IDisposable
 
             while (_run && generation == _generation)
             {
-                Thread.Sleep(10);
+                Thread.Sleep(5);
                 bool gotData = false;
                 while (true)
                 {
@@ -180,14 +203,17 @@ public sealed class AudioMeter : IDisposable
                 {
                     sinceAnalysis = 0;
                     quietTicks = 0;
-                    analyzer.Run(ring, ringPos, _bands, ref _level);
+                    analyzer.Run(ring, ringPos, _bands, ref _level, ref _beat);
+                    analyzer.Wave(ring, ringPos, sampleRate, _wave);
                     Publish();
                 }
                 else if (!gotData && ++quietTicks > 5)
                 {
                     // Nothing is rendering: let the visuals settle down.
                     for (int b = 0; b < BandCount; b++) _bands[b] *= 0.85f;
+                    for (int w = 0; w < WaveCount; w++) _wave[w] *= 0.8f;
                     _level *= 0.85f;
+                    _beat *= 0.8f;
                     Publish();
                 }
             }
@@ -211,7 +237,9 @@ public sealed class AudioMeter : IDisposable
         lock (_gate)
         {
             Array.Copy(_bands, _published, BandCount);
+            Array.Copy(_wave, _publishedWave, WaveCount);
             _publishedLevel = _level;
+            _publishedBeat = _beat;
         }
     }
 
@@ -244,9 +272,16 @@ public sealed class AudioMeter : IDisposable
         readonly int[] _bandHi = new int[BandCount];
         float _peakDb = -40;
         float _peakLevelDb = -30;
+        // Beats: the bass against its own recent average, and the time since the last one.
+        readonly float _hopSeconds;
+        float _bassAverage = 1e-4f;
+        float _sinceBeat = 1;
+        // The waveform's recent peak, so a quiet song draws as tall as a loud one.
+        float _wavePeak = 0.05f;
 
         public Analyzer(int sampleRate)
         {
+            _hopSeconds = Math.Max(256, sampleRate / 90) / (float)sampleRate;
             _n = 1024;
             while (_n < sampleRate / 45 && _n < 8192) _n <<= 1;
             _window = new float[_n];
@@ -266,7 +301,7 @@ public sealed class AudioMeter : IDisposable
 
         public int Size => _n;
 
-        public void Run(float[] ring, int start, float[] bands, ref float level)
+        public void Run(float[] ring, int start, float[] bands, ref float level, ref float beat)
         {
             double sumSquares = 0;
             for (int i = 0; i < _n; i++)
@@ -302,6 +337,57 @@ public sealed class AudioMeter : IDisposable
             _peakLevelDb = MathF.Max(levelDb, MathF.Max(_peakLevelDb - 0.05f, -38));
             float lv = Math.Clamp((levelDb - (_peakLevelDb - LevelRange)) / LevelRange, 0, 1);
             level += (lv - level) * (lv > level ? 0.5f : 0.12f);
+
+            // A beat: the low end (to about 150 Hz) jumps well above where it has been lately,
+            // and not too soon after the last one. The average follows over about a second.
+            float bass = 0;
+            for (int b = 0; b < 10; b++)
+                for (int k = _bandLo[b]; k < _bandHi[b]; k++)
+                    bass += _re[k] * _re[k] + _im[k] * _im[k];
+            _sinceBeat += _hopSeconds;
+            bool hit = bass > _bassAverage * 1.45f && bass > 1e-5f * _n && _sinceBeat > 0.18f;
+            _bassAverage += (bass - _bassAverage) * Math.Min(1, _hopSeconds * 1.2f);
+            if (hit)
+            {
+                beat = 1;
+                _sinceBeat = 0;
+            }
+            else
+            {
+                beat *= MathF.Exp(-_hopSeconds / 0.12f);
+            }
+        }
+
+        /// <summary>
+        /// The latest stretch of sound as <see cref="WaveCount"/> points, starting where it rises
+        /// through zero so the trace stands still instead of jittering, and levelled to its recent peak.
+        /// </summary>
+        public void Wave(float[] ring, int end, int sampleRate, float[] wave)
+        {
+            int span = Math.Clamp(sampleRate / 50, WaveCount, ring.Length / 3);
+            int from = end - 2 * span;
+            int start = from;
+            for (int i = 1; i < span; i++)
+            {
+                float a = ring[Wrap(from + i - 1)], b = ring[Wrap(from + i)];
+                if (a < 0 && b >= 0)
+                {
+                    start = from + i;
+                    break;
+                }
+            }
+            float peak = 0;
+            for (int p = 0; p < WaveCount; p++)
+            {
+                float s = ring[Wrap(start + (int)((long)p * span / WaveCount))];
+                wave[p] = s;
+                peak = MathF.Max(peak, MathF.Abs(s));
+            }
+            _wavePeak = MathF.Max(peak, MathF.Max(_wavePeak * 0.985f, 0.02f));
+            float gain = 0.92f / _wavePeak;
+            for (int p = 0; p < WaveCount; p++) wave[p] = Math.Clamp(wave[p] * gain, -1, 1);
+
+            int Wrap(int i) => ((i % ring.Length) + ring.Length) % ring.Length;
         }
 
         static void Fft(float[] re, float[] im)

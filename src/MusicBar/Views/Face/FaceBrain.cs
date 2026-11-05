@@ -129,6 +129,25 @@ public sealed class FaceBrain
     /// <summary>Asleep and left alone: nothing moves fast, so the face can be drawn less often.</summary>
     public bool Calm => _mood == Mood.Asleep && _act == null && _rub < 0.05 && _dizzy < 0.05;
 
+    /// <summary>
+    /// How it feels, as one of the states a face made of pictures has a picture for (Services.FacePack):
+    /// being rubbed or spun wins over everything, then a computer in trouble, then the focus timer,
+    /// then the mood.
+    /// </summary>
+    public string Expression =>
+        _dizzy > 0.25 ? "dizzy"
+        : _rub > 0.2 || _laughing ? "happy"
+        : _mood != Mood.Asleep && (_online == false || _hot || (_charging == false && _battery is >= 0 and <= 15)) ? "sad"
+        : _focus == Services.FocusPhase.Focus && _mood is Mood.Idle or Mood.Bored ? "focus"
+        : _mood switch
+        {
+            Mood.Vibing => "playing",
+            Mood.Waiting => "paused",
+            Mood.Asleep => "sleeping",
+            Mood.Bored => "bored",
+            _ => "idle",
+        };
+
     // ------------------------------------------------------------------ the tick
 
     public void Tick(double now, double dt, FaceSenses s)

@@ -61,6 +61,9 @@ public static class SystemSense
         }
     }
 
+    /// <summary>A laptop running on its battery right now.</summary>
+    public static bool OnBattery => GetSystemPowerStatus(out var p) && p.ACLineStatus == 0;
+
     static bool? Charging(out int battery)
     {
         battery = -1;

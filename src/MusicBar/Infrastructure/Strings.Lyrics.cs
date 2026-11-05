@@ -30,9 +30,11 @@ public static partial class Strings
         d.Add("LyrP_NoWords", ("No words", "Không lời"));
         d.Add("LyrP_Earlier", ("Lyrics earlier (0.25 s)", "Lyrics sớm hơn (0,25 giây)"));
         d.Add("LyrP_Later", ("Lyrics later (0.25 s)", "Lyrics muộn hơn (0,25 giây)"));
-        d.Add("LyrP_OffsetTip", ("Click to reset. The scroll wheel over the lyrics on the taskbar moves them too.", "Bấm để đặt lại. Lăn chuột trên lyrics ở taskbar cũng chỉnh được."));
+        d.Add("LyrP_OffsetTip", ("Click to reset. Hold a button to keep moving. The scroll wheel over the lyrics on the taskbar moves them too.", "Bấm để đặt lại. Nhấn giữ nút để chỉnh liên tục. Lăn chuột trên lyrics ở taskbar cũng chỉnh được."));
         d.Add("LyrP_InTime", ("On time", "Đúng nhịp"));
-        d.Add("LyrP_Offset", ("Moved {0} s", "Lệch {0} giây"));
+        // Plus is later, as the delay of subtitles in a video player.
+        d.Add("LyrP_Late", ("Lyrics later +{0} s", "Lời trễ +{0} giây"));
+        d.Add("LyrP_Early", ("Lyrics earlier −{0} s", "Lời sớm −{0} giây"));
         d.Add("LyrP_Romanize", ("Romanization", "Phiên âm"));
 
         d.Add("LyrP_From", ("{0} · lyrics from {1}", "{0} · lời từ {1}"));
@@ -49,13 +51,14 @@ public static partial class Strings
         d.Add("LyrS_Artist", ("Artist", "Ca sĩ"));
         d.Add("LyrS_Album", ("Album (leave empty if unsure)", "Album (không rõ thì để trống)"));
         d.Add("LyrS_Facts", ("{0} timed lines · length {1}", "{0} dòng có thời gian · dài {1}"));
-        d.Add("LyrS_FactsOffset", ("{0} timed lines · length {1} · your {2} s correction is folded into the times", "{0} dòng có thời gian · dài {1} · độ lệch {2} giây bạn chỉnh đã được cộng vào"));
+        d.Add("LyrS_FactsOffset", ("{0} timed lines · length {1} · your correction ({2}) is folded into the times", "{0} dòng có thời gian · dài {1} · phần bạn chỉnh ({2}) đã được tính vào thời gian"));
         d.Add("LyrS_Send", ("Send", "Gửi"));
         d.Add("LyrS_Stage_challenge", ("Asking LRCLIB…", "Đang hỏi LRCLIB…"));
         d.Add("LyrS_Stage_solving", ("Solving LRCLIB's anti-spam puzzle (a few seconds)…", "Đang giải bài toán chống spam của LRCLIB (vài giây)…"));
         d.Add("LyrS_Stage_sending", ("Sending…", "Đang gửi…"));
         d.Add("LyrS_Done", ("Sent, thank you! LRCLIB may take up to a day to show the new version everywhere.", "Gửi xong, cảm ơn bạn! LRCLIB có thể mất tới 1 ngày để bản mới hiện ở mọi nơi."));
         d.Add("LyrS_Failed", ("LRCLIB didn't take it. Check the connection and try again later.", "LRCLIB chưa nhận. Kiểm tra mạng rồi thử lại sau nhé."));
+        d.Add("LyrS_Refused", ("LRCLIB refused it: {0}", "LRCLIB không nhận: {0}"));
         d.Add("LyrS_NeedName", ("Fill in the song and the artist.", "Điền tên bài và ca sĩ."));
         d.Add("LyrS_NeedLength", ("The song's length isn't known; play it in a player that reports it.", "Chưa biết độ dài bài; phát bài bằng trình phát có báo độ dài."));
         d.Add("LyrS_TooFew", ("Too few timed lines to be the whole song.", "Ít dòng có thời gian quá, chưa giống cả bài."));

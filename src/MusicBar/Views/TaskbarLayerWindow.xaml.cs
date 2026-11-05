@@ -76,23 +76,36 @@ public partial class TaskbarLayerWindow : Window
                 break;
         }
 
+        _s = s;
         Seek.Look = s.SeekStyle;
         Seek.Direction = s.SeekDirection;
         Seek.IdleMotion = s.SeekIdleMotion;
         Seek.Intensity = over ? Math.Min(s.FillOpacity, OverFillCap) : s.FillOpacity;
+
+        // A skin that compiled paints instead of the style; one that didn't leaves the style on.
+        var skin = s.Skin.Length > 0 ? SkinLibrary.Load(s.Skin) : null;
+        bool skinned = skin is { Works: true };
+        SkinHost.SetSkin(skinned ? skin : null);
+        SkinHost.Visibility = skinned ? Visibility.Visible : Visibility.Collapsed;
+        Seek.Visibility = skinned ? Visibility.Hidden : Visibility.Visible;
+        Seek.Skinned = skinned;
 
         // The seekbar always draws along its own x axis with the desktop-facing edge at its top
         // or bottom. On a vertical taskbar it is turned a quarter left, so it runs bottom to top
         // and its top lies along the taskbar's left side.
         bool vertical = edge is TaskbarEdge.Left or TaskbarEdge.Right;
         if (vertical != Seek.LayoutTransform is RotateTransform)
+        {
             Seek.LayoutTransform = vertical ? new RotateTransform(-90) : Transform.Identity;
+            SkinHost.LayoutTransform = vertical ? new RotateTransform(-90) : Transform.Identity;
+        }
         Seek.SetEdge(edge is TaskbarEdge.Bottom or TaskbarEdge.Right);
         _tintBrush.StartPoint = vertical ? new Point(0.5, 1) : new Point(0, 0.5);
         _tintBrush.EndPoint = vertical ? new Point(0.5, 0) : new Point(1, 0.5);
         SetColors(_primary, _secondary, animate: false);
     }
 
+    /// <summary>The song's colors: the background's tint takes them, and the style too unless it keeps colors of its own.</summary>
     public void SetColors(Color primary, Color secondary, bool animate)
     {
         _primary = primary;
@@ -100,8 +113,11 @@ public partial class TaskbarLayerWindow : Window
         var d = animate ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
         AnimateColor(_tint0, ColorUtil.WithAlpha(ColorUtil.Lerp(_base, secondary, 0.24), _surfaceOpacity), d);
         AnimateColor(_tint1, ColorUtil.WithAlpha(ColorUtil.Lerp(_base, primary, 0.14), _surfaceOpacity), d);
-        Seek.SetColors(primary, secondary, animate);
+        if (_s != null && StylePalettes.For(_s) is { } own) Seek.SetColors(own.A, own.B, animate, own.C);
+        else Seek.SetColors(primary, secondary, animate);
     }
+
+    AppSettings? _s;
 
     static void AnimateColor(GradientStop stop, Color to, TimeSpan duration)
     {
@@ -122,12 +138,20 @@ public partial class TaskbarLayerWindow : Window
     public void SetTrack(string key) => Seek.SetTrack(key);
 
     /// <summary>Quiet zones in the seekbar's own units: along its run, which on a vertical taskbar starts at the bottom.</summary>
-    public void SetQuietZones(System.Collections.Generic.IReadOnlyList<(double Left, double Right)> zones) => Seek.SetQuietZones(zones);
+    public void SetQuietZones(System.Collections.Generic.IReadOnlyList<(double Left, double Right)> zones)
+    {
+        Seek.SetQuietZones(zones);
+        SkinHost.OpacityMask = Seek.QuietMaskFor(Seek.ActualWidth);
+    }
 
     /// <summary>Called every frame by the overlay.</summary>
     public void SetProgress(double fraction, bool hasTimeline, bool playing)
     {
         Seek.SetState(fraction, hasTimeline, playing);
         Seek.Tick();
+        if (Seek.Skinned) SkinHost.Update(Seek);
     }
+
+    /// <summary>A skin is on: it wants a frame for every display frame, like the visualizers.</summary>
+    public bool Skinned => Seek.Skinned;
 }

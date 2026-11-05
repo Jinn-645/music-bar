@@ -36,7 +36,8 @@ public static class FaceProps
         if (o.Timer is double left) DrawTimer(dc, fit, left, o.TimerBreak);
     }
 
-    static Fit FitFor(FaceStyle style) => (uint)style < (uint)Fits.Length ? Fits[(int)style] : Fits[0];
+    // The picture face (Custom) has no fit of its own: drawn as the classic face until it has pictures.
+    static Fit FitFor(FaceStyle style) => (uint)style < (uint)Fits.Length && style != FaceStyle.Custom ? Fits[(int)style] : Fits[0];
 
     // ------------------------------------------------------------------ shared paint
 

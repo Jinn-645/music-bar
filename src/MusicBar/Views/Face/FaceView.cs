@@ -101,12 +101,46 @@ public sealed class FaceView : FrameworkElement
         m.Translate((w - 100 * unit) / 2, (h - 72 * unit) / 2);
         dc.PushTransform(new MatrixTransform(m));
         var frame = _rig.Frame(now, Accent, Ink, _level);
+        if (_style == FaceStyle.Custom && Pack?.For(Brain.Expression) is { } clip)
+        {
+            DrawPicture(dc, clip, now);
+            FacePainters.DrawExtras(dc, frame);
+            dc.Pop();
+            return;
+        }
         var outfit = Outfit with { Mic = _rig.MicAmount };
         FaceProps.DrawBehind(dc, _style, frame, outfit);
         _painter.Draw(dc, frame);
         FaceProps.DrawFront(dc, _style, frame, outfit);
         FacePainters.DrawExtras(dc, frame);
         dc.Pop();
+    }
+
+    /// <summary>The user's pictures, for <see cref="FaceStyle.Custom"/>.</summary>
+    public Services.FacePack? Pack { get; set; }
+
+    string _expression = "";
+    double _expressionSince;
+
+    /// <summary>
+    /// The state's picture, standing on the chin line like the drawn faces and moving with them (the
+    /// rig's squash, hop and tilt are already on the transform). An animation starts over when the
+    /// state changes, so a reaction plays from its beginning.
+    /// </summary>
+    void DrawPicture(DrawingContext dc, Services.FacePack.Clip clip, double now)
+    {
+        var expression = Brain.Expression;
+        if (expression != _expression)
+        {
+            _expression = expression;
+            _expressionSince = now;
+        }
+        var image = clip.At(now - _expressionSince);
+        // The drawn faces fill about 100 x 72 units and stand on y = 72; the picture fits a little larger box.
+        const double boxW = 108, boxH = 80, floor = 74;
+        double k = Math.Min(boxW / image.PixelWidth, boxH / image.PixelHeight);
+        double pw = image.PixelWidth * k, ph = image.PixelHeight * k;
+        dc.DrawImage(image, new Rect(50 - pw / 2, floor - ph, pw, ph));
     }
 
     // ------------------------------------------------------------------ hands on
