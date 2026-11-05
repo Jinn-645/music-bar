@@ -41,6 +41,7 @@ public static partial class Strings
         d.Add("LyrP_FromFile", ("your file", "file của bạn"));
         d.Add("LyrP_NetEaseNone", ("NetEase has no synced lyrics for that one. Try another result.", "NetEase không có lời chạy theo nhạc cho bài này. Thử kết quả khác."));
         d.Add("LyrSt_NetEase", ("downloaded from NetEase", "tải từ NetEase"));
+        d.Add("LyrSt_YouTube", ("from YouTube captions", "từ phụ đề YouTube"));
 
         // ---- sharing on LRCLIB
         d.Add("LyrS_Link", ("Share on LRCLIB", "Gửi lên LRCLIB"));

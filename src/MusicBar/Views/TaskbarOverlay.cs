@@ -1508,6 +1508,7 @@ public sealed class TaskbarOverlay : IDisposable, ILyricsHost
         {
             "LRCLIB" => Loc.T("LyrSt_Downloaded"),
             "NetEase" => Loc.T("LyrSt_NetEase"),
+            "YouTube captions" => Loc.T("LyrSt_YouTube"),
             "demo" => Loc.T("LyrSt_Demo"),
             _ => Loc.T("LyrSt_Cached"),
         },

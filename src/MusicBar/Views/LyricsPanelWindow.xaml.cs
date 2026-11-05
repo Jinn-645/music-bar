@@ -183,7 +183,7 @@ public partial class LyricsPanelWindow : Window
         var media = _host.Media;
         SongTitle.Text = media.Title.Length > 0 ? media.Title : media.AppName;
         // Where the lyrics came from, after the artist.
-        var from = LyricsService.OriginOf(_host.Lyrics) is { } origin ? origin == "file" ? Loc.T("LyrP_FromFile") : origin : null;
+        var from = LyricsService.OriginOf(_host.Lyrics) is { } origin ? origin == "file" ? Loc.T("LyrP_FromFile") : origin : _host.Lyrics?.Source;
         SongArtist.Text = from == null || _host.Lyrics?.Lyrics == null ? media.Artist : Loc.T("LyrP_From", media.Artist, from);
         ShareLink.Visibility = _host.LyricsSource.DraftFor(_host.Lyrics, _host.CurrentQuery()) != null ? Visibility.Visible : Visibility.Collapsed;
         CoverBrush.ImageSource = media.Thumbnail;
