@@ -61,6 +61,7 @@ public sealed class YouTubeCaptionBridge : IDisposable
             if (context.Request.Url?.AbsolutePath != "/caption") { context.Response.StatusCode = 404; return; }
             context.Response.Headers["Access-Control-Allow-Origin"] = "*";
             context.Response.Headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
+            context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
             if (context.Request.HttpMethod == "OPTIONS") { context.Response.StatusCode = 204; return; }
             if (context.Request.HttpMethod != "POST") { context.Response.StatusCode = 405; return; }
             using var doc = await JsonDocument.ParseAsync(context.Request.InputStream, cancellationToken: ct);
